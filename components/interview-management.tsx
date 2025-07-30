@@ -49,6 +49,7 @@ import {
   Filter,
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
+import { EnhancedCalendar } from "@/components/ui/enhanced-calendar"
 
 interface Interview {
   id: string
@@ -533,21 +534,13 @@ export function InterviewManagement({ onScheduleInterview }: InterviewManagement
         </TabsContent>
 
         <TabsContent value="calendar" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Interview Calendar</CardTitle>
-              <CardDescription>
-                View interviews in a calendar format
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-8 text-gray-500">
-                Calendar view implementation would go here
-                <br />
-                <small>This would integrate with a calendar library like FullCalendar or similar</small>
-              </div>
-            </CardContent>
-          </Card>
+          <EnhancedCalendar 
+            interviews={interviews}
+            onInterviewClick={(interview) => {
+              // Handle interview click if needed
+              console.log('Interview clicked:', interview)
+            }}
+          />
         </TabsContent>
       </Tabs>
 

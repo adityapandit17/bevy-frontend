@@ -30,6 +30,7 @@ import {
 } from "lucide-react"
 import { LeaveRequestForm } from "@/components/forms/leave-request-form"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { format } from "date-fns"
 
 export default function AttendanceLeavePage() {
   const [date, setDate] = useState<Date | undefined>(new Date())
@@ -164,6 +165,24 @@ export default function AttendanceLeavePage() {
     fetchAttendance()
   }
 
+  // Filter attendance by selected date
+  const filteredAttendance = date
+    ? todayAttendance.filter((record) => {
+        // Assume record.date is in ISO format (YYYY-MM-DD)
+        if (!record.date) return false;
+        return format(new Date(record.date), "yyyy-MM-dd") === format(date, "yyyy-MM-dd")
+      })
+    : todayAttendance;
+
+  // Get all dates with attendance for modifiers
+  const attendanceDates = todayAttendance
+    .map((record) => record.date)
+    .filter(Boolean)
+    .map((d) => new Date(d));
+
+  // Calendar styling is now handled through CSS
+  const calendarClassNames = {};
+
   return (
     <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6">
       {/* Header */}
@@ -206,38 +225,50 @@ export default function AttendanceLeavePage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Calendar */}
-        <Card className="lg:col-span-1">
-          <CardHeader>
-            <CardTitle className="text-lg">Calendar</CardTitle>
-            <CardDescription>Select date to view attendance</CardDescription>
+        <Card className="lg:col-span-1 h-fit">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-lg font-semibold">Calendar</CardTitle>
+            <CardDescription className="text-sm text-gray-600">Select date to view attendance</CardDescription>
           </CardHeader>
-          <CardContent>
-            <Calendar mode="single" selected={date} onSelect={setDate} className="rounded-md border" />
+          <CardContent className="p-6 pt-0">
+            <div className="w-full flex justify-center">
+              <div className="p-2">
+                <Calendar
+                  mode="single"
+                  selected={date}
+                  onSelect={setDate}
+                  className="rounded-md border shadow-sm bg-white"
+                  classNames={calendarClassNames}
+                  modifiers={{ hasAttendance: attendanceDates }}
+                  modifiersClassNames={{ hasAttendance: "relative after:content-[''] after:absolute after:bottom-0.5 after:left-1/2 after:transform after:-translate-x-1/2 after:w-1.5 after:h-1.5 after:rounded-full after:bg-green-500" }}
+                />
+              </div>
+            </div>
           </CardContent>
         </Card>
 
         {/* Tabs for Attendance and Leave */}
         <div className="lg:col-span-3">
-          <Tabs defaultValue="attendance" className="space-y-6">
+          <Tabs defaultValue="attendance" className="space-y-4">
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="attendance">Today's Attendance</TabsTrigger>
+              <TabsTrigger value="attendance">Attendance</TabsTrigger>
               <TabsTrigger value="leave">Leave Requests</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="attendance" className="space-y-6">
+            <TabsContent value="attendance" className="space-y-4">
               <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
+                <CardHeader className="pb-4">
+                  <CardTitle className="flex items-center gap-2 text-lg font-semibold">
                     <CalendarCheck className="w-5 h-5" />
-                    Today's Attendance
+                    Attendance for {date ? date.toLocaleDateString() : "-"}
                   </CardTitle>
-                  <CardDescription>
-                    {new Date().toLocaleDateString("en-IN", {
+                  <CardDescription className="text-sm text-gray-600">
+                    {date ? date.toLocaleDateString("en-IN", {
                       weekday: "long",
                       year: "numeric",
                       month: "long",
                       day: "numeric",
-                    })}
+                    }) : "Select a date to view attendance."}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -278,48 +309,56 @@ export default function AttendanceLeavePage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {todayAttendance.map((record) => (
-                          <TableRow key={record.id}>
-                            <TableCell>
-                              <div>
-                                <p className="font-medium text-gray-900">{getEmployeeName(record.employee_id)}</p>
-                                <p className="text-sm text-gray-500">
-                                  {record.employee_id} • {getDepartmentName(record.department_id)}
-                                </p>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <span className="text-sm text-gray-600">{record.checkIn}</span>
-                            </TableCell>
-                            <TableCell>
-                              <span className="text-sm text-gray-600">{record.checkOut}</span>
-                            </TableCell>
-                            <TableCell>
-                              <span className="font-medium text-gray-900">{record.workHours}</span>
-                            </TableCell>
-                            <TableCell>
-                              <span className="text-sm text-gray-600">{record.location}</span>
-                            </TableCell>
-                            <TableCell>
-                              <Badge className={getAttendanceStatusColor(record.status)}>{record.status}</Badge>
-                            </TableCell>
-                            <TableCell>
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="sm">
-                                    <MoreHorizontal className="w-4 h-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                  <DropdownMenuItem>View Details</DropdownMenuItem>
-                                  <DropdownMenuItem>Edit Attendance</DropdownMenuItem>
-                                  <DropdownMenuItem>View History</DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
+                        {filteredAttendance.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={7} className="text-center text-gray-500 py-8">
+                              No attendance records for this date.
                             </TableCell>
                           </TableRow>
-                        ))}
+                        ) : (
+                          filteredAttendance.map((record) => (
+                            <TableRow key={record.id}>
+                              <TableCell>
+                                <div>
+                                  <p className="font-medium text-gray-900">{getEmployeeName(record.employee_id)}</p>
+                                  <p className="text-sm text-gray-500">
+                                    {record.employee_id} • {getDepartmentName(record.department_id)}
+                                  </p>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <span className="text-sm text-gray-600">{record.checkIn}</span>
+                              </TableCell>
+                              <TableCell>
+                                <span className="text-sm text-gray-600">{record.checkOut}</span>
+                              </TableCell>
+                              <TableCell>
+                                <span className="font-medium text-gray-900">{record.workHours}</span>
+                              </TableCell>
+                              <TableCell>
+                                <span className="text-sm text-gray-600">{record.location}</span>
+                              </TableCell>
+                              <TableCell>
+                                <Badge className={getAttendanceStatusColor(record.status)}>{record.status}</Badge>
+                              </TableCell>
+                              <TableCell>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="sm">
+                                      <MoreHorizontal className="w-4 h-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                    <DropdownMenuItem>View Details</DropdownMenuItem>
+                                    <DropdownMenuItem>Edit Attendance</DropdownMenuItem>
+                                    <DropdownMenuItem>View History</DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
                       </TableBody>
                     </Table>
                   </div>

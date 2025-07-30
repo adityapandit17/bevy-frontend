@@ -49,6 +49,7 @@ import {
   Filter,
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
+import { EnhancedCalendar } from "@/components/ui/enhanced-calendar"
 
 interface Interview {
   id: string
@@ -84,7 +85,7 @@ const mockInterviews: Interview[] = [
     candidate_name: "Arjun Mehta",
     candidate_email: "arjun.mehta@email.com",
     interview_type: "phone",
-    scheduled_date: "2025-07-24",
+    scheduled_date: "2025-01-24",
     scheduled_time: "04:30",
     interviewer: "Sarah Johnson",
     status: "completed",
@@ -95,9 +96,9 @@ const mockInterviews: Interview[] = [
     is_overdue: false,
     is_upcoming: false,
     formatted_time: "04:30 AM",
-    formatted_date: "July 24, 2025",
+    formatted_date: "January 24, 2025",
     status_color: "green",
-    scheduled_datetime: "2025-07-24T04:30:00.000+00:00"
+    scheduled_datetime: "2025-01-24T04:30:00.000+00:00"
   },
   {
     id: "2",
@@ -105,7 +106,7 @@ const mockInterviews: Interview[] = [
     candidate_name: "Arjun Mehta",
     candidate_email: "arjun.mehta@email.com",
     interview_type: "video",
-    scheduled_date: "2025-07-31",
+    scheduled_date: "2025-01-31",
     scheduled_time: "08:30",
     interviewer: "Mike Chen",
     status: "scheduled",
@@ -116,9 +117,9 @@ const mockInterviews: Interview[] = [
     is_overdue: false,
     is_upcoming: true,
     formatted_time: "08:30 AM",
-    formatted_date: "July 31, 2025",
+    formatted_date: "January 31, 2025",
     status_color: "blue",
-    scheduled_datetime: "2025-07-31T08:30:00.000+00:00"
+    scheduled_datetime: "2025-01-31T08:30:00.000+00:00"
   },
   {
     id: "3",
@@ -126,7 +127,7 @@ const mockInterviews: Interview[] = [
     candidate_name: "Rohit Gupta",
     candidate_email: "rohit.gupta@email.com",
     interview_type: "video",
-    scheduled_date: "2025-07-27",
+    scheduled_date: "2025-01-27",
     scheduled_time: "05:30",
     interviewer: "Lisa Wang",
     status: "completed",
@@ -137,9 +138,9 @@ const mockInterviews: Interview[] = [
     is_overdue: false,
     is_upcoming: false,
     formatted_time: "05:30 AM",
-    formatted_date: "July 27, 2025",
+    formatted_date: "January 27, 2025",
     status_color: "green",
-    scheduled_datetime: "2025-07-27T05:30:00.000+00:00"
+    scheduled_datetime: "2025-01-27T05:30:00.000+00:00"
   },
   {
     id: "4",
@@ -147,7 +148,7 @@ const mockInterviews: Interview[] = [
     candidate_name: "Test Candidate",
     candidate_email: "test@example.com",
     interview_type: "video",
-    scheduled_date: "2025-08-05",
+    scheduled_date: "2025-02-05",
     scheduled_time: "14:30",
     interviewer: "John Doe",
     status: "scheduled",
@@ -158,22 +159,66 @@ const mockInterviews: Interview[] = [
     is_overdue: false,
     is_upcoming: true,
     formatted_time: "02:30 PM",
-    formatted_date: "August 05, 2025",
+    formatted_date: "February 05, 2025",
     status_color: "blue",
-    scheduled_datetime: "2025-08-05T14:30:00.000+00:00"
+    scheduled_datetime: "2025-02-05T14:30:00.000+00:00"
+  },
+  {
+    id: "5",
+    candidate_id: "5",
+    candidate_name: "Priya Sharma",
+    candidate_email: "priya.sharma@email.com",
+    interview_type: "onsite",
+    scheduled_date: "2025-01-30",
+    scheduled_time: "10:00",
+    interviewer: "David Wilson",
+    status: "cancelled",
+    notes: "Candidate requested reschedule due to personal emergency",
+    feedback: null,
+    rating: null,
+    is_today: false,
+    is_overdue: false,
+    is_upcoming: false,
+    formatted_time: "10:00 AM",
+    formatted_date: "January 30, 2025",
+    status_color: "red",
+    scheduled_datetime: "2025-01-30T10:00:00.000+00:00"
+  },
+  {
+    id: "6",
+    candidate_id: "6",
+    candidate_name: "Amit Patel",
+    candidate_email: "amit.patel@email.com",
+    interview_type: "phone",
+    scheduled_date: "2025-02-02",
+    scheduled_time: "15:00",
+    interviewer: "Emily Brown",
+    status: "no_show",
+    notes: "Candidate did not show up for the interview",
+    feedback: "No show - candidate did not respond to follow-up emails",
+    rating: 1,
+    is_today: false,
+    is_overdue: false,
+    is_upcoming: false,
+    formatted_time: "03:00 PM",
+    formatted_date: "February 02, 2025",
+    status_color: "orange",
+    scheduled_datetime: "2025-02-02T15:00:00.000+00:00"
   }
 ]
 
 // Mock stats
 const mockStats = {
-  total_interviews: 4,
+  total_interviews: 6,
   scheduled_interviews: 2,
   completed_interviews: 2,
+  cancelled_interviews: 1,
+  no_show_interviews: 1,
   interviews_today: 0,
-  interviews_this_week: 1,
+  interviews_this_week: 2,
   overdue_interviews: 0,
-  type_breakdown: { phone: 1, video: 3 },
-  status_breakdown: { completed: 2, scheduled: 2 }
+  type_breakdown: { phone: 2, video: 3, onsite: 1 },
+  status_breakdown: { completed: 2, scheduled: 2, cancelled: 1, no_show: 1 }
 }
 
 export function InterviewManagementUI({ onScheduleInterview }: InterviewManagementUIProps) {
@@ -552,21 +597,13 @@ export function InterviewManagementUI({ onScheduleInterview }: InterviewManageme
         </TabsContent>
 
         <TabsContent value="calendar" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Interview Calendar</CardTitle>
-              <CardDescription>
-                View interviews in a calendar format
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-8 text-gray-500">
-                Calendar view implementation would go here
-                <br />
-                <small>This would integrate with a calendar library like FullCalendar or similar</small>
-              </div>
-            </CardContent>
-          </Card>
+          <EnhancedCalendar 
+            interviews={interviews}
+            onInterviewClick={(interview) => {
+              // Handle interview click if needed
+              console.log('Interview clicked:', interview)
+            }}
+          />
         </TabsContent>
       </Tabs>
 
