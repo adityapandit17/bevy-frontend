@@ -53,6 +53,7 @@ import {
   AlertCircle,
   Edit,
 } from "lucide-react"
+import { InterviewForm } from "@/components/forms/interview-form"
 
 interface Candidate {
   id: string
@@ -754,57 +755,20 @@ export default function ATSPage() {
       </Dialog>
 
       {/* Schedule Interview Dialog */}
-      <Dialog open={showScheduleInterview} onOpenChange={setShowScheduleInterview}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>Schedule Interview</DialogTitle>
-            <DialogDescription>
-              Schedule an interview for {selectedCandidate?.name}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div>
-              <Label htmlFor="interviewType">Interview Type</Label>
-              <Select>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select interview type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="phone">Phone Interview</SelectItem>
-                  <SelectItem value="video">Video Interview</SelectItem>
-                  <SelectItem value="onsite">On-site Interview</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="interviewDate">Date</Label>
-                <Input id="interviewDate" type="date" />
-              </div>
-              <div>
-                <Label htmlFor="interviewTime">Time</Label>
-                <Input id="interviewTime" type="time" />
-              </div>
-            </div>
-            <div>
-              <Label htmlFor="interviewer">Interviewer</Label>
-              <Input id="interviewer" placeholder="Enter interviewer name" />
-            </div>
-            <div>
-              <Label htmlFor="interviewNotes">Notes</Label>
-              <Textarea id="interviewNotes" placeholder="Add any notes for the interview..." />
-            </div>
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setShowScheduleInterview(false)}>
-              Cancel
-            </Button>
-            <Button onClick={() => setShowScheduleInterview(false)}>
-              Schedule Interview
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <InterviewForm
+        open={showScheduleInterview}
+        onOpenChange={setShowScheduleInterview}
+        candidate={selectedCandidate ? {
+          id: selectedCandidate.id,
+          name: selectedCandidate.name,
+          email: selectedCandidate.email,
+          position: selectedCandidate.position
+        } : undefined}
+        onSuccess={() => {
+          fetchCandidates()
+          setShowScheduleInterview(false)
+        }}
+      />
     </div>
   )
 } 

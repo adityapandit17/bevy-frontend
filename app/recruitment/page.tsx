@@ -29,6 +29,7 @@ import {
   TrendingUp,
 } from "lucide-react"
 import { JobOpeningForm } from "@/components/forms/job-opening-form"
+import { InterviewFormUI } from "@/components/forms/interview-form-ui"
 import { useRouter } from "next/navigation"
 
 export default function RecruitmentPage() {
@@ -37,6 +38,8 @@ export default function RecruitmentPage() {
   const [jobOpenings, setJobOpenings] = useState([])
   const [showForm, setShowForm] = useState(false)
   const [editJob, setEditJob] = useState(null)
+  const [showInterviewForm, setShowInterviewForm] = useState(false)
+  const [selectedCandidate, setSelectedCandidate] = useState(null)
   const router = useRouter()
 
   useEffect(() => {
@@ -126,6 +129,17 @@ export default function RecruitmentPage() {
     } catch (err) {
       // handle error
     }
+  }
+
+  const handleScheduleInterview = (candidate = null) => {
+    setSelectedCandidate(candidate)
+    setShowInterviewForm(true)
+  }
+
+  const handleInterviewSuccess = () => {
+    setShowInterviewForm(false)
+    setSelectedCandidate(null)
+    // Optionally refresh candidate data here
   }
 
   const candidates = [
@@ -247,7 +261,7 @@ export default function RecruitmentPage() {
               <TrendingUp className="w-4 h-4 mr-2" />
               ATS
             </Button>
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" onClick={() => handleScheduleInterview()}>
               <Calendar className="w-4 h-4 mr-2" />
               Schedule Interview
             </Button>
@@ -444,7 +458,7 @@ export default function RecruitmentPage() {
                             <DropdownMenuContent align="end">
                               <DropdownMenuLabel>Actions</DropdownMenuLabel>
                               <DropdownMenuItem>View Profile</DropdownMenuItem>
-                              <DropdownMenuItem>Schedule Interview</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleScheduleInterview(candidate)}>Schedule Interview</DropdownMenuItem>
                               <DropdownMenuItem>Send Message</DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem>Move to Next Stage</DropdownMenuItem>
@@ -469,6 +483,18 @@ export default function RecruitmentPage() {
           initialData={editJob}
         />
       )}
+
+      <InterviewFormUI
+        open={showInterviewForm}
+        onOpenChange={setShowInterviewForm}
+        candidate={selectedCandidate ? {
+          id: selectedCandidate.id,
+          name: selectedCandidate.name,
+          email: selectedCandidate.email,
+          position: selectedCandidate.position
+        } : undefined}
+        onSuccess={handleInterviewSuccess}
+      />
     </div>
   )
 }
