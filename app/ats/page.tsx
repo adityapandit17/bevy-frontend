@@ -64,24 +64,24 @@ interface Candidate {
   experience: string
   location: string
   status: "applied" | "screening" | "interview" | "technical" | "final" | "offered" | "hired" | "rejected"
-  appliedDate: string
-  lastContact: string
+  applied_date: string
+  last_contact: string
   resume: string
-  coverLetter?: string
+  cover_letter?: string
   notes: string
   interviews: Interview[]
   skills: string[]
   education: string
-  currentCompany?: string
-  expectedSalary?: string
+  current_company?: string
+  expected_salary?: string
   availability?: string
 }
 
 interface Interview {
   id: string
-  type: "phone" | "video" | "onsite"
-  scheduledDate: string
-  scheduledTime: string
+  interview_type: "phone" | "video" | "onsite"
+  scheduled_date: string
+  scheduled_time: string
   interviewer: string
   status: "scheduled" | "completed" | "cancelled" | "no_show"
   notes?: string
@@ -380,7 +380,7 @@ export default function ATSPage() {
                   <p className="text-sm text-gray-600 mb-2">{candidate.position}</p>
                   <div className="flex items-center justify-between text-xs text-gray-500">
                     <span>{candidate.department}</span>
-                    <span>{new Date(candidate.appliedDate).toLocaleDateString()}</span>
+                                            <span>{new Date(candidate.applied_date).toLocaleDateString()}</span>
                   </div>
                   {candidate.interviews.length > 0 && (
                     <div className="mt-2 flex items-center gap-1 text-xs text-gray-500">
@@ -435,14 +435,14 @@ export default function ATSPage() {
                           <Briefcase className="w-4 h-4 text-gray-400" />
                           <span>{selectedCandidate.experience} experience</span>
                         </div>
-                        {selectedCandidate.currentCompany && (
+                        {selectedCandidate.current_company && (
                           <div className="text-sm text-gray-600">
-                            Current: {selectedCandidate.currentCompany}
+                            Current: {selectedCandidate.current_company}
                           </div>
                         )}
-                        {selectedCandidate.expectedSalary && (
+                        {selectedCandidate.expected_salary && (
                           <div className="text-sm text-gray-600">
-                            Expected: {selectedCandidate.expectedSalary}
+                            Expected: {selectedCandidate.expected_salary}
                           </div>
                         )}
                       </div>
@@ -453,10 +453,10 @@ export default function ATSPage() {
                       <p className="text-sm font-medium text-gray-600">Application Details</p>
                       <div className="space-y-1 mt-2">
                         <div className="text-sm">
-                          <span className="font-medium">Applied:</span> {new Date(selectedCandidate.appliedDate).toLocaleDateString()}
+                          <span className="font-medium">Applied:</span> {new Date(selectedCandidate.applied_date).toLocaleDateString()}
                         </div>
                         <div className="text-sm">
-                          <span className="font-medium">Last Contact:</span> {new Date(selectedCandidate.lastContact).toLocaleDateString()}
+                          <span className="font-medium">Last Contact:</span> {new Date(selectedCandidate.last_contact).toLocaleDateString()}
                         </div>
                         <div className="text-sm">
                           <span className="font-medium">Availability:</span> {selectedCandidate.availability || "Not specified"}
@@ -470,10 +470,10 @@ export default function ATSPage() {
                           <FileText className="w-4 h-4 text-gray-400" />
                           <span className="text-blue-600 cursor-pointer underline">{selectedCandidate.resume}</span>
                         </div>
-                        {selectedCandidate.coverLetter && (
+                        {selectedCandidate.cover_letter && (
                           <div className="flex items-center gap-2 text-sm">
                             <FileText className="w-4 h-4 text-gray-400" />
-                            <span className="text-blue-600 cursor-pointer underline">{selectedCandidate.coverLetter}</span>
+                            <span className="text-blue-600 cursor-pointer underline">{selectedCandidate.cover_letter}</span>
                           </div>
                         )}
                       </div>
@@ -551,7 +551,7 @@ export default function ATSPage() {
                               <Badge className={getInterviewStatusColor(interview.status)}>
                                 {interview.status.charAt(0).toUpperCase() + interview.status.slice(1)}
                               </Badge>
-                              <span className="font-medium">{interview.type.charAt(0).toUpperCase() + interview.type.slice(1)} Interview</span>
+                              <span className="font-medium">{interview.interview_type.charAt(0).toUpperCase() + interview.interview_type.slice(1)} Interview</span>
                             </div>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
@@ -580,11 +580,11 @@ export default function ATSPage() {
                           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                             <div>
                               <p className="text-gray-600">Date</p>
-                              <p className="font-medium">{new Date(interview.scheduledDate).toLocaleDateString()}</p>
+                              <p className="font-medium">{new Date(interview.scheduled_date).toLocaleDateString()}</p>
                             </div>
                             <div>
                               <p className="text-gray-600">Time</p>
-                              <p className="font-medium">{interview.scheduledTime}</p>
+                              <p className="font-medium">{interview.scheduled_time}</p>
                             </div>
                             <div>
                               <p className="text-gray-600">Interviewer</p>

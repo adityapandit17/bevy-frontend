@@ -1,6 +1,9 @@
+"use client"
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { useRouter } from "next/navigation"
 import {
   Users,
   UserCheck,
@@ -14,9 +17,11 @@ import {
   Eye,
   ArrowUpRight,
   ArrowDownRight,
+  Package,
 } from "lucide-react"
 
 export default function Dashboard() {
+  const router = useRouter()
   const stats = [
     {
       title: "Total Employees",
@@ -321,6 +326,14 @@ export default function Dashboard() {
               <Button variant="outline" className="h-20 flex-col gap-2 bg-transparent">
                 <FileText className="w-6 h-6" />
                 <span className="text-sm">Generate Report</span>
+              </Button>
+              <Button 
+                variant="outline" 
+                className="h-20 flex-col gap-2 bg-transparent"
+                onClick={() => router.push('/assets')}
+              >
+                <Package className="w-6 h-6" />
+                <span className="text-sm">Asset Tracking</span>
               </Button>
             </div>
           </CardContent>

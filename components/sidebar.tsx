@@ -10,6 +10,7 @@ import {
   BarChart,
   Settings,
   Building2,
+  TrendingUp,
 } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
 
@@ -45,6 +46,12 @@ const navItems = [
     href: "/recruitment",
     icon: Briefcase,
     segment: "recruitment",
+  },
+  {
+    title: "Performance",
+    href: "/performance",
+    icon: TrendingUp,
+    segment: "performance",
   },
   {
     title: "Payroll",

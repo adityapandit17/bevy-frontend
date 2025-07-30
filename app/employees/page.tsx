@@ -15,7 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Users, Search, Filter, Plus, MoreHorizontal, Mail, Phone, MapPin, Calendar, Download, UserPlus } from "lucide-react"
+import { Users, Search, Filter, Plus, MoreHorizontal, Mail, Phone, MapPin, Calendar, Download, UserPlus, UserMinus } from "lucide-react"
 import { EmployeeForm } from "@/components/forms/employee-form"
 import { useRouter } from "next/navigation"
 
@@ -137,6 +137,10 @@ export default function EmployeesPage() {
             <Button variant="outline" size="sm" onClick={() => router.push('/onboarding')} className="border-green-200 text-green-700 hover:bg-green-50">
               <UserPlus className="w-4 h-4 mr-2" />
               Onboarding
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => router.push('/offboarding')} className="border-red-200 text-red-700 hover:bg-red-50">
+              <UserMinus className="w-4 h-4 mr-2" />
+              Offboarding
             </Button>
             <Button variant="outline" size="sm">
               <Download className="w-4 h-4 mr-2" />
@@ -283,7 +287,7 @@ export default function EmployeesPage() {
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Actions</DropdownMenuLabel>
                           <DropdownMenuItem onClick={() => handleEditEmployee(employee)}>Edit Details</DropdownMenuItem>
-                          <DropdownMenuItem>View Profile</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => router.push(`/employees/${employee.id}`)}>View Profile</DropdownMenuItem>
                           <DropdownMenuItem>View Payroll</DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem className="text-red-600" onClick={() => handleDeactivateEmployee(employee)}>Deactivate</DropdownMenuItem>
