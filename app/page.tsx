@@ -20,6 +20,8 @@ import {
   Package,
   Network,
   Upload,
+  GraduationCap,
+  HelpCircle,
 } from "lucide-react"
 
 export default function Dashboard() {
@@ -312,26 +314,26 @@ export default function Dashboard() {
             <CardDescription>Frequently used actions for faster workflow</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 gap-4">
-              <Button variant="outline" className="h-20 flex-col gap-2 bg-transparent">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-4">
+              <Button variant="outline" className="h-24 flex-col gap-2 bg-transparent">
                 <Users className="w-6 h-6" />
                 <span className="text-sm">Add Employee</span>
               </Button>
-              <Button variant="outline" className="h-20 flex-col gap-2 bg-transparent">
+              <Button variant="outline" className="h-24 flex-col gap-2 bg-transparent">
                 <Calendar className="w-6 h-6" />
                 <span className="text-sm">Mark Attendance</span>
               </Button>
-              <Button variant="outline" className="h-20 flex-col gap-2 bg-transparent">
+              <Button variant="outline" className="h-24 flex-col gap-2 bg-transparent">
                 <IndianRupee className="w-6 h-6" />
                 <span className="text-sm">Process Payroll</span>
               </Button>
-              <Button variant="outline" className="h-20 flex-col gap-2 bg-transparent">
+              <Button variant="outline" className="h-24 flex-col gap-2 bg-transparent">
                 <FileText className="w-6 h-6" />
                 <span className="text-sm">Generate Report</span>
               </Button>
               <Button 
                 variant="outline" 
-                className="h-20 flex-col gap-2 bg-transparent"
+                className="h-24 flex-col gap-2 bg-transparent"
                 onClick={() => router.push('/assets')}
               >
                 <Package className="w-6 h-6" />
@@ -339,7 +341,7 @@ export default function Dashboard() {
               </Button>
               <Button 
                 variant="outline" 
-                className="h-20 flex-col gap-2 bg-transparent"
+                className="h-24 flex-col gap-2 bg-transparent"
                 onClick={() => router.push('/org-chart')}
               >
                 <Network className="w-6 h-6" />
@@ -347,11 +349,27 @@ export default function Dashboard() {
               </Button>
               <Button 
                 variant="outline" 
-                className="h-20 flex-col gap-2 bg-transparent"
+                className="h-24 flex-col gap-2 bg-transparent"
                 onClick={() => router.push('/documents')}
               >
                 <Upload className="w-6 h-6" />
                 <span className="text-sm">Documents</span>
+              </Button>
+              <Button 
+                variant="outline" 
+                className="h-24 flex-col gap-2 bg-transparent"
+                onClick={() => router.push('/learning')}
+              >
+                <GraduationCap className="w-6 h-6" />
+                <span className="text-sm">Learning</span>
+              </Button>
+              <Button 
+                variant="outline" 
+                className="h-24 flex-col gap-2 bg-transparent"
+                onClick={() => router.push('/helpdesk')}
+              >
+                <HelpCircle className="w-6 h-6" />
+                <span className="text-sm">Helpdesk</span>
               </Button>
             </div>
           </CardContent>

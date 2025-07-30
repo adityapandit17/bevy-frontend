@@ -13,6 +13,8 @@ import {
   TrendingUp,
   Network,
   FileText,
+  GraduationCap,
+  HelpCircle,
 } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
 
@@ -78,6 +80,18 @@ const navItems = [
     href: "/attendance-leave",
     icon: CalendarCheck,
     segment: "attendance-leave",
+  },
+  {
+    title: "Learning & Development",
+    href: "/learning",
+    icon: GraduationCap,
+    segment: "learning",
+  },
+  {
+    title: "Helpdesk",
+    href: "/helpdesk",
+    icon: HelpCircle,
+    segment: "helpdesk",
   },
   {
     title: "Reports",
