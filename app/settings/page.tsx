@@ -12,7 +12,7 @@ import { Building2, Users, Shield, Bell, Database, Globe, Save, Download } from 
 import { useEffect, useState } from "react"
 
 export default function SettingsPage() {
-  const [company, setCompany] = useState({
+  const defaultCompany = {
     name: "",
     code: "",
     industry: "technology",
@@ -20,7 +20,9 @@ export default function SettingsPage() {
     address: "",
     timezone: "asia-kolkata",
     currency: "inr"
-  })
+  }
+  
+  const [company, setCompany] = useState(defaultCompany)
   const [loading, setLoading] = useState(false)
   const [edit, setEdit] = useState(false)
 
@@ -32,10 +34,26 @@ export default function SettingsPage() {
     setLoading(true)
     try {
       const res = await fetch("http://localhost:3000/company")
-      const data = await res.json()
-      setCompany(data)
+      if (res.ok) {
+        const data = await res.json()
+        // Ensure we don't set null data, use default values if data is null/undefined
+        if (data && typeof data === 'object') {
+          setCompany({
+            name: data.name || "",
+            code: data.code || "",
+            industry: data.industry || "technology",
+            employee_count: data.employee_count || "201-500",
+            address: data.address || "",
+            timezone: data.timezone || "asia-kolkata",
+            currency: data.currency || "inr"
+          })
+        }
+      } else {
+        console.error("Failed to fetch company data")
+      }
     } catch (err) {
-      // handle error
+      console.error("Error fetching company data:", err)
+      // Keep the default state if fetch fails
     } finally {
       setLoading(false)
     }
@@ -65,6 +83,9 @@ export default function SettingsPage() {
       setLoading(false)
     }
   }
+
+  // Ensure company is never null
+  const safeCompany = company || defaultCompany
 
   return (
     <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6">
@@ -105,15 +126,15 @@ export default function SettingsPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="company-name">Company Name</Label>
-                  <Input id="company-name" value={company.name} onChange={e => handleChange("name", e.target.value)} disabled={!edit} />
+                  <Input id="company-name" value={safeCompany.name} onChange={e => handleChange("name", e.target.value)} disabled={!edit} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="company-code">Company Code</Label>
-                  <Input id="company-code" value={company.code} onChange={e => handleChange("code", e.target.value)} disabled={!edit} />
+                  <Input id="company-code" value={safeCompany.code} onChange={e => handleChange("code", e.target.value)} disabled={!edit} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="industry">Industry</Label>
-                  <Select value={company.industry} onValueChange={v => handleChange("industry", v)} disabled={!edit}>
+                  <Select value={safeCompany.industry} onValueChange={v => handleChange("industry", v)} disabled={!edit}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -128,7 +149,7 @@ export default function SettingsPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="employee-count">Employee Count</Label>
-                  <Select value={company.employee_count} onValueChange={v => handleChange("employee_count", v)} disabled={!edit}>
+                  <Select value={safeCompany.employee_count} onValueChange={v => handleChange("employee_count", v)} disabled={!edit}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -145,13 +166,13 @@ export default function SettingsPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="address">Address</Label>
-                <Textarea id="address" value={company.address} onChange={e => handleChange("address", e.target.value)} rows={3} disabled={!edit} />
+                <Textarea id="address" value={safeCompany.address} onChange={e => handleChange("address", e.target.value)} rows={3} disabled={!edit} />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="timezone">Timezone</Label>
-                  <Select value={company.timezone} onValueChange={v => handleChange("timezone", v)} disabled={!edit}>
+                  <Select value={safeCompany.timezone} onValueChange={v => handleChange("timezone", v)} disabled={!edit}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -164,7 +185,7 @@ export default function SettingsPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="currency">Currency</Label>
-                  <Select value={company.currency} onValueChange={v => handleChange("currency", v)} disabled={!edit}>
+                  <Select value={safeCompany.currency} onValueChange={v => handleChange("currency", v)} disabled={!edit}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>

@@ -4,6 +4,7 @@ import { Inter } from "next/font/google"
 import "./globals.css"
 import { TopNav } from "@/components/top-nav"
 import { cn } from "@/lib/utils"
+import { LoginLayout } from "@/components/login-layout"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -20,9 +21,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={cn("min-h-screen bg-gray-50 font-sans antialiased", inter.className)}>
-        <TopNav />
-        <main className="pt-16">{children}</main>
+      <body className={cn("min-h-screen font-sans antialiased", inter.className)}>
+        <LoginLayout>
+          {children}
+        </LoginLayout>
       </body>
     </html>
   )
