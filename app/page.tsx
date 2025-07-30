@@ -19,6 +19,7 @@ import {
   ArrowDownRight,
   Package,
   Network,
+  Upload,
 } from "lucide-react"
 
 export default function Dashboard() {
@@ -343,6 +344,14 @@ export default function Dashboard() {
               >
                 <Network className="w-6 h-6" />
                 <span className="text-sm">Org Chart</span>
+              </Button>
+              <Button 
+                variant="outline" 
+                className="h-20 flex-col gap-2 bg-transparent"
+                onClick={() => router.push('/documents')}
+              >
+                <Upload className="w-6 h-6" />
+                <span className="text-sm">Documents</span>
               </Button>
             </div>
           </CardContent>

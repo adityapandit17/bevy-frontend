@@ -12,6 +12,7 @@ import {
   Building2,
   TrendingUp,
   Network,
+  FileText,
 } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
 
@@ -47,6 +48,12 @@ const navItems = [
     href: "/org-chart",
     icon: Network,
     segment: "org-chart",
+  },
+  {
+    title: "Documents",
+    href: "/documents",
+    icon: FileText,
+    segment: "documents",
   },
   {
     title: "Recruitment",
