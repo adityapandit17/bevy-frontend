@@ -18,6 +18,7 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Package,
+  Network,
 } from "lucide-react"
 
 export default function Dashboard() {
@@ -334,6 +335,14 @@ export default function Dashboard() {
               >
                 <Package className="w-6 h-6" />
                 <span className="text-sm">Asset Tracking</span>
+              </Button>
+              <Button 
+                variant="outline" 
+                className="h-20 flex-col gap-2 bg-transparent"
+                onClick={() => router.push('/org-chart')}
+              >
+                <Network className="w-6 h-6" />
+                <span className="text-sm">Org Chart</span>
               </Button>
             </div>
           </CardContent>
