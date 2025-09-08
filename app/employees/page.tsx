@@ -20,10 +20,24 @@ import { Users, Search, Filter, Plus, MoreHorizontal, Mail, Phone, MapPin, Calen
 import { EmployeeForm } from "@/components/forms/employee-form"
 import { useRouter } from "next/navigation"
 
+interface Employee {
+  id: string
+  first_name: string
+  last_name: string
+  email: string
+  phone: string
+  department?: { name: string }
+  department_id?: string
+  designation?: string
+  location?: string
+  date_of_joining?: string
+  status: string
+}
+
 export default function EmployeesPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [departmentFilter, setDepartmentFilter] = useState("all")
-  const [employees, setEmployees] = useState([])
+  const [employees, setEmployees] = useState<Employee[]>([])
   const [showForm, setShowForm] = useState(false)
   const [loading, setLoading] = useState(false)
   const [editEmployee, setEditEmployee] = useState(null)
