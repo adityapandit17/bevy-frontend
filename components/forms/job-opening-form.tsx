@@ -25,10 +25,13 @@ export function JobOpeningForm({ onClose, onSubmit, initialData }: JobOpeningFor
     vacancies: "",
     description: "",
     requirements: "",
-    salaryMin: "",
-    salaryMax: "",
+    salary_min: "",
+    salary_max: "",
     experience: "",
     skills: "",
+    status: "open",
+    posted: new Date().toISOString().split('T')[0],
+    applications: 0
   })
   const [departments, setDepartments] = useState([])
 
@@ -54,7 +57,17 @@ export function JobOpeningForm({ onClose, onSubmit, initialData }: JobOpeningFor
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    onSubmit(formData)
+    
+    // Transform the form data to match backend expectations
+    const transformedData = {
+      ...formData,
+      salary_min: formData.salary_min ? parseInt(formData.salary_min) * 100000 : null, // Convert LPA to actual amount
+      salary_max: formData.salary_max ? parseInt(formData.salary_max) * 100000 : null, // Convert LPA to actual amount
+      vacancies: parseInt(formData.vacancies),
+      applications: parseInt(formData.applications) || 0
+    }
+    
+    onSubmit(transformedData)
   }
 
   const handleChange = (field: string, value: string) => {
@@ -138,12 +151,37 @@ export function JobOpeningForm({ onClose, onSubmit, initialData }: JobOpeningFor
                   />
                 </div>
                 <div>
-                  <Label htmlFor="experience">Experience Required</Label>
+                  <Label htmlFor="experience">Experience Required *</Label>
                   <Input
                     id="experience"
                     value={formData.experience}
                     onChange={(e) => handleChange("experience", e.target.value)}
                     placeholder="e.g., 3-5 years"
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="status">Status *</Label>
+                  <Select value={formData.status} onValueChange={v => handleChange("status", v)} required>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="open">Open</SelectItem>
+                      <SelectItem value="draft">Draft</SelectItem>
+                      <SelectItem value="closed">Closed</SelectItem>
+                      <SelectItem value="filled">Filled</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="posted">Posted Date *</Label>
+                  <Input
+                    id="posted"
+                    type="date"
+                    value={formData.posted}
+                    onChange={(e) => handleChange("posted", e.target.value)}
+                    required
                   />
                 </div>
               </div>
@@ -154,22 +192,22 @@ export function JobOpeningForm({ onClose, onSubmit, initialData }: JobOpeningFor
               <h3 className="text-lg font-semibold text-gray-900">Compensation</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="salaryMin">Minimum Salary (₹ LPA)</Label>
+                  <Label htmlFor="salary_min">Minimum Salary (₹ LPA)</Label>
                   <Input
-                    id="salaryMin"
+                    id="salary_min"
                     type="number"
-                    value={formData.salaryMin}
-                    onChange={(e) => handleChange("salaryMin", e.target.value)}
+                    value={formData.salary_min}
+                    onChange={(e) => handleChange("salary_min", e.target.value)}
                     placeholder="10"
                   />
                 </div>
                 <div>
-                  <Label htmlFor="salaryMax">Maximum Salary (₹ LPA)</Label>
+                  <Label htmlFor="salary_max">Maximum Salary (₹ LPA)</Label>
                   <Input
-                    id="salaryMax"
+                    id="salary_max"
                     type="number"
-                    value={formData.salaryMax}
-                    onChange={(e) => handleChange("salaryMax", e.target.value)}
+                    value={formData.salary_max}
+                    onChange={(e) => handleChange("salary_max", e.target.value)}
                     placeholder="20"
                   />
                 </div>
@@ -202,12 +240,13 @@ export function JobOpeningForm({ onClose, onSubmit, initialData }: JobOpeningFor
                 />
               </div>
               <div>
-                <Label htmlFor="skills">Key Skills</Label>
+                <Label htmlFor="skills">Key Skills *</Label>
                 <Input
                   id="skills"
                   value={formData.skills}
                   onChange={(e) => handleChange("skills", e.target.value)}
                   placeholder="e.g., React, Node.js, AWS, Python (comma separated)"
+                  required
                 />
               </div>
             </div>

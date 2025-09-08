@@ -276,11 +276,24 @@ export default function SettingsPage() {
                       <p className="text-sm text-gray-500">{role.permissions}</p>
                       <p className="text-xs text-gray-400">{role.users} users assigned</p>
                     </div>
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" onClick={() => window.location.href = '/settings/role-permissions'}>
                       Edit Permissions
                     </Button>
                   </div>
                 ))}
+              </div>
+              
+              <div className="pt-4 border-t">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="font-medium text-gray-900">Advanced Role Management</h4>
+                    <p className="text-sm text-gray-500">Create custom roles and manage detailed permissions</p>
+                  </div>
+                  <Button onClick={() => window.location.href = '/settings/role-permissions'}>
+                    <Users className="w-4 h-4 mr-2" />
+                    Manage Roles & Permissions
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>

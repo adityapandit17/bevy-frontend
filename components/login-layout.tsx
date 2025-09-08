@@ -10,8 +10,9 @@ interface LoginLayoutProps {
 export function LoginLayout({ children }: LoginLayoutProps) {
   const pathname = usePathname()
   const isLoginPage = pathname === "/login"
+  const isHomePage = pathname === "/home"
 
-  if (isLoginPage) {
+  if (isLoginPage || isHomePage) {
     return <>{children}</>
   }
 

@@ -35,7 +35,7 @@ import { cn } from "@/lib/utils"
 const navItems = [
   {
     title: "Dashboard",
-    href: "/",
+    href: "/dashboard",
     icon: LayoutDashboard,
     segment: "dashboard",
   },

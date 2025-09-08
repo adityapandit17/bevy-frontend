@@ -71,7 +71,7 @@ export default function LoginPage() {
     setTimeout(() => {
       setIsLoading(false)
       // Navigate to dashboard after successful login
-      router.push('/')
+      router.push('/dashboard')
     }, 2000)
   }
 
@@ -81,11 +81,11 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-emerald-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Logo and Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl mb-4">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl mb-4">
             <Building2 className="w-8 h-8 text-white" />
           </div>
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Welcome back</h1>
@@ -212,7 +212,7 @@ export default function LoginPage() {
                 <Button
                   type="button"
                   variant="link"
-                  className="text-sm text-blue-600 hover:text-blue-700 p-0 h-auto"
+                  className="text-sm text-green-600 hover:text-green-700 p-0 h-auto"
                   disabled={isLoading}
                 >
                   Forgot password?
@@ -221,7 +221,7 @@ export default function LoginPage() {
 
               <Button 
                 type="submit" 
-                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+                className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
                 disabled={isLoading}
               >
                 {isLoading ? (
@@ -245,7 +245,7 @@ export default function LoginPage() {
                 <Button
                   type="button"
                   variant="link"
-                  className="text-blue-600 hover:text-blue-700 p-0 h-auto text-sm"
+                  className="text-green-600 hover:text-green-700 p-0 h-auto text-sm"
                   disabled={isLoading}
                 >
                   Sign up
