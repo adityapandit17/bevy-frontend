@@ -36,6 +36,7 @@ export default function SettingsPage() {
       const res = await fetch("http://localhost:3000/company")
       if (res.ok) {
         const data = await res.json()
+        console.log("Company data fetched:", data)
         // Ensure we don't set null data, use default values if data is null/undefined
         if (data && typeof data === 'object') {
           setCompany({
@@ -49,7 +50,9 @@ export default function SettingsPage() {
           })
         }
       } else {
-        console.error("Failed to fetch company data")
+        console.error("Failed to fetch company data - Status:", res.status, res.statusText)
+        const errorText = await res.text()
+        console.error("Error response:", errorText)
       }
     } catch (err) {
       console.error("Error fetching company data:", err)
@@ -66,19 +69,31 @@ export default function SettingsPage() {
   const handleSave = async () => {
     setLoading(true)
     try {
+      // Get JWT token from localStorage
+      const token = localStorage.getItem('token')
+      const headers = { "Content-Type": "application/json" }
+      
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
+
       const res = await fetch("http://localhost:3000/company", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ company })
       })
+      
       if (res.ok) {
         setEdit(false)
         fetchCompany()
+        console.log("Company data saved successfully")
       } else {
-        // handle error
+        console.error("Failed to save company data - Status:", res.status, res.statusText)
+        const errorText = await res.text()
+        console.error("Error response:", errorText)
       }
     } catch (err) {
-      // handle error
+      console.error("Error saving company data:", err)
     } finally {
       setLoading(false)
     }
