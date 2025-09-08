@@ -40,10 +40,17 @@ export default function PayrollPage() {
     setLoading(true)
     try {
       const res = await fetch("http://localhost:3000/payrolls")
-      const data = await res.json()
-      setPayrollRecords(data)
+      if (res.ok) {
+        const data = await res.json()
+        // Ensure data is an array
+        setPayrollRecords(Array.isArray(data) ? data : [])
+      } else {
+        console.error("Failed to fetch payroll records:", res.status, res.statusText)
+        setPayrollRecords([])
+      }
     } catch (err) {
-      // handle error
+      console.error("Error fetching payroll records:", err)
+      setPayrollRecords([])
     } finally {
       setLoading(false)
     }
@@ -53,10 +60,17 @@ export default function PayrollPage() {
     setLoading(true)
     try {
       const res = await fetch("http://localhost:3000/salary_structures")
-      const data = await res.json()
-      setSalaryStructures(data)
+      if (res.ok) {
+        const data = await res.json()
+        // Ensure data is an array
+        setSalaryStructures(Array.isArray(data) ? data : [])
+      } else {
+        console.error("Failed to fetch salary structures:", res.status, res.statusText)
+        setSalaryStructures([])
+      }
     } catch (err) {
-      // handle error
+      console.error("Error fetching salary structures:", err)
+      setSalaryStructures([])
     } finally {
       setLoading(false)
     }
@@ -65,29 +79,43 @@ export default function PayrollPage() {
   const fetchEmployees = async () => {
     try {
       const res = await fetch("http://localhost:3000/employees")
-      const data = await res.json()
-      setEmployees(data)
+      if (res.ok) {
+        const data = await res.json()
+        setEmployees(Array.isArray(data) ? data : [])
+      } else {
+        console.error("Failed to fetch employees:", res.status, res.statusText)
+        setEmployees([])
+      }
     } catch (err) {
-      // handle error
+      console.error("Error fetching employees:", err)
+      setEmployees([])
     }
   }
 
   const fetchDepartments = async () => {
     try {
       const res = await fetch("http://localhost:3000/departments")
-      const data = await res.json()
-      setDepartments(data)
+      if (res.ok) {
+        const data = await res.json()
+        setDepartments(Array.isArray(data) ? data : [])
+      } else {
+        console.error("Failed to fetch departments:", res.status, res.statusText)
+        setDepartments([])
+      }
     } catch (err) {
-      // handle error
+      console.error("Error fetching departments:", err)
+      setDepartments([])
     }
   }
 
   const getEmployeeName = (id) => {
+    if (!Array.isArray(employees)) return id
     const emp = employees.find(e => String(e.id) === String(id))
     return emp ? `${emp.first_name} ${emp.last_name}` : id
   }
 
   const getDepartmentName = (id) => {
+    if (!Array.isArray(departments)) return id
     const dept = departments.find(d => String(d.id) === String(id))
     return dept ? dept.name : id
   }
@@ -260,7 +288,7 @@ export default function PayrollPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {payrollRecords.map((record) => (
+                    {Array.isArray(payrollRecords) && payrollRecords.map((record) => (
                       <TableRow key={record.id}>
                         <TableCell>
                           <div>
@@ -322,7 +350,7 @@ export default function PayrollPage() {
             </CardHeader>
             <CardContent>
               <div className="grid gap-6">
-                {salaryStructures.map((structure) => (
+                {Array.isArray(salaryStructures) && salaryStructures.map((structure) => (
                   <Card key={structure.id} className="border-l-4 border-l-blue-500">
                     <CardContent className="p-6">
                       <div className="flex justify-between items-start mb-4">
