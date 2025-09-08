@@ -272,8 +272,8 @@ export default function EmployeesPage() {
                     </TableCell>
                     <TableCell>
                       <Badge
-                        variant={employee.status === "Active" ? "default" : "secondary"}
-                        className={employee.status === "Active" ? "bg-green-100 text-green-800" : ""}
+                        variant={employee.status === "active" ? "default" : "secondary"}
+                        className={employee.status === "active" ? "bg-green-100 text-green-800" : ""}
                       >
                         {employee.status}
                       </Badge>
