@@ -16,6 +16,7 @@ import {
   Cake,
 } from "lucide-react"
 import { useEffect, useState } from "react"
+import { getEndpointUrl } from "@/lib/api"
 
 export function DashboardPage() {
   const [stats, setStats] = useState([])
@@ -33,24 +34,24 @@ export function DashboardPage() {
     setLoading(true)
     try {
       // Example endpoints, adjust as needed
-      const statsRes = await fetch("http://localhost:3000/dashboard_stats")
+      const statsRes = await fetch(getEndpointUrl('DASHBOARD_STATS'))
       const statsData = await statsRes.json()
       setStats(statsData)
 
-      const applicantsRes = await fetch("http://localhost:3000/job_openings")
+      const applicantsRes = await fetch(getEndpointUrl('JOB_OPENINGS'))
       const applicantsData = await applicantsRes.json()
       setRecentApplicants(applicantsData)
 
-      const birthdaysRes = await fetch("http://localhost:3000/employees")
+      const birthdaysRes = await fetch(getEndpointUrl('EMPLOYEES'))
       const birthdaysData = await birthdaysRes.json()
       setUpcomingBirthdays(birthdaysData)
 
-      const attendanceRes = await fetch("http://localhost:3000/attendance_records")
+      const attendanceRes = await fetch(getEndpointUrl('ATTENDANCE_RECORDS'))
       const attendanceData = await attendanceRes.json()
       // Calculate attendanceStatus from attendanceData
       setAttendanceStatus({ present: 0, absent: 0, onLeave: 0, workFromHome: 0, total: 0 })
 
-      const payrollAlertsRes = await fetch("http://localhost:3000/payrolls")
+      const payrollAlertsRes = await fetch(getEndpointUrl('PAYROLLS'))
       const payrollAlertsData = await payrollAlertsRes.json()
       setPayrollAlerts(payrollAlertsData)
     } catch (err) {

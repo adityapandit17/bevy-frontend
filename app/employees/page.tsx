@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { getApiUrl, getEndpointUrl } from "@/lib/api"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -36,7 +37,7 @@ export default function EmployeesPage() {
   const fetchEmployees = async () => {
     setLoading(true)
     try {
-      const res = await fetch("http://localhost:3000/employees", {
+      const res = await fetch(getEndpointUrl('EMPLOYEES'), {
         method: "GET",
         headers: { "Content-Type": "application/json", "Accept": "application/json" }
       })
@@ -51,7 +52,7 @@ export default function EmployeesPage() {
 
   const handleAddEmployee = async (formData) => {
     try {
-      const res = await fetch("http://localhost:3000/employees", {
+      const res = await fetch(getEndpointUrl('EMPLOYEES'), {
         method: "POST",
         headers: { "Content-Type": "application/json", "Accept": "application/json" },
         body: JSON.stringify({ employee: formData })
@@ -74,7 +75,7 @@ export default function EmployeesPage() {
 
   const handleUpdateEmployee = async (formData) => {
     try {
-      const res = await fetch(`http://localhost:3000/employees/${formData.id}`, {
+      const res = await fetch(getApiUrl(`employees/${formData.id}`), {
         method: "PATCH",
         headers: { "Content-Type": "application/json", "Accept": "application/json" },
         body: JSON.stringify({ employee: formData })
@@ -93,7 +94,7 @@ export default function EmployeesPage() {
 
   const handleDeactivateEmployee = async (employee) => {
     try {
-      const res = await fetch(`http://localhost:3000/employees/${employee.id}`, {
+      const res = await fetch(getApiUrl(`employees/${employee.id}`), {
         method: "DELETE",
         headers: { "Accept": "application/json" }
       })

@@ -3,6 +3,7 @@
 import type React from "react"
 
 import { useEffect, useState } from "react"
+import { getEndpointUrl } from "@/lib/api"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -36,7 +37,7 @@ export function SalaryStructureForm({ onClose }: SalaryStructureFormProps) {
 
   const fetchDepartments = async () => {
     try {
-      const res = await fetch("http://localhost:3000/departments", {
+      const res = await fetch(getEndpointUrl('DEPARTMENTS'), {
         headers: { "Accept": "application/json" }
       })
       const data = await res.json()

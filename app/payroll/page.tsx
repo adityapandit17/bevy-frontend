@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { getApiUrl, getEndpointUrl } from "@/lib/api"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -39,7 +40,7 @@ export default function PayrollPage() {
   const fetchPayrollRecords = async () => {
     setLoading(true)
     try {
-      const res = await fetch("http://localhost:3000/payrolls")
+      const res = await fetch(getEndpointUrl('PAYROLLS'))
       if (res.ok) {
         const data = await res.json()
         // Ensure data is an array
@@ -59,7 +60,7 @@ export default function PayrollPage() {
   const fetchSalaryStructures = async () => {
     setLoading(true)
     try {
-      const res = await fetch("http://localhost:3000/salary_structures")
+      const res = await fetch(getEndpointUrl('SALARY_STRUCTURES'))
       if (res.ok) {
         const data = await res.json()
         // Ensure data is an array
@@ -78,7 +79,7 @@ export default function PayrollPage() {
 
   const fetchEmployees = async () => {
     try {
-      const res = await fetch("http://localhost:3000/employees")
+      const res = await fetch(getEndpointUrl('EMPLOYEES'))
       if (res.ok) {
         const data = await res.json()
         setEmployees(Array.isArray(data) ? data : [])
@@ -94,7 +95,7 @@ export default function PayrollPage() {
 
   const fetchDepartments = async () => {
     try {
-      const res = await fetch("http://localhost:3000/departments")
+      const res = await fetch(getEndpointUrl('DEPARTMENTS'))
       if (res.ok) {
         const data = await res.json()
         setDepartments(Array.isArray(data) ? data : [])
@@ -122,7 +123,7 @@ export default function PayrollPage() {
 
   const handleAddSalaryStructure = async (formData) => {
     try {
-      const res = await fetch("http://localhost:3000/salary_structures", {
+      const res = await fetch(getEndpointUrl('SALARY_STRUCTURES'), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ salary_structure: formData })

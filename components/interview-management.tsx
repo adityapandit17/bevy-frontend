@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { getApiUrl, getEndpointUrl } from "@/lib/api"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -100,7 +101,7 @@ export function InterviewManagement({ onScheduleInterview }: InterviewManagement
 
   const fetchInterviews = async () => {
     try {
-      const response = await fetch("http://localhost:3000/interviews")
+      const response = await fetch(getEndpointUrl('INTERVIEWS'))
       if (response.ok) {
         const data = await response.json()
         setInterviews(data)
@@ -114,7 +115,7 @@ export function InterviewManagement({ onScheduleInterview }: InterviewManagement
 
   const fetchStats = async () => {
     try {
-      const response = await fetch("http://localhost:3000/interviews/stats")
+      const response = await fetch(getEndpointUrl('INTERVIEWS_STATS'))
       if (response.ok) {
         const data = await response.json()
         setStats(data)
@@ -126,7 +127,7 @@ export function InterviewManagement({ onScheduleInterview }: InterviewManagement
 
   const handleStatusChange = async (interviewId: string, newStatus: string, notes?: string) => {
     try {
-      const response = await fetch(`http://localhost:3000/interviews/${interviewId}/${newStatus}`, {
+      const response = await fetch(getApiUrl(`interviews/${interviewId}/${newStatus}`), {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -161,7 +162,7 @@ export function InterviewManagement({ onScheduleInterview }: InterviewManagement
     if (!confirm("Are you sure you want to delete this interview?")) return
 
     try {
-      const response = await fetch(`http://localhost:3000/interviews/${interviewId}`, {
+      const response = await fetch(getApiUrl(`interviews/${interviewId}`), {
         method: "DELETE"
       })
 
@@ -191,7 +192,7 @@ export function InterviewManagement({ onScheduleInterview }: InterviewManagement
     if (!selectedInterview) return
 
     try {
-      const response = await fetch(`http://localhost:3000/interviews/${selectedInterview.id}/complete`, {
+      const response = await fetch(getApiUrl(`interviews/${selectedInterview.id}/complete`), {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",

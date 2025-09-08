@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { getApiUrl, getEndpointUrl } from "@/lib/api"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -55,7 +56,7 @@ export default function AttendanceLeavePage() {
   const fetchAttendance = async () => {
     setLoading(true)
     try {
-      const res = await fetch("http://localhost:3000/attendance_records")
+      const res = await fetch(getEndpointUrl('ATTENDANCE_RECORDS'))
       const data = await res.json()
       setTodayAttendance(data)
       // Optionally, calculate stats from data
@@ -69,7 +70,7 @@ export default function AttendanceLeavePage() {
   const fetchLeaveRequests = async () => {
     setLoading(true)
     try {
-      const res = await fetch("http://localhost:3000/leave_requests")
+      const res = await fetch(getEndpointUrl('LEAVE_REQUESTS'))
       const data = await res.json()
       setLeaveRequests(data)
     } catch (err) {
@@ -81,7 +82,7 @@ export default function AttendanceLeavePage() {
 
   const fetchEmployees = async () => {
     try {
-      const res = await fetch("http://localhost:3000/employees")
+      const res = await fetch(getEndpointUrl('EMPLOYEES'))
       const data = await res.json()
       setEmployees(data)
     } catch (err) {
@@ -91,7 +92,7 @@ export default function AttendanceLeavePage() {
 
   const fetchDepartments = async () => {
     try {
-      const res = await fetch("http://localhost:3000/departments")
+      const res = await fetch(getEndpointUrl('DEPARTMENTS'))
       const data = await res.json()
       setDepartments(data)
     } catch (err) {
@@ -137,7 +138,7 @@ export default function AttendanceLeavePage() {
 
   const handleApplyLeave = async (formData) => {
     try {
-      const res = await fetch("http://localhost:3000/leave_requests", {
+      const res = await fetch(getEndpointUrl('LEAVE_REQUESTS'), {
         method: "POST",
         headers: { "Content-Type": "application/json", "Accept": "application/json" },
         body: JSON.stringify({ leave_request: formData })
@@ -155,7 +156,7 @@ export default function AttendanceLeavePage() {
 
   const handleMarkAttendance = async (e) => {
     e.preventDefault()
-    await fetch("http://localhost:3000/attendance_records", {
+    await fetch(getEndpointUrl('ATTENDANCE_RECORDS'), {
       method: "POST",
       headers: { "Content-Type": "application/json", "Accept": "application/json" },
       body: JSON.stringify({ attendance_record: attendanceForm })

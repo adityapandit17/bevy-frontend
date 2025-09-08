@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { getApiUrl, getEndpointUrl } from "@/lib/api"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -49,7 +50,7 @@ export default function RecruitmentPage() {
 
   const fetchDepartments = async () => {
     try {
-      const res = await fetch("http://localhost:3000/departments")
+      const res = await fetch(getEndpointUrl('DEPARTMENTS'))
       const data = await res.json()
       setDepartments(data)
     } catch (err) {
@@ -59,7 +60,7 @@ export default function RecruitmentPage() {
 
   const fetchJobOpenings = async () => {
     try {
-      const res = await fetch("http://localhost:3000/job_openings")
+      const res = await fetch(getEndpointUrl('JOB_OPENINGS'))
       const data = await res.json()
       setJobOpenings(data)
     } catch (err) {
@@ -74,7 +75,7 @@ export default function RecruitmentPage() {
 
   const handleAddJob = async (formData) => {
     try {
-      const res = await fetch("http://localhost:3000/job_openings", {
+      const res = await fetch(getEndpointUrl('JOB_OPENINGS'), {
         method: "POST",
         headers: { "Content-Type": "application/json", "Accept": "application/json" },
         body: JSON.stringify({ job_opening: formData })
@@ -98,7 +99,7 @@ export default function RecruitmentPage() {
 
   const handleUpdateJob = async (formData) => {
     try {
-      const res = await fetch(`http://localhost:3000/job_openings/${formData.id}`, {
+      const res = await fetch(getApiUrl(`job_openings/${formData.id}`), {
         method: "PATCH",
         headers: { "Content-Type": "application/json", "Accept": "application/json" },
         body: JSON.stringify({ job_opening: formData })
@@ -117,7 +118,7 @@ export default function RecruitmentPage() {
 
   const handleDeactivateJob = async (job) => {
     try {
-      const res = await fetch(`http://localhost:3000/job_openings/${job.id}`, {
+      const res = await fetch(getApiUrl(`job_openings/${job.id}`), {
         method: "DELETE",
         headers: { "Accept": "application/json" }
       })

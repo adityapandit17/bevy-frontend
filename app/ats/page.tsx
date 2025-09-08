@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { getApiUrl, getEndpointUrl } from "@/lib/api"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -117,7 +118,7 @@ export default function ATSPage() {
 
   const fetchCandidates = async () => {
     try {
-      const response = await fetch('http://localhost:3000/candidates')
+      const response = await fetch(getEndpointUrl('CANDIDATES'))
       const data = await response.json()
       setCandidates(data)
     } catch (error) {
@@ -127,7 +128,7 @@ export default function ATSPage() {
 
   const fetchStats = async () => {
     try {
-      const response = await fetch('http://localhost:3000/candidates/stats')
+      const response = await fetch(getApiUrl('candidates/stats'))
       const data = await response.json()
       // Update stats if needed
     } catch (error) {
@@ -230,7 +231,7 @@ export default function ATSPage() {
 
   const handleStatusChange = async (candidateId: string, newStatus: string) => {
     try {
-      const response = await fetch(`http://localhost:3000/candidates/${candidateId}/update_status`, {
+      const response = await fetch(getApiUrl(`candidates/${candidateId}/update_status`), {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',

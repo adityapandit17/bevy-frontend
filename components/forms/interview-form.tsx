@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { getApiUrl, getEndpointUrl } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -88,7 +89,7 @@ export function InterviewForm({
 
   const fetchEmployees = async () => {
     try {
-      const response = await fetch("http://localhost:3000/employees")
+      const response = await fetch(getEndpointUrl('EMPLOYEES'))
       if (response.ok) {
         const data = await response.json()
         setEmployees(data)
@@ -104,8 +105,8 @@ export function InterviewForm({
 
     try {
       const url = editInterview 
-        ? `http://localhost:3000/interviews/${editInterview.id}`
-        : "http://localhost:3000/interviews"
+        ? getApiUrl(`interviews/${editInterview.id}`)
+        : getEndpointUrl('INTERVIEWS')
       
       const method = editInterview ? "PATCH" : "POST"
       

@@ -1,5 +1,6 @@
 "use client"
 import { useEffect, useState } from "react"
+import { getApiUrl, getEndpointUrl } from "@/lib/api"
 import { useRouter, useParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -25,7 +26,7 @@ export default function JobShowPage() {
 
   const fetchJob = async () => {
     try {
-      const res = await fetch(`http://localhost:3000/job_openings/${jobId}`)
+      const res = await fetch(getApiUrl(`job_openings/${jobId}`))
       const data = await res.json()
       setJob(data)
       setStatus(data.status)
@@ -36,7 +37,7 @@ export default function JobShowPage() {
 
   const handleStatusChange = async (value) => {
     setStatus(value)
-    await fetch(`http://localhost:3000/job_openings/${jobId}`, {
+    await fetch(getApiUrl(`job_openings/${jobId}`), {
       method: "PATCH",
       headers: { "Content-Type": "application/json", "Accept": "application/json" },
       body: JSON.stringify({ job_opening: { status: value } })

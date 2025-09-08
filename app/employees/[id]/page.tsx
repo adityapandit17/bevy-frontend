@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
+import { getApiUrl, getEndpointUrl } from "@/lib/api"
 import { useParams, useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -254,7 +255,7 @@ export default function EmployeeProfilePage() {
     const fetchEmployeeData = async () => {
       try {
         // Fetch employee profile data from backend
-        const response = await fetch(`http://localhost:3000/employee_profiles/${employeeId}`)
+        const response = await fetch(getApiUrl(`employee_profiles/${employeeId}`))
         if (response.ok) {
           const data = await response.json()
           

@@ -18,6 +18,7 @@ import {
   Activity,
 } from "lucide-react"
 import { useEffect, useState } from "react"
+import { getEndpointUrl } from "@/lib/api"
 
 export default function ReportsPage() {
   const [employees, setEmployees] = useState([])
@@ -30,7 +31,7 @@ export default function ReportsPage() {
 
   const fetchEmployees = async () => {
     try {
-      const res = await fetch("http://localhost:3000/employees")
+      const res = await fetch(getEndpointUrl('EMPLOYEES'))
       const data = await res.json()
       setEmployees(data)
     } catch (err) {
@@ -40,7 +41,7 @@ export default function ReportsPage() {
 
   const fetchDepartments = async () => {
     try {
-      const res = await fetch("http://localhost:3000/departments")
+      const res = await fetch(getEndpointUrl('DEPARTMENTS'))
       const data = await res.json()
       setDepartments(data)
     } catch (err) {

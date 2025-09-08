@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { getApiUrl, getEndpointUrl } from "@/lib/api"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -83,7 +84,7 @@ export default function OnboardingPage() {
 
   const fetchOnboardingEmployees = async () => {
     try {
-      const response = await fetch('http://localhost:3000/onboarding_employees')
+      const response = await fetch(getEndpointUrl('ONBOARDING_EMPLOYEES'))
       const data = await response.json()
       setEmployees(data)
     } catch (error) {
@@ -93,7 +94,7 @@ export default function OnboardingPage() {
 
   const fetchStats = async () => {
     try {
-      const response = await fetch('http://localhost:3000/onboarding_employees/stats')
+      const response = await fetch(getApiUrl('onboarding_employees/stats'))
       const data = await response.json()
       // Update stats if needed
     } catch (error) {
@@ -164,7 +165,7 @@ export default function OnboardingPage() {
 
   const handleTaskToggle = async (employeeId: string, taskId: string) => {
     try {
-      const response = await fetch(`http://localhost:3000/onboarding_tasks/${taskId}/toggle`, {
+      const response = await fetch(getApiUrl(`onboarding_tasks/${taskId}/toggle`), {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',

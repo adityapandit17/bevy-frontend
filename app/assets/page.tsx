@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
+import { getApiUrl, getEndpointUrl } from "@/lib/api"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -123,7 +124,7 @@ export default function AssetsPage() {
   useEffect(() => {
     const fetchAssets = async () => {
       try {
-        const response = await fetch('http://localhost:3000/assets')
+        const response = await fetch(getEndpointUrl('ASSETS'))
         const data = await response.json()
         setAssets(data.assets)
       } catch (error) {
@@ -171,7 +172,7 @@ export default function AssetsPage() {
 
     const fetchAssetStats = async () => {
       try {
-        const response = await fetch('http://localhost:3000/assets/stats')
+        const response = await fetch(getApiUrl('assets/stats'))
         const data = await response.json()
         
         setAssetStats([

@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Building2, Users, Shield, Bell, Database, Globe, Save, Download } from "lucide-react"
 import { useEffect, useState } from "react"
+import { getEndpointUrl } from "@/lib/api"
 
 export default function SettingsPage() {
   const defaultCompany = {
@@ -33,7 +34,7 @@ export default function SettingsPage() {
   const fetchCompany = async () => {
     setLoading(true)
     try {
-      const res = await fetch("http://localhost:3000/company")
+      const res = await fetch(getEndpointUrl('COMPANY'))
       if (res.ok) {
         const data = await res.json()
         console.log("Company data fetched:", data)
@@ -72,17 +73,17 @@ export default function SettingsPage() {
       // Get JWT token from localStorage
       const token = localStorage.getItem('token')
       const headers = { "Content-Type": "application/json" }
-      
+
       if (token) {
         headers['Authorization'] = `Bearer ${token}`
       }
 
-      const res = await fetch("http://localhost:3000/company", {
+      const res = await fetch(getEndpointUrl('COMPANY'), {
         method: "PATCH",
         headers,
         body: JSON.stringify({ company })
       })
-      
+
       if (res.ok) {
         setEdit(false)
         fetchCompany()
@@ -297,7 +298,7 @@ export default function SettingsPage() {
                   </div>
                 ))}
               </div>
-              
+
               <div className="pt-4 border-t">
                 <div className="flex items-center justify-between">
                   <div>
