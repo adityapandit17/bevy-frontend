@@ -15,6 +15,10 @@ import {
   FileText,
   GraduationCap,
   HelpCircle,
+  FolderKanban,
+  Target,
+  Zap,
+  Shirt,
 } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
 
@@ -92,6 +96,18 @@ const navItems = [
     href: "/helpdesk",
     icon: HelpCircle,
     segment: "helpdesk",
+  },
+  {
+    title: "Project Management",
+    href: "/project-management",
+    icon: FolderKanban,
+    segment: "project-management",
+  },
+  {
+    title: "Scrum Tools",
+    href: "/scrum-tools",
+    icon: Target,
+    segment: "scrum-tools",
   },
   {
     title: "Reports",
