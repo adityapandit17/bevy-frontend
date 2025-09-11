@@ -12,7 +12,7 @@ const inter = Inter({ subsets: ["latin"] })
 export const metadata: Metadata = {
   title: "HRMS Pro - Human Resource Management System",
   description: "Complete HR Management Solution",
-    generator: 'v0.dev'
+    generator: 'Aditya'
 }
 
 export default function RootLayout({
