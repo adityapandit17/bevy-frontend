@@ -19,23 +19,29 @@ import {
   AlertCircle
 } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { useAuthContext } from "@/lib/auth"
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
   const [formData, setFormData] = useState({
     email: "",
     password: ""
   })
   const [errors, setErrors] = useState<{[key: string]: string}>({})
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const router = useRouter()
+  const { login, isLoading, error, clearError } = useAuthContext()
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
     // Clear error when user starts typing
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: "" }))
+    }
+    // Clear auth error
+    if (error) {
+      clearError()
     }
   }
 
@@ -45,13 +51,13 @@ export default function LoginPage() {
     if (!formData.email) {
       newErrors.email = "Email is required"
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = "Please enter a valid email"
+      newErrors.email = "Please enter a valid email address"
     }
 
     if (!formData.password) {
       newErrors.password = "Password is required"
     } else if (formData.password.length < 6) {
-      newErrors.password = "Password must be at least 6 characters"
+      newErrors.password = "Password must be at least 6 characters long"
     }
 
     setErrors(newErrors)
@@ -60,19 +66,27 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    e.stopPropagation()
+    
+    // Prevent multiple submissions
+    if (isSubmitting || isLoading) {
+      return
+    }
     
     if (!validateForm()) {
       return
     }
 
-    setIsLoading(true)
+    setIsSubmitting(true)
     
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false)
-      // Navigate to dashboard after successful login
-      router.push('/dashboard')
-    }, 2000)
+    try {
+      await login(formData)
+    } catch (error) {
+      // Error is handled by the auth context
+      console.error('Login error:', error)
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const handleSocialLogin = (provider: string) => {
@@ -130,8 +144,21 @@ export default function LoginPage() {
               </div>
             </div>
 
+            {/* Error Display */}
+            {error && (
+              <div key="login-error" className="bg-red-50 border border-red-200 rounded-md p-4">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1">
+                    <h4 className="text-sm font-medium text-red-800 mb-1">Login Failed</h4>
+                    <p className="text-sm text-red-700">{error}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Login Form */}
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4" noValidate>
               <div className="space-y-2">
                 <Label htmlFor="email" className="text-sm font-medium">
                   Email Address
@@ -222,9 +249,9 @@ export default function LoginPage() {
               <Button 
                 type="submit" 
                 className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
-                disabled={isLoading}
+                disabled={isLoading || isSubmitting}
               >
-                {isLoading ? (
+                {(isLoading || isSubmitting) ? (
                   <div className="flex items-center gap-2">
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                     Signing in...

@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
+import { useAuthContext } from "@/lib/auth"
 
 const navItems = [
   {
@@ -79,6 +80,7 @@ export function TopNav() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const pathname = usePathname()
   const router = useRouter()
+  const { user, logout } = useAuthContext()
 
   const handleNavigation = (href: string) => {
     router.push(href)
@@ -87,6 +89,10 @@ export function TopNav() {
 
   const isActive = (item: (typeof navItems)[0]) => {
     return pathname === item.href || (item.segment !== "dashboard" && pathname.includes(item.segment))
+  }
+
+  const handleLogout = async () => {
+    await logout()
   }
 
   return (
@@ -146,7 +152,7 @@ export function TopNav() {
                   <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
                     <User className="w-4 h-4 text-gray-600" />
                   </div>
-                  <span className="hidden sm:block text-sm font-medium text-gray-700">Admin</span>
+                  <span className="hidden sm:block text-sm font-medium text-gray-700">{user?.name || 'Admin'}</span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
@@ -156,7 +162,7 @@ export function TopNav() {
                 <DropdownMenuItem>Settings</DropdownMenuItem>
                 <DropdownMenuItem>Help & Support</DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-red-600">Sign out</DropdownMenuItem>
+                <DropdownMenuItem className="text-red-600" onClick={handleLogout}>Sign out</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
 
