@@ -40,10 +40,10 @@ export default function TestEmployeesPage() {
         fetch('http://localhost:3002/employees'),
         fetch('http://localhost:3002/departments')
       ])
-      
+
       const employeesData = await employeesRes.json()
       const departmentsData = await departmentsRes.json()
-      
+
       setEmployees(employeesData)
       setDepartments(departmentsData)
     } catch (error) {
