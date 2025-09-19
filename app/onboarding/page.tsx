@@ -53,6 +53,7 @@ interface OnboardingTask {
   documents?: string[]
   overdue?: boolean
   due_soon?: boolean
+  created_at: string
 }
 
 interface OnboardingEmployee {
@@ -81,12 +82,22 @@ interface Department {
 interface OnboardingStats {
   active_onboarding: number
   completed_this_month: number
+  completed_this_week: number
+  total_onboarding: number
+  pending_status: number
+  in_progress_status: number
+  completed_total: number
   pending_tasks: number
+  completed_tasks: number
+  total_tasks: number
   documents_pending: number
+  overdue_tasks: number
+  due_soon_tasks: number
 }
 
 export default function OnboardingPage() {
   const [employees, setEmployees] = useState<OnboardingEmployee[]>([])
+  const [allOnboardingEmployees, setAllOnboardingEmployees] = useState<OnboardingEmployee[]>([])
   const [allEmployees, setAllEmployees] = useState<any[]>([])
   const [departments, setDepartments] = useState<Department[]>([])
   const [stats, setStats] = useState<OnboardingStats | null>(null)
@@ -94,6 +105,7 @@ export default function OnboardingPage() {
   const [showAddEmployee, setShowAddEmployee] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
   const [loading, setLoading] = useState(false)
+  const [showCompleted, setShowCompleted] = useState(false)
   const [formData, setFormData] = useState({
     employeeId: "",
     startDate: ""
@@ -108,6 +120,8 @@ export default function OnboardingPage() {
     due_date: '',
     assigned_to: 'HR Team'
   })
+  const [selectedTask, setSelectedTask] = useState<OnboardingTask | null>(null)
+  const [taskDetailsOpen, setTaskDetailsOpen] = useState(false)
 
   useEffect(() => {
     fetchOnboardingEmployees()
@@ -116,12 +130,30 @@ export default function OnboardingPage() {
     fetchAllEmployees()
   }, [])
 
+  useEffect(() => {
+    fetchOnboardingEmployees()
+  }, [showCompleted])
+
+  // Update selected employee when allOnboardingEmployees changes
+  useEffect(() => {
+    if (selectedEmployee && allOnboardingEmployees.length > 0) {
+      const updatedEmployee = allOnboardingEmployees.find(emp => emp.id === selectedEmployee.id)
+      if (updatedEmployee && updatedEmployee.progress !== selectedEmployee.progress) {
+        setSelectedEmployee(updatedEmployee)
+      }
+    }
+  }, [allOnboardingEmployees, selectedEmployee])
+
   const fetchOnboardingEmployees = async () => {
     setLoading(true)
     try {
       const response = await fetch(getEndpointUrl('ONBOARDING_EMPLOYEES'))
       const data = await response.json()
-      setEmployees(data)
+      // Store all onboarding employees for duplicate checking
+      setAllOnboardingEmployees(data)
+      // Filter out completed employees by default for display
+      const filteredData = showCompleted ? data : data.filter((emp: OnboardingEmployee) => emp.status !== 'completed')
+      setEmployees(filteredData)
     } catch (error) {
       console.error('Error fetching onboarding employees:', error)
     } finally {
@@ -164,7 +196,7 @@ export default function OnboardingPage() {
     {
       title: "Active Onboarding",
       value: stats.active_onboarding.toString(),
-      change: "Currently in progress",
+      change: `${stats.pending_status} pending, ${stats.in_progress_status} in progress`,
       icon: Users,
       color: "text-blue-600",
       bgColor: "bg-blue-50",
@@ -172,7 +204,7 @@ export default function OnboardingPage() {
     {
       title: "Completed This Month",
       value: stats.completed_this_month.toString(),
-      change: "Successfully onboarded",
+      change: `${stats.completed_this_week} this week`,
       icon: CheckCircle,
       color: "text-green-600",
       bgColor: "bg-green-50",
@@ -180,20 +212,54 @@ export default function OnboardingPage() {
     {
       title: "Pending Tasks",
       value: stats.pending_tasks.toString(),
-      change: "Requires attention",
+      change: `${stats.overdue_tasks} overdue, ${stats.due_soon_tasks} due soon`,
       icon: Clock,
       color: "text-orange-600",
       bgColor: "bg-orange-50",
     },
     {
-      title: "Documents Pending",
-      value: stats.documents_pending.toString(),
-      change: "Awaiting submission",
+      title: "Total Onboarding",
+      value: stats.total_onboarding.toString(),
+      change: `${stats.completed_total} completed`,
       icon: FileText,
       color: "text-purple-600",
       bgColor: "bg-purple-50",
     },
-  ] : []
+  ] : [
+    // Fallback stats when data is not loaded yet
+    {
+      title: "Active Onboarding",
+      value: allOnboardingEmployees.filter(emp => emp.status !== 'completed').length.toString(),
+      change: "Currently in progress",
+      icon: Users,
+      color: "text-blue-600",
+      bgColor: "bg-blue-50",
+    },
+    {
+      title: "Completed",
+      value: allOnboardingEmployees.filter(emp => emp.status === 'completed').length.toString(),
+      change: "Successfully onboarded",
+      icon: CheckCircle,
+      color: "text-green-600",
+      bgColor: "bg-green-50",
+    },
+    {
+      title: "Total Onboarding",
+      value: allOnboardingEmployees.length.toString(),
+      change: "All time records",
+      icon: Users,
+      color: "text-purple-600",
+      bgColor: "bg-purple-50",
+    },
+    {
+      title: "Pending Status",
+      value: allOnboardingEmployees.filter(emp => emp.status === 'pending').length.toString(),
+      change: "Awaiting start",
+      icon: Clock,
+      color: "text-orange-600",
+      bgColor: "bg-orange-50",
+    },
+  ]
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -234,14 +300,6 @@ export default function OnboardingPage() {
         // Refresh the data
         await fetchOnboardingEmployees()
         await fetchStats()
-        
-        // Update the selected employee's progress if it's the same employee
-        if (selectedEmployee && selectedEmployee.id === employeeId) {
-          const updatedEmployee = employees.find(emp => emp.id === employeeId)
-          if (updatedEmployee) {
-            setSelectedEmployee(updatedEmployee)
-          }
-        }
       }
     } catch (error) {
       console.error('Error toggling task:', error)
@@ -283,7 +341,13 @@ export default function OnboardingPage() {
         alert('Employee added to onboarding successfully!')
       } else {
         const errorData = await response.json()
-        alert(`Error adding employee: ${errorData.errors ? errorData.errors.join(', ') : 'Unknown error'}`)
+        const errorMessage = errorData.errors ? errorData.errors.join(', ') : 'Unknown error'
+        
+        if (errorMessage.includes('already in active onboarding process')) {
+          alert('This employee is already in the onboarding process. Please select a different employee.')
+        } else {
+          alert(`Error adding employee: ${errorMessage}`)
+        }
       }
     } catch (error) {
       console.error('Error adding employee:', error)
@@ -337,6 +401,21 @@ export default function OnboardingPage() {
   
   const handleTaskInputChange = (field: string, value: string) => {
     setTaskFormData(prev => ({ ...prev, [field]: value }))
+  }
+
+  const handleViewTaskDetails = (task: OnboardingTask) => {
+    setSelectedTask(task)
+    setTaskDetailsOpen(true)
+  }
+
+  const handleSendReminder = (task: OnboardingTask) => {
+    // TODO: Implement send reminder functionality
+    alert(`Reminder sent for task: ${task.title}`)
+  }
+
+  const handleUploadDocument = (task: OnboardingTask) => {
+    // TODO: Implement upload document functionality
+    alert(`Upload document for task: ${task.title}`)
   }
 
   const filteredEmployees = employees.filter(emp =>
@@ -409,14 +488,28 @@ export default function OnboardingPage() {
               Onboarding Employees
             </CardTitle>
             <CardDescription>Employees currently in onboarding process</CardDescription>
-            <div className="relative">
-              <Input
-                placeholder="Search employees..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-              <UserPlus className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <div className="space-y-3">
+              <div className="relative">
+                <Input
+                  placeholder="Search employees..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+                <UserPlus className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant={showCompleted ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setShowCompleted(!showCompleted)}
+                >
+                  {showCompleted ? "Hide Completed" : "Show Completed"}
+                </Button>
+                <span className="text-sm text-gray-500">
+                  {showCompleted ? "Showing all employees" : "Showing active onboarding only"}
+                </span>
+              </div>
             </div>
           </CardHeader>
           <CardContent>
@@ -435,11 +528,18 @@ export default function OnboardingPage() {
                   key={employee.id}
                   className={`p-4 rounded-lg border cursor-pointer transition-all hover:shadow-md ${
                     selectedEmployee?.id === employee.id ? "border-blue-500 bg-blue-50" : "border-gray-200"
-                  }`}
+                  } ${employee.status === 'completed' ? 'opacity-75 bg-green-50' : ''}`}
                   onClick={() => setSelectedEmployee(employee)}
                 >
                   <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-medium text-gray-900">{employee.name}</h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className={`font-medium ${employee.status === 'completed' ? 'text-green-700 line-through' : 'text-gray-900'}`}>
+                        {employee.name}
+                      </h3>
+                      {employee.status === 'completed' && (
+                        <CheckCircle className="w-4 h-4 text-green-600" />
+                      )}
+                    </div>
                     <Badge className={getStatusColor(employee.status)}>
                       {employee.status.replace("_", " ")}
                     </Badge>
@@ -448,8 +548,13 @@ export default function OnboardingPage() {
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-gray-500">{employee.department}</span>
                     <div className="flex items-center gap-2">
-                      <Progress value={employee.progress} className="w-16 h-2" />
-                      <span className="text-xs font-medium">{employee.progress}%</span>
+                      <Progress 
+                        value={employee.status === 'completed' ? 100 : employee.progress} 
+                        className={`w-16 h-2 ${employee.status === 'completed' ? 'bg-green-200' : ''}`} 
+                      />
+                      <span className={`text-xs font-medium ${employee.status === 'completed' ? 'text-green-600' : ''}`}>
+                        {employee.status === 'completed' ? '100%' : `${employee.progress}%`}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -473,6 +578,20 @@ export default function OnboardingPage() {
           <CardContent>
             {selectedEmployee ? (
               <div className="space-y-6">
+                {/* Completion Banner */}
+                {selectedEmployee.status === 'completed' && (
+                  <div className="bg-green-100 border border-green-200 rounded-lg p-4">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="w-5 h-5 text-green-600" />
+                      <div>
+                        <h3 className="font-medium text-green-800">Onboarding Completed!</h3>
+                        <p className="text-sm text-green-700">
+                          {selectedEmployee.name} has successfully completed all onboarding tasks.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 {/* Employee Info */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg">
                   <div>
@@ -500,7 +619,12 @@ export default function OnboardingPage() {
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <h3 className="text-lg font-medium">Onboarding Tasks</h3>
-                    <Button variant="outline" size="sm" onClick={() => setAddTaskDialogOpen(true)}>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => setAddTaskDialogOpen(true)}
+                      disabled={selectedEmployee?.status === 'completed'}
+                    >
                       <Plus className="w-4 h-4 mr-2" />
                       Add Task
                     </Button>
@@ -550,16 +674,16 @@ export default function OnboardingPage() {
                                   </DropdownMenuTrigger>
                                   <DropdownMenuContent align="end">
                                     <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                    <DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleViewTaskDetails(task)}>
                                       <Eye className="w-4 h-4 mr-2" />
                                       View Details
                                     </DropdownMenuItem>
-                                    <DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleSendReminder(task)}>
                                       <MessageSquare className="w-4 h-4 mr-2" />
                                       Send Reminder
                                     </DropdownMenuItem>
                                     <DropdownMenuSeparator />
-                                    <DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleUploadDocument(task)}>
                                       <Upload className="w-4 h-4 mr-2" />
                                       Upload Document
                                     </DropdownMenuItem>
@@ -651,7 +775,13 @@ export default function OnboardingPage() {
               >
                 <option value="">Select an employee to add to onboarding</option>
                 {allEmployees
-                  .filter(emp => !employees.some(oe => oe.employee_id === emp.id))
+                  .filter(emp => {
+                    // Filter out employees who have ever been in onboarding (any status)
+                    const hasBeenOnboarded = allOnboardingEmployees.some(oe => 
+                      oe.employee_id === emp.id
+                    )
+                    return !hasBeenOnboarded
+                  })
                   .map((emp) => {
                     const department = departments.find(dept => dept.id === emp.department_id)
                     return (
@@ -662,7 +792,7 @@ export default function OnboardingPage() {
                   })}
               </select>
               <p className="text-xs text-gray-500 mt-1">
-                Only employees not already in onboarding are shown
+                Only employees who have never been in onboarding are shown. Once an employee completes onboarding, they cannot be added again.
               </p>
             </div>
             <div>
@@ -772,6 +902,117 @@ export default function OnboardingPage() {
             </Button>
             <Button onClick={handleAddTask} disabled={!taskFormData.title.trim()}>
               Add Task
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Task Details Dialog */}
+      <Dialog open={taskDetailsOpen} onOpenChange={setTaskDetailsOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckSquare className="w-5 h-5" />
+              Task Details
+            </DialogTitle>
+            <DialogDescription>
+              View detailed information about this onboarding task
+            </DialogDescription>
+          </DialogHeader>
+          {selectedTask && (
+            <div className="space-y-6">
+              {/* Task Header */}
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    {selectedTask.title}
+                  </h3>
+                  <p className="text-gray-600 mb-4">
+                    {selectedTask.description}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge className={selectedTask.is_completed ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"}>
+                    {selectedTask.is_completed ? "Completed" : "Pending"}
+                  </Badge>
+                </div>
+              </div>
+
+              {/* Task Information Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-3">
+                  <div>
+                    <Label className="text-sm font-medium text-gray-500">Category</Label>
+                    <p className="text-sm text-gray-900">{selectedTask.category}</p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium text-gray-500">Priority</Label>
+                    <p className="text-sm text-gray-900 capitalize">{selectedTask.priority}</p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium text-gray-500">Assigned To</Label>
+                    <p className="text-sm text-gray-900">{selectedTask.assigned_to}</p>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <div>
+                    <Label className="text-sm font-medium text-gray-500">Due Date</Label>
+                    <p className="text-sm text-gray-900">{selectedTask.due_date}</p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium text-gray-500">Status</Label>
+                    <div className="flex items-center gap-2">
+                      {selectedTask.overdue && (
+                        <Badge className="bg-red-100 text-red-800">Overdue</Badge>
+                      )}
+                      {selectedTask.due_soon && !selectedTask.overdue && (
+                        <Badge className="bg-yellow-100 text-yellow-800">Due Soon</Badge>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium text-gray-500">Created</Label>
+                    <p className="text-sm text-gray-900">
+                      {new Date(selectedTask.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Documents Section */}
+              {selectedTask.documents && (
+                <div>
+                  <Label className="text-sm font-medium text-gray-500 mb-2 block">Documents</Label>
+                  <div className="border rounded-lg p-3 bg-gray-50">
+                    <p className="text-sm text-gray-600">{selectedTask.documents}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex items-center gap-2 pt-4 border-t">
+                <Button 
+                  variant="outline" 
+                  onClick={() => handleSendReminder(selectedTask)}
+                  className="flex items-center gap-2"
+                >
+                  <MessageSquare className="w-4 h-4" />
+                  Send Reminder
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => handleUploadDocument(selectedTask)}
+                  className="flex items-center gap-2"
+                >
+                  <Upload className="w-4 h-4" />
+                  Upload Document
+                </Button>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTaskDetailsOpen(false)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

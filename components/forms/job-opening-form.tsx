@@ -41,7 +41,14 @@ export function JobOpeningForm({ onClose, onSubmit, initialData }: JobOpeningFor
   }, [])
 
   useEffect(() => {
-    if (initialData) setFormData(initialData)
+    if (initialData) {
+      // Convert department_id to string for Select component
+      const formattedData = {
+        ...initialData,
+        department_id: String(initialData.department_id || "")
+      }
+      setFormData(formattedData)
+    }
   }, [initialData])
 
   const fetchDepartments = async () => {
@@ -62,6 +69,7 @@ export function JobOpeningForm({ onClose, onSubmit, initialData }: JobOpeningFor
     // Transform the form data to match backend expectations
     const transformedData = {
       ...formData,
+      department_id: formData.department_id ? parseInt(formData.department_id) : null,
       salary_min: formData.salary_min ? parseInt(formData.salary_min) * 100000 : null, // Convert LPA to actual amount
       salary_max: formData.salary_max ? parseInt(formData.salary_max) * 100000 : null, // Convert LPA to actual amount
       vacancies: parseInt(formData.vacancies),

@@ -51,6 +51,7 @@ export const API_ENDPOINTS = {
   // Onboarding
   ONBOARDING_EMPLOYEES: '/onboarding_employees',
   ONBOARDING_EMPLOYEES_STATS: '/onboarding_employees/stats',
+  ONBOARDING_EMPLOYEES_CHECK: '/onboarding_employees/check_employee',
   ONBOARDING_TASKS: '/onboarding_tasks',
   ONBOARDING_TASK_TOGGLE: '/onboarding_tasks/{id}/toggle',
   

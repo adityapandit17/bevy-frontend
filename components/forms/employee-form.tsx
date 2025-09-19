@@ -19,7 +19,7 @@ interface EmployeeFormProps {
 }
 
 export function EmployeeForm({ onClose, onSubmit, initialData }: EmployeeFormProps) {
-  const [formData, setFormData] = useState(initialData || {
+  const [formData, setFormData] = useState({
     first_name: "",
     last_name: "",
     email: "",
@@ -36,8 +36,26 @@ export function EmployeeForm({ onClose, onSubmit, initialData }: EmployeeFormPro
   }, [])
 
   useEffect(() => {
-    if (initialData) setFormData(initialData)
+    if (initialData) {
+      // Convert department_id to string for Select component
+      const formattedData = {
+        ...initialData,
+        department_id: String(initialData.department_id || "")
+      }
+      setFormData(formattedData)
+    }
   }, [initialData])
+
+  // Also update form data when departments are loaded and we have initial data
+  useEffect(() => {
+    if (initialData && departments.length > 0) {
+      const formattedData = {
+        ...initialData,
+        department_id: String(initialData.department_id || "")
+      }
+      setFormData(formattedData)
+    }
+  }, [departments, initialData])
 
   const fetchDepartments = async () => {
     try {
@@ -47,13 +65,18 @@ export function EmployeeForm({ onClose, onSubmit, initialData }: EmployeeFormPro
       const data = await res.json()
       setDepartments(data)
     } catch (err) {
-      // handle error
+      console.error('Error fetching departments:', err)
     }
   }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    onSubmit(formData)
+    // Convert department_id back to number for API
+    const formattedData = {
+      ...formData,
+      department_id: formData.department_id ? parseInt(formData.department_id) : null
+    }
+    onSubmit(formattedData)
   }
 
   const handleChange = (field: string, value: string) => {
@@ -116,7 +139,12 @@ export function EmployeeForm({ onClose, onSubmit, initialData }: EmployeeFormPro
                 </div>
                 <div>
                   <Label htmlFor="department_id">Department *</Label>
-                  <Select value={formData.department_id} onValueChange={v => handleChange("department_id", v)} required>
+                  <Select 
+                    key={`department-${formData.department_id}-${departments.length}`}
+                    value={formData.department_id} 
+                    onValueChange={v => handleChange("department_id", v)} 
+                    required
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Select department" />
                     </SelectTrigger>
