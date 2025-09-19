@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { getApiUrl, getEndpointUrl, API_ENDPOINTS } from "@/lib/api"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -118,7 +119,7 @@ export default function OnboardingPage() {
   const fetchOnboardingEmployees = async () => {
     setLoading(true)
     try {
-      const response = await fetch('http://localhost:3002/onboarding_employees')
+      const response = await fetch(getEndpointUrl('ONBOARDING_EMPLOYEES'))
       const data = await response.json()
       setEmployees(data)
     } catch (error) {
@@ -130,7 +131,7 @@ export default function OnboardingPage() {
 
   const fetchStats = async () => {
     try {
-      const response = await fetch('http://localhost:3002/onboarding_employees/stats')
+      const response = await fetch(getEndpointUrl('ONBOARDING_EMPLOYEES_STATS'))
       const data = await response.json()
       setStats(data)
     } catch (error) {
@@ -140,7 +141,7 @@ export default function OnboardingPage() {
 
   const fetchDepartments = async () => {
     try {
-      const response = await fetch('http://localhost:3002/departments')
+      const response = await fetch(getEndpointUrl('DEPARTMENTS'))
       const data = await response.json()
       setDepartments(data)
     } catch (error) {
@@ -150,7 +151,7 @@ export default function OnboardingPage() {
 
   const fetchAllEmployees = async () => {
     try {
-      const response = await fetch('http://localhost:3002/employees')
+      const response = await fetch(getEndpointUrl('EMPLOYEES'))
       const data = await response.json()
       setAllEmployees(data)
     } catch (error) {
@@ -222,7 +223,7 @@ export default function OnboardingPage() {
 
   const handleTaskToggle = async (employeeId: number, taskId: number) => {
     try {
-      const response = await fetch(`http://localhost:3002/onboarding_tasks/${taskId}/toggle`, {
+      const response = await fetch(getApiUrl(`/onboarding_tasks/${taskId}/toggle`), {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -254,7 +255,7 @@ export default function OnboardingPage() {
     }
 
     try {
-      const response = await fetch('http://localhost:3002/onboarding_employees', {
+      const response = await fetch(getEndpointUrl('ONBOARDING_EMPLOYEES'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -298,7 +299,7 @@ export default function OnboardingPage() {
     if (!selectedEmployee) return
     
     try {
-      const response = await fetch('http://localhost:3002/onboarding_tasks', {
+      const response = await fetch(getEndpointUrl('ONBOARDING_TASKS'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

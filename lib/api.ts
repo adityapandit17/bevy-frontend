@@ -3,7 +3,7 @@
  * Centralized configuration for API endpoints
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3002';
 
 /**
  * Get the full API URL for a given endpoint
@@ -50,7 +50,9 @@ export const API_ENDPOINTS = {
   
   // Onboarding
   ONBOARDING_EMPLOYEES: '/onboarding_employees',
+  ONBOARDING_EMPLOYEES_STATS: '/onboarding_employees/stats',
   ONBOARDING_TASKS: '/onboarding_tasks',
+  ONBOARDING_TASK_TOGGLE: '/onboarding_tasks/{id}/toggle',
   
   // ATS
   CANDIDATES: '/candidates',
