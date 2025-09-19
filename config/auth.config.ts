@@ -5,7 +5,7 @@
 
 export const AUTH_CONFIG = {
   // API endpoints
-  API_BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3002',
+  API_BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000',
   ENDPOINTS: {
     LOGIN: '/api/v1/auth/login',
     LOGOUT: '/api/v1/auth/logout',

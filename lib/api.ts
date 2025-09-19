@@ -3,7 +3,7 @@
  * Centralized configuration for API endpoints
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3002';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000';
 
 /**
  * Get the full API URL for a given endpoint

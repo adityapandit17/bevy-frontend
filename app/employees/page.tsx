@@ -18,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Users, Search, Filter, Plus, MoreHorizontal, Mail, Phone, MapPin, Calendar, Download, UserPlus, UserMinus } from "lucide-react"
 import { EmployeeForm } from "@/components/forms/employee-form"
 import { useRouter } from "next/navigation"
+import { getEndpointUrl, getApiUrl } from "@/lib/api"
 
 interface Employee {
   id: number
@@ -60,7 +61,7 @@ export default function EmployeesPage() {
   const fetchEmployees = async () => {
     setLoading(true)
     try {
-      const res = await fetch('http://localhost:3002/employees', {
+      const res = await fetch(getApiUrl('employees'), {
         method: "GET",
         headers: { "Content-Type": "application/json", "Accept": "application/json" }
       })
@@ -75,7 +76,7 @@ export default function EmployeesPage() {
 
   const fetchDepartments = async () => {
     try {
-      const res = await fetch('http://localhost:3002/departments', {
+      const res = await fetch(getEndpointUrl('departments'), {
         method: "GET",
         headers: { "Content-Type": "application/json", "Accept": "application/json" }
       })
@@ -88,7 +89,7 @@ export default function EmployeesPage() {
 
   const handleAddEmployee = async (formData) => {
     try {
-      const res = await fetch('http://localhost:3002/employees', {
+      const res = await fetch(getApiUrl('employees'), {
         method: "POST",
         headers: { "Content-Type": "application/json", "Accept": "application/json" },
         body: JSON.stringify({ employee: formData })
@@ -111,7 +112,7 @@ export default function EmployeesPage() {
 
   const handleUpdateEmployee = async (formData) => {
     try {
-      const res = await fetch(`http://localhost:3002/employees/${formData.id}`, {
+      const res = await fetch(`${getApiUrl('employees')}/${formData.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", "Accept": "application/json" },
         body: JSON.stringify({ employee: formData })
@@ -130,7 +131,7 @@ export default function EmployeesPage() {
 
   const handleDeactivateEmployee = async (employee) => {
     try {
-      const res = await fetch(`http://localhost:3002/employees/${employee.id}`, {
+      const res = await fetch(`${getApiUrl('employees')}/${employee.id}`, {
         method: "DELETE",
         headers: { "Accept": "application/json" }
       })
