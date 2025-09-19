@@ -195,7 +195,7 @@ export default function OnboardingPage() {
   const onboardingStats = stats ? [
     {
       title: "Active Onboarding",
-      value: stats.active_onboarding.toString(),
+      value: (stats.active_onboarding || 0).toString(),
       change: `${stats.pending_status} pending, ${stats.in_progress_status} in progress`,
       icon: Users,
       color: "text-blue-600",
@@ -203,7 +203,7 @@ export default function OnboardingPage() {
     },
     {
       title: "Completed This Month",
-      value: stats.completed_this_month.toString(),
+      value: (stats.completed_this_month || 0).toString(),
       change: `${stats.completed_this_week} this week`,
       icon: CheckCircle,
       color: "text-green-600",
@@ -211,7 +211,7 @@ export default function OnboardingPage() {
     },
     {
       title: "Pending Tasks",
-      value: stats.pending_tasks.toString(),
+      value: (stats.pending_tasks || 0).toString(),
       change: `${stats.overdue_tasks} overdue, ${stats.due_soon_tasks} due soon`,
       icon: Clock,
       color: "text-orange-600",
@@ -219,7 +219,7 @@ export default function OnboardingPage() {
     },
     {
       title: "Total Onboarding",
-      value: stats.total_onboarding.toString(),
+      value: (stats.total_onboarding || 0).toString(),
       change: `${stats.completed_total} completed`,
       icon: FileText,
       color: "text-purple-600",

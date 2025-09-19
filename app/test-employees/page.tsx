@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { getEndpointUrl } from "@/lib/api"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
 interface Employee {
@@ -37,8 +38,8 @@ export default function TestEmployeesPage() {
   const fetchData = async () => {
     try {
       const [employeesRes, departmentsRes] = await Promise.all([
-        fetch('http://localhost:3002/employees'),
-        fetch('http://localhost:3002/departments')
+        fetch(getEndpointUrl('EMPLOYEES')),
+        fetch(getEndpointUrl('DEPARTMENTS'))
       ])
 
       const employeesData = await employeesRes.json()

@@ -33,6 +33,7 @@ interface Employee {
   created_at: string
   updated_at: string
   date_of_birth?: string
+  location?: string
 }
 
 interface Department {
@@ -49,7 +50,7 @@ export default function EmployeesPage() {
   const [departments, setDepartments] = useState<Department[]>([])
   const [showForm, setShowForm] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [editEmployee, setEditEmployee] = useState(null)
+  const [editEmployee, setEditEmployee] = useState<Employee | null>(null)
   const router = useRouter()
 
   // Fetch employees and departments from backend
@@ -61,7 +62,7 @@ export default function EmployeesPage() {
   const fetchEmployees = async () => {
     setLoading(true)
     try {
-      const res = await fetch(getApiUrl('employees'), {
+      const res = await fetch(getEndpointUrl('EMPLOYEES'), {
         method: "GET",
         headers: { "Content-Type": "application/json", "Accept": "application/json" }
       })
@@ -76,7 +77,7 @@ export default function EmployeesPage() {
 
   const fetchDepartments = async () => {
     try {
-      const res = await fetch(getEndpointUrl('departments'), {
+      const res = await fetch(getEndpointUrl('DEPARTMENTS'), {
         method: "GET",
         headers: { "Content-Type": "application/json", "Accept": "application/json" }
       })
@@ -87,9 +88,9 @@ export default function EmployeesPage() {
     }
   }
 
-  const handleAddEmployee = async (formData) => {
+  const handleAddEmployee = async (formData: any) => {
     try {
-      const res = await fetch(getApiUrl('employees'), {
+      const res = await fetch(getEndpointUrl('EMPLOYEES'), {
         method: "POST",
         headers: { "Content-Type": "application/json", "Accept": "application/json" },
         body: JSON.stringify({ employee: formData })
@@ -105,14 +106,14 @@ export default function EmployeesPage() {
     }
   }
 
-  const handleEditEmployee = (employee) => {
+  const handleEditEmployee = (employee: Employee) => {
     setEditEmployee(employee)
     setShowForm(true)
   }
 
-  const handleUpdateEmployee = async (formData) => {
+  const handleUpdateEmployee = async (formData: any) => {
     try {
-      const res = await fetch(`${getApiUrl('employees')}/${formData.id}`, {
+      const res = await fetch(`${getEndpointUrl('EMPLOYEES')}/${formData.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", "Accept": "application/json" },
         body: JSON.stringify({ employee: formData })
@@ -129,9 +130,9 @@ export default function EmployeesPage() {
     }
   }
 
-  const handleDeactivateEmployee = async (employee) => {
+  const handleDeactivateEmployee = async (employee: Employee) => {
     try {
-      const res = await fetch(`${getApiUrl('employees')}/${employee.id}`, {
+      const res = await fetch(`${getEndpointUrl('EMPLOYEES')}/${employee.id}`, {
         method: "DELETE",
         headers: { "Accept": "application/json" }
       })

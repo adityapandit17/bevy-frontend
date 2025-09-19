@@ -11,6 +11,12 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3
  * @returns The complete API URL
  */
 export const getApiUrl = (endpoint: string): string => {
+  // Handle undefined or null endpoint
+  if (!endpoint) {
+    console.error('getApiUrl called with undefined or null endpoint');
+    return API_BASE_URL;
+  }
+  
   // Remove leading slash if present to avoid double slashes
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
   return `${API_BASE_URL}/${cleanEndpoint}`;
@@ -55,6 +61,12 @@ export const API_ENDPOINTS = {
   ONBOARDING_TASKS: '/onboarding_tasks',
   ONBOARDING_TASK_TOGGLE: '/onboarding_tasks/{id}/toggle',
   
+  // Offboarding
+  OFFBOARDING_EMPLOYEES: '/offboarding_employees',
+  OFFBOARDING_EMPLOYEES_STATS: '/offboarding_employees/stats',
+  OFFBOARDING_TASKS: '/offboarding_tasks',
+  OFFBOARDING_TASK_TOGGLE: '/offboarding_tasks/{id}/toggle',
+  
   // ATS
   CANDIDATES: '/candidates',
   
@@ -68,7 +80,12 @@ export const API_ENDPOINTS = {
  * @returns The complete API URL
  */
 export const getEndpointUrl = (endpoint: keyof typeof API_ENDPOINTS): string => {
-  return getApiUrl(API_ENDPOINTS[endpoint]);
+  const endpointPath = API_ENDPOINTS[endpoint];
+  if (!endpointPath) {
+    console.error(`Endpoint '${endpoint}' not found in API_ENDPOINTS`);
+    return API_BASE_URL;
+  }
+  return getApiUrl(endpointPath);
 };
 
 export default {

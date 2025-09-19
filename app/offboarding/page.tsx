@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
+import { getApiUrl, getEndpointUrl, API_ENDPOINTS } from "@/lib/api"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -59,8 +60,8 @@ import {
 } from "lucide-react"
 
 interface OffboardingEmployee {
-  id: string
-  employeeId: string
+  id: number
+  employeeId: number
   name: string
   email: string
   department: string
@@ -71,11 +72,17 @@ interface OffboardingEmployee {
   progress: number
   assignedTo: string
   notes: string
-  tasks: OffboardingTask[]
+  daysRemaining: number
+  overdue: boolean
+  durationDays: number
+  createdAt: string
+  updatedAt: string
+  tasks?: OffboardingTask[]
 }
 
 interface OffboardingTask {
-  id: string
+  id: number
+  offboardingEmployeeId: number
   title: string
   description: string
   category: string
@@ -84,7 +91,35 @@ interface OffboardingTask {
   assignedTo: string
   isCompleted: boolean
   completedDate?: string
-  documents?: string[]
+  overdue: boolean
+  dueSoon: boolean
+  daysUntilDue: number
+  statusLabel: string
+  statusColor: string
+  priorityColor: string
+  categoryIcon: string
+  priorityLabel: string
+  dueDateFormatted: string
+  completedDateFormatted?: string
+  createdAt: string
+  updatedAt: string
+}
+
+interface OffboardingStats {
+  total_offboarding: number
+  active_offboarding: number
+  completed_offboarding: number
+  pending_offboarding: number
+  cancelled_offboarding: number
+  avg_duration_days: number
+  task_categories: Record<string, number>
+  recent_activity: Array<{
+    id: number
+    title: string
+    employeeName: string
+    completedDate: string
+    category: string
+  }>
 }
 
 export default function OffboardingPage() {
@@ -92,168 +127,116 @@ export default function OffboardingPage() {
   const [filterStatus, setFilterStatus] = useState("all")
   const [filterDepartment, setFilterDepartment] = useState("all")
   const [offboardingEmployees, setOffboardingEmployees] = useState<OffboardingEmployee[]>([])
+  const [allOffboardingEmployees, setAllOffboardingEmployees] = useState<OffboardingEmployee[]>([])
+  const [offboardingTasks, setOffboardingTasks] = useState<OffboardingTask[]>([])
+  const [departments, setDepartments] = useState<any[]>([])
+  const [stats, setStats] = useState<OffboardingStats | null>(null)
   const [selectedEmployee, setSelectedEmployee] = useState<OffboardingEmployee | null>(null)
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [loading, setLoading] = useState(false)
 
-  // Mock data for demonstration
   useEffect(() => {
-    setOffboardingEmployees([
-      {
-        id: "1",
-        employeeId: "EMP001",
-        name: "Sarah Johnson",
-        email: "sarah.johnson@company.com",
-        department: "Engineering",
-        position: "Senior Developer",
-        startDate: "2022-03-15",
-        lastWorkingDay: "2024-01-31",
-        status: "in_progress",
-        progress: 65,
-        assignedTo: "Mike Chen",
-        notes: "Moving to another company",
-        tasks: [
-          {
-            id: "1",
-            title: "Return Company Laptop",
-            description: "Return all company equipment including laptop, charger, and accessories",
-            category: "Equipment",
-            priority: "high",
-            dueDate: "2024-01-30",
-            assignedTo: "IT Department",
-            isCompleted: true,
-            completedDate: "2024-01-28",
-          },
-          {
-            id: "2",
-            title: "Exit Interview",
-            description: "Conduct exit interview with HR manager",
-            category: "HR",
-            priority: "high",
-            dueDate: "2024-01-29",
-            assignedTo: "Lisa Wang",
-            isCompleted: true,
-            completedDate: "2024-01-29",
-          },
-          {
-            id: "3",
-            title: "Knowledge Transfer",
-            description: "Transfer knowledge and handover ongoing projects",
-            category: "Knowledge Transfer",
-            priority: "medium",
-            dueDate: "2024-01-31",
-            assignedTo: "David Kim",
-            isCompleted: false,
-          },
-          {
-            id: "4",
-            title: "Cancel Benefits",
-            description: "Cancel health insurance and other benefits",
-            category: "Benefits",
-            priority: "medium",
-            dueDate: "2024-01-31",
-            assignedTo: "HR Department",
-            isCompleted: false,
-          },
-        ],
-      },
-      {
-        id: "2",
-        employeeId: "EMP002",
-        name: "David Kim",
-        email: "david.kim@company.com",
-        department: "Product",
-        position: "Product Manager",
-        startDate: "2021-08-10",
-        lastWorkingDay: "2024-02-15",
-        status: "pending",
-        progress: 0,
-        assignedTo: "Lisa Wang",
-        notes: "Personal reasons",
-        tasks: [
-          {
-            id: "5",
-            title: "Return Company Laptop",
-            description: "Return all company equipment",
-            category: "Equipment",
-            priority: "high",
-            dueDate: "2024-02-14",
-            assignedTo: "IT Department",
-            isCompleted: false,
-          },
-          {
-            id: "6",
-            title: "Exit Interview",
-            description: "Conduct exit interview",
-            category: "HR",
-            priority: "high",
-            dueDate: "2024-02-13",
-            assignedTo: "Lisa Wang",
-            isCompleted: false,
-          },
-        ],
-      },
-      {
-        id: "3",
-        employeeId: "EMP003",
-        name: "Mike Chen",
-        email: "mike.chen@company.com",
-        department: "Engineering",
-        position: "Team Lead",
-        startDate: "2020-11-20",
-        lastWorkingDay: "2024-01-20",
-        status: "completed",
-        progress: 100,
-        assignedTo: "John Smith",
-        notes: "Completed successfully",
-        tasks: [
-          {
-            id: "7",
-            title: "Return Company Laptop",
-            description: "Return all company equipment",
-            category: "Equipment",
-            priority: "high",
-            dueDate: "2024-01-19",
-            assignedTo: "IT Department",
-            isCompleted: true,
-            completedDate: "2024-01-18",
-          },
-          {
-            id: "8",
-            title: "Exit Interview",
-            description: "Conduct exit interview",
-            category: "HR",
-            priority: "high",
-            dueDate: "2024-01-19",
-            assignedTo: "John Smith",
-            isCompleted: true,
-            completedDate: "2024-01-19",
-          },
-        ],
-      },
-    ])
+    fetchOffboardingEmployees()
+    fetchOffboardingTasks()
+    fetchDepartments()
+    fetchStats()
   }, [])
 
-  const offboardingStats = [
+  // Update selected employee when allOffboardingEmployees changes
+  useEffect(() => {
+    if (selectedEmployee && allOffboardingEmployees.length > 0) {
+      const updatedEmployee = allOffboardingEmployees.find(emp => emp.id === selectedEmployee.id)
+      if (updatedEmployee && updatedEmployee.progress !== selectedEmployee.progress) {
+        setSelectedEmployee(updatedEmployee)
+      }
+    }
+  }, [allOffboardingEmployees, selectedEmployee])
+
+  const fetchOffboardingEmployees = async () => {
+    setLoading(true)
+    try {
+      const response = await fetch(getEndpointUrl('OFFBOARDING_EMPLOYEES'))
+      const data = await response.json()
+      setAllOffboardingEmployees(data)
+      setOffboardingEmployees(data)
+    } catch (error) {
+      console.error('Error fetching offboarding employees:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fetchOffboardingTasks = async () => {
+    try {
+      const response = await fetch(getEndpointUrl('OFFBOARDING_TASKS'))
+      const data = await response.json()
+      setOffboardingTasks(data)
+    } catch (error) {
+      console.error('Error fetching offboarding tasks:', error)
+    }
+  }
+
+  const fetchDepartments = async () => {
+    try {
+      const response = await fetch(getEndpointUrl('DEPARTMENTS'))
+      const data = await response.json()
+      setDepartments(data)
+    } catch (error) {
+      console.error('Error fetching departments:', error)
+    }
+  }
+
+  const fetchStats = async () => {
+    try {
+      const response = await fetch(getEndpointUrl('OFFBOARDING_EMPLOYEES_STATS'))
+      const data = await response.json()
+      setStats(data)
+    } catch (error) {
+      console.error('Error fetching stats:', error)
+    }
+  }
+
+  const handleTaskToggle = async (employeeId: number, taskId: number) => {
+    try {
+      const response = await fetch(getApiUrl(`/offboarding_tasks/${taskId}/toggle`), {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+      
+      if (response.ok) {
+        // Refresh the data
+        await fetchOffboardingEmployees()
+        await fetchOffboardingTasks()
+        await fetchStats()
+      }
+    } catch (error) {
+      console.error('Error toggling task:', error)
+    }
+  }
+
+  // Generate dynamic stats from real data
+  const offboardingStats = stats ? [
     {
       title: "Active Offboarding",
-      value: "2",
-      change: "This month",
+      value: (stats.active_offboarding || 0).toString(),
+      change: `${stats.pending_offboarding || 0} pending`,
       icon: UserMinus,
       color: "text-orange-600",
       bgColor: "bg-orange-50",
     },
     {
       title: "Completed",
-      value: "1",
-      change: "This month",
+      value: (stats.completed_offboarding || 0).toString(),
+      change: `${stats.cancelled_offboarding || 0} cancelled`,
       icon: CheckCircle,
       color: "text-green-600",
       bgColor: "bg-green-50",
     },
     {
       title: "Pending",
-      value: "1",
+      value: (stats.pending_offboarding || 0).toString(),
       change: "This month",
       icon: Clock,
       color: "text-yellow-600",
@@ -261,38 +244,99 @@ export default function OffboardingPage() {
     },
     {
       title: "Avg. Duration",
-      value: "5 days",
-      change: "Last month: 7 days",
+      value: `${stats.avg_duration_days || 0} days`,
+      change: "Average completion time",
+      icon: CalendarDays,
+      color: "text-blue-600",
+      bgColor: "bg-blue-50",
+    },
+  ] : [
+    // Fallback stats when data is not loaded yet
+    {
+      title: "Active Offboarding",
+      value: allOffboardingEmployees.filter(emp => emp.status !== 'completed').length.toString(),
+      change: "Currently in progress",
+      icon: UserMinus,
+      color: "text-orange-600",
+      bgColor: "bg-orange-50",
+    },
+    {
+      title: "Completed",
+      value: allOffboardingEmployees.filter(emp => emp.status === 'completed').length.toString(),
+      change: "Successfully offboarded",
+      icon: CheckCircle,
+      color: "text-green-600",
+      bgColor: "bg-green-50",
+    },
+    {
+      title: "Pending",
+      value: allOffboardingEmployees.filter(emp => emp.status === 'pending').length.toString(),
+      change: "Awaiting start",
+      icon: Clock,
+      color: "text-yellow-600",
+      bgColor: "bg-yellow-50",
+    },
+    {
+      title: "Total Offboarding",
+      value: allOffboardingEmployees.length.toString(),
+      change: "All time records",
       icon: CalendarDays,
       color: "text-blue-600",
       bgColor: "bg-blue-50",
     },
   ]
 
-  const taskCategories = [
+  // Generate dynamic task categories from real data
+  const taskCategories = offboardingTasks.length > 0 ? [
     {
       category: "Equipment",
       icon: Laptop,
       color: "bg-blue-100 text-blue-600",
-      count: 3,
+      count: offboardingTasks.filter(task => task.category.toLowerCase() === 'equipment').length,
     },
     {
       category: "HR",
       icon: Users,
       color: "bg-green-100 text-green-600",
-      count: 3,
+      count: offboardingTasks.filter(task => task.category.toLowerCase() === 'hr').length,
     },
     {
       category: "Knowledge Transfer",
       icon: FileText,
       color: "bg-purple-100 text-purple-600",
-      count: 1,
+      count: offboardingTasks.filter(task => task.category.toLowerCase() === 'knowledge transfer').length,
     },
     {
       category: "Benefits",
       icon: Shield,
       color: "bg-orange-100 text-orange-600",
-      count: 1,
+      count: offboardingTasks.filter(task => task.category.toLowerCase() === 'benefits').length,
+    },
+  ] : [
+    // Fallback categories when data is not loaded yet
+    {
+      category: "Equipment",
+      icon: Laptop,
+      color: "bg-blue-100 text-blue-600",
+      count: 0,
+    },
+    {
+      category: "HR",
+      icon: Users,
+      color: "bg-green-100 text-green-600",
+      count: 0,
+    },
+    {
+      category: "Knowledge Transfer",
+      icon: FileText,
+      color: "bg-purple-100 text-purple-600",
+      count: 0,
+    },
+    {
+      category: "Benefits",
+      icon: Shield,
+      color: "bg-orange-100 text-orange-600",
+      count: 0,
     },
   ]
 
@@ -332,34 +376,8 @@ export default function OffboardingPage() {
     return matchesSearch && matchesStatus && matchesDepartment
   })
 
-  const handleTaskToggle = (employeeId: string, taskId: string) => {
-    setOffboardingEmployees(prev => 
-      prev.map(employee => {
-        if (employee.id === employeeId) {
-          const updatedTasks = employee.tasks.map(task => {
-            if (task.id === taskId) {
-              return {
-                ...task,
-                isCompleted: !task.isCompleted,
-                completedDate: !task.isCompleted ? new Date().toISOString().split('T')[0] : undefined
-              }
-            }
-            return task
-          })
-          
-          const completedTasks = updatedTasks.filter(task => task.isCompleted).length
-          const progress = Math.round((completedTasks / updatedTasks.length) * 100)
-          
-          return {
-            ...employee,
-            tasks: updatedTasks,
-            progress,
-            status: progress === 100 ? "completed" : progress > 0 ? "in_progress" : "pending"
-          }
-        }
-        return employee
-      })
-    )
+  const getEmployeeTasks = (employeeId: number) => {
+    return offboardingTasks.filter(task => task.offboardingEmployeeId === employeeId)
   }
 
   const handleViewDetails = (employee: OffboardingEmployee) => {
@@ -477,44 +495,76 @@ export default function OffboardingPage() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {offboardingStats.map((stat) => (
-          <Card key={stat.title} className="hover:shadow-md transition-shadow">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">{stat.title}</p>
-                  <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
-                  <p className="text-sm text-gray-500 mt-1">{stat.change}</p>
+        {loading ? (
+          Array.from({ length: 4 }).map((_, index) => (
+            <Card key={index} className="hover:shadow-md transition-shadow">
+              <CardContent className="p-6">
+                <div className="animate-pulse">
+                  <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                  <div className="h-8 bg-gray-200 rounded w-1/2 mb-2"></div>
+                  <div className="h-3 bg-gray-200 rounded w-2/3"></div>
                 </div>
-                <div className={`p-3 rounded-lg ${stat.bgColor}`}>
-                  <stat.icon className={`w-6 h-6 ${stat.color}`} />
+              </CardContent>
+            </Card>
+          ))
+        ) : (
+          offboardingStats.map((stat) => (
+            <Card key={stat.title} className="hover:shadow-md transition-shadow">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">{stat.title}</p>
+                    <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
+                    <p className="text-sm text-gray-500 mt-1">{stat.change}</p>
+                  </div>
+                  <div className={`p-3 rounded-lg ${stat.bgColor}`}>
+                    <stat.icon className={`w-6 h-6 ${stat.color}`} />
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            </Card>
+          ))
+        )}
       </div>
 
       {/* Task Categories Overview */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {taskCategories.map((category) => (
-          <Card key={category.category} className="hover:shadow-md transition-shadow">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-sm">
-                <div className={`p-2 rounded-lg ${category.color}`}>
-                  <category.icon className="w-4 h-4" />
+        {loading ? (
+          Array.from({ length: 4 }).map((_, index) => (
+            <Card key={index} className="hover:shadow-md transition-shadow">
+              <CardHeader>
+                <div className="animate-pulse">
+                  <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
                 </div>
-                {category.category}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between">
-                <span className="text-2xl font-bold text-gray-900">{category.count}</span>
-                <span className="text-sm text-gray-500">tasks</span>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+              </CardHeader>
+              <CardContent>
+                <div className="animate-pulse">
+                  <div className="h-8 bg-gray-200 rounded w-1/2 mb-2"></div>
+                  <div className="h-3 bg-gray-200 rounded w-1/3"></div>
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        ) : (
+          taskCategories.map((category) => (
+            <Card key={category.category} className="hover:shadow-md transition-shadow">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-sm">
+                  <div className={`p-2 rounded-lg ${category.color}`}>
+                    <category.icon className="w-4 h-4" />
+                  </div>
+                  {category.category}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between">
+                  <span className="text-2xl font-bold text-gray-900">{category.count}</span>
+                  <span className="text-sm text-gray-500">tasks</span>
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        )}
       </div>
 
       {/* Filters and Search */}
@@ -559,10 +609,11 @@ export default function OffboardingPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Departments</SelectItem>
-                <SelectItem value="Engineering">Engineering</SelectItem>
-                <SelectItem value="Product">Product</SelectItem>
-                <SelectItem value="Marketing">Marketing</SelectItem>
-                <SelectItem value="Sales">Sales</SelectItem>
+                {departments.map((dept) => (
+                  <SelectItem key={dept.id} value={dept.name}>
+                    {dept.name}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -582,85 +633,129 @@ export default function OffboardingPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredEmployees.map((employee) => (
-                  <TableRow key={employee.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar className="w-8 h-8">
-                          <AvatarFallback>
-                            {employee.name.split(" ").map(n => n[0]).join("")}
-                          </AvatarFallback>
-                        </Avatar>
+                {loading ? (
+                  Array.from({ length: 3 }).map((_, index) => (
+                    <TableRow key={index}>
+                      <TableCell>
+                        <div className="animate-pulse">
+                          <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                          <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="animate-pulse">
+                          <div className="h-4 bg-gray-200 rounded w-2/3 mb-2"></div>
+                          <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="animate-pulse">
+                          <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="animate-pulse">
+                          <div className="h-2 bg-gray-200 rounded w-full"></div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="animate-pulse">
+                          <div className="h-6 bg-gray-200 rounded w-16"></div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="animate-pulse">
+                          <div className="h-4 bg-gray-200 rounded w-20"></div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="animate-pulse">
+                          <div className="h-8 bg-gray-200 rounded w-8"></div>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  filteredEmployees.map((employee) => (
+                    <TableRow key={employee.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <Avatar className="w-8 h-8">
+                            <AvatarFallback>
+                              {employee.name.split(" ").map(n => n[0]).join("")}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="font-medium text-gray-900">{employee.name}</p>
+                            <p className="text-sm text-gray-600">{employee.email}</p>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
                         <div>
-                          <p className="font-medium text-gray-900">{employee.name}</p>
-                          <p className="text-sm text-gray-600">{employee.email}</p>
+                          <p className="font-medium text-gray-900">{employee.department}</p>
+                          <p className="text-sm text-gray-600">{employee.position}</p>
                         </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div>
-                        <p className="font-medium text-gray-900">{employee.department}</p>
-                        <p className="text-sm text-gray-600">{employee.position}</p>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Calendar className="w-4 h-4 text-gray-400" />
-                        <span>{new Date(employee.lastWorkingDay).toLocaleDateString()}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-600">{employee.progress}%</span>
-                          <span className="text-gray-600">
-                            {employee.tasks.filter(t => t.isCompleted).length}/{employee.tasks.length}
-                          </span>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Calendar className="w-4 h-4 text-gray-400" />
+                          <span>{new Date(employee.lastWorkingDay).toLocaleDateString()}</span>
                         </div>
-                        <Progress value={employee.progress} className="h-2" />
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={getStatusColor(employee.status)}>
-                        {employee.status.replace("_", " ")}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <User className="w-4 h-4 text-gray-400" />
-                        <span className="text-sm">{employee.assignedTo}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm">
-                            <MoreHorizontal className="w-4 h-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleViewDetails(employee)}>
-                            <Eye className="w-4 h-4 mr-2" />
-                            View Details
-                          </DropdownMenuItem>
-                          <DropdownMenuItem>
-                            <Edit className="w-4 h-4 mr-2" />
-                            Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuItem>
-                            <Download className="w-4 h-4 mr-2" />
-                            Export
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem className="text-red-600">
-                            <Trash2 className="w-4 h-4 mr-2" />
-                            Cancel Offboarding
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                      </TableCell>
+                      <TableCell>
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-600">{employee.progress}%</span>
+                            <span className="text-gray-600">
+                              {getEmployeeTasks(employee.id).filter(t => t.isCompleted).length}/{getEmployeeTasks(employee.id).length}
+                            </span>
+                          </div>
+                          <Progress value={employee.progress} className="h-2" />
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={getStatusColor(employee.status)}>
+                          {employee.status.replace("_", " ")}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <User className="w-4 h-4 text-gray-400" />
+                          <span className="text-sm">{employee.assignedTo}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm">
+                              <MoreHorizontal className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleViewDetails(employee)}>
+                              <Eye className="w-4 h-4 mr-2" />
+                              View Details
+                            </DropdownMenuItem>
+                            <DropdownMenuItem>
+                              <Edit className="w-4 h-4 mr-2" />
+                              Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem>
+                              <Download className="w-4 h-4 mr-2" />
+                              Export
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem className="text-red-600">
+                              <Trash2 className="w-4 h-4 mr-2" />
+                              Cancel Offboarding
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </div>
@@ -738,8 +833,8 @@ export default function OffboardingPage() {
                     </div>
                     <Progress value={selectedEmployee.progress} className="h-3" />
                     <div className="flex justify-between text-sm text-gray-500">
-                      <span>{selectedEmployee.tasks.filter(t => t.isCompleted).length} completed</span>
-                      <span>{selectedEmployee.tasks.length} total tasks</span>
+                      <span>{getEmployeeTasks(selectedEmployee.id).filter(t => t.isCompleted).length} completed</span>
+                      <span>{getEmployeeTasks(selectedEmployee.id).length} total tasks</span>
                     </div>
                   </div>
                 </CardContent>
@@ -755,7 +850,7 @@ export default function OffboardingPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {selectedEmployee.tasks.map((task) => (
+                    {getEmployeeTasks(selectedEmployee.id).map((task) => (
                       <div key={task.id} className="flex items-start gap-4 p-4 border rounded-lg hover:bg-gray-50">
                         <Button
                           variant="ghost"
@@ -790,17 +885,17 @@ export default function OffboardingPage() {
                             <div className="flex items-center gap-4 text-sm text-gray-500">
                               <div className="flex items-center gap-1">
                                 <Calendar className="w-4 h-4" />
-                                <span>Due: {new Date(task.dueDate).toLocaleDateString()}</span>
+                                <span>Due: {task.dueDateFormatted}</span>
                               </div>
                               <div className="flex items-center gap-1">
                                 <User className="w-4 h-4" />
                                 <span>{task.assignedTo}</span>
                               </div>
                             </div>
-                            {task.isCompleted && task.completedDate && (
+                            {task.isCompleted && task.completedDateFormatted && (
                               <div className="flex items-center gap-1 text-sm text-green-600">
                                 <CheckCircle className="w-4 h-4" />
-                                <span>Completed {new Date(task.completedDate).toLocaleDateString()}</span>
+                                <span>Completed {task.completedDateFormatted}</span>
                               </div>
                             )}
                           </div>
@@ -816,4 +911,4 @@ export default function OffboardingPage() {
       )}
     </div>
   )
-} 
+}
