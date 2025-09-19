@@ -106,8 +106,9 @@ export default function JobShowPage() {
                 <strong>Experience:</strong> {job.experience}
               </div>
               <div className="flex items-center gap-2">
+                <strong>Salary Range:</strong>
                 <DollarSign className="w-4 h-4 text-muted-foreground" />
-                <strong>Salary Range:</strong> {job.salary_min} - {job.salary_max}
+                {job.salary_min} - {job.salary_max}
               </div>
               <div>
                 <strong>Posted:</strong> {job.posted}
