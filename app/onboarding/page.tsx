@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { getApiUrl, getEndpointUrl } from "@/lib/api"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -12,6 +11,8 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,14 +21,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
 import {
   Users,
   CheckCircle,
@@ -48,94 +41,158 @@ import {
 } from "lucide-react"
 
 interface OnboardingTask {
-  id: string
+  id: number
   title: string
   description: string
   category: string
-  isCompleted: boolean
-  dueDate: string
-  assignedTo: string
+  is_completed: boolean | null
+  due_date: string
+  assigned_to: string
   priority: "low" | "medium" | "high"
   documents?: string[]
+  overdue?: boolean
+  due_soon?: boolean
 }
 
 interface OnboardingEmployee {
-  id: string
+  id: number
+  employee_id: number
   name: string
   email: string
   position: string
   department: string
-  startDate: string
+  start_date: string
   status: "pending" | "in_progress" | "completed"
   progress: number
   tasks: OnboardingTask[]
+  notes?: string
+  created_at: string
+  updated_at: string
+}
+
+interface Department {
+  id: number
+  name: string
+  created_at: string
+  updated_at: string
+}
+
+interface OnboardingStats {
+  active_onboarding: number
+  completed_this_month: number
+  pending_tasks: number
+  documents_pending: number
 }
 
 export default function OnboardingPage() {
   const [employees, setEmployees] = useState<OnboardingEmployee[]>([])
+  const [allEmployees, setAllEmployees] = useState<any[]>([])
+  const [departments, setDepartments] = useState<Department[]>([])
+  const [stats, setStats] = useState<OnboardingStats | null>(null)
   const [selectedEmployee, setSelectedEmployee] = useState<OnboardingEmployee | null>(null)
   const [showAddEmployee, setShowAddEmployee] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [formData, setFormData] = useState({
+    employeeId: "",
+    startDate: ""
+  })
+  
+  const [addTaskDialogOpen, setAddTaskDialogOpen] = useState(false)
+  const [taskFormData, setTaskFormData] = useState({
+    title: '',
+    description: '',
+    category: 'HR',
+    priority: 'medium',
+    due_date: '',
+    assigned_to: 'HR Team'
+  })
 
   useEffect(() => {
     fetchOnboardingEmployees()
     fetchStats()
+    fetchDepartments()
+    fetchAllEmployees()
   }, [])
 
   const fetchOnboardingEmployees = async () => {
+    setLoading(true)
     try {
-      const response = await fetch(getEndpointUrl('ONBOARDING_EMPLOYEES'))
+      const response = await fetch('http://localhost:3002/onboarding_employees')
       const data = await response.json()
       setEmployees(data)
     } catch (error) {
       console.error('Error fetching onboarding employees:', error)
+    } finally {
+      setLoading(false)
     }
   }
 
   const fetchStats = async () => {
     try {
-      const response = await fetch(getApiUrl('onboarding_employees/stats'))
+      const response = await fetch('http://localhost:3002/onboarding_employees/stats')
       const data = await response.json()
-      // Update stats if needed
+      setStats(data)
     } catch (error) {
       console.error('Error fetching stats:', error)
     }
   }
 
-  const onboardingStats = [
+  const fetchDepartments = async () => {
+    try {
+      const response = await fetch('http://localhost:3002/departments')
+      const data = await response.json()
+      setDepartments(data)
+    } catch (error) {
+      console.error('Error fetching departments:', error)
+    }
+  }
+
+  const fetchAllEmployees = async () => {
+    try {
+      const response = await fetch('http://localhost:3002/employees')
+      const data = await response.json()
+      setAllEmployees(data)
+    } catch (error) {
+      console.error('Error fetching all employees:', error)
+    }
+  }
+
+  // Generate dynamic stats from real data
+  const onboardingStats = stats ? [
     {
       title: "Active Onboarding",
-      value: "8",
-      change: "+2 this week",
+      value: stats.active_onboarding.toString(),
+      change: "Currently in progress",
       icon: Users,
       color: "text-blue-600",
       bgColor: "bg-blue-50",
     },
     {
       title: "Completed This Month",
-      value: "12",
-      change: "100% success rate",
+      value: stats.completed_this_month.toString(),
+      change: "Successfully onboarded",
       icon: CheckCircle,
       color: "text-green-600",
       bgColor: "bg-green-50",
     },
     {
       title: "Pending Tasks",
-      value: "24",
-      change: "Across 8 employees",
+      value: stats.pending_tasks.toString(),
+      change: "Requires attention",
       icon: Clock,
       color: "text-orange-600",
       bgColor: "bg-orange-50",
     },
     {
       title: "Documents Pending",
-      value: "15",
-      change: "Requires attention",
+      value: stats.documents_pending.toString(),
+      change: "Awaiting submission",
       icon: FileText,
       color: "text-purple-600",
       bgColor: "bg-purple-50",
     },
-  ]
+  ] : []
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -163,9 +220,9 @@ export default function OnboardingPage() {
     }
   }
 
-  const handleTaskToggle = async (employeeId: string, taskId: string) => {
+  const handleTaskToggle = async (employeeId: number, taskId: number) => {
     try {
-      const response = await fetch(getApiUrl(`onboarding_tasks/${taskId}/toggle`), {
+      const response = await fetch(`http://localhost:3002/onboarding_tasks/${taskId}/toggle`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -174,11 +231,111 @@ export default function OnboardingPage() {
       
       if (response.ok) {
         // Refresh the data
-        fetchOnboardingEmployees()
+        await fetchOnboardingEmployees()
+        await fetchStats()
+        
+        // Update the selected employee's progress if it's the same employee
+        if (selectedEmployee && selectedEmployee.id === employeeId) {
+          const updatedEmployee = employees.find(emp => emp.id === employeeId)
+          if (updatedEmployee) {
+            setSelectedEmployee(updatedEmployee)
+          }
+        }
       }
     } catch (error) {
       console.error('Error toggling task:', error)
     }
+  }
+
+  const handleAddEmployee = async () => {
+    if (!formData.employeeId || !formData.startDate) {
+      alert('Please select an employee and start date')
+      return
+    }
+
+    try {
+      const response = await fetch('http://localhost:3002/onboarding_employees', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          onboarding_employee: {
+            employee_id: parseInt(formData.employeeId),
+            start_date: formData.startDate,
+            status: 'pending',
+            progress: 0
+          }
+        })
+      })
+
+      if (response.ok) {
+        // Reset form
+        setFormData({
+          employeeId: "",
+          startDate: ""
+        })
+        setShowAddEmployee(false)
+        // Refresh data
+        fetchOnboardingEmployees()
+        fetchStats()
+        alert('Employee added to onboarding successfully!')
+      } else {
+        const errorData = await response.json()
+        alert(`Error adding employee: ${errorData.errors ? errorData.errors.join(', ') : 'Unknown error'}`)
+      }
+    } catch (error) {
+      console.error('Error adding employee:', error)
+      alert('Error adding employee. Please try again.')
+    }
+  }
+
+  const handleInputChange = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }))
+  }
+
+  const handleAddTask = async () => {
+    if (!selectedEmployee) return
+    
+    try {
+      const response = await fetch('http://localhost:3002/onboarding_tasks', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: taskFormData.title,
+          description: taskFormData.description,
+          category: taskFormData.category,
+          priority: taskFormData.priority,
+          due_date: taskFormData.due_date || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          assigned_to: taskFormData.assigned_to,
+          onboarding_employee_id: selectedEmployee.id
+        })
+      })
+      
+      if (response.ok) {
+        await fetchOnboardingEmployees()
+        await fetchStats()
+        setAddTaskDialogOpen(false)
+        setTaskFormData({
+          title: '',
+          description: '',
+          category: 'HR',
+          priority: 'medium',
+          due_date: '',
+          assigned_to: 'HR Team'
+        })
+      } else {
+        console.error('Failed to add task:', await response.text())
+      }
+    } catch (error) {
+      console.error('Error adding task:', error)
+    }
+  }
+  
+  const handleTaskInputChange = (field: string, value: string) => {
+    setTaskFormData(prev => ({ ...prev, [field]: value }))
   }
 
   const filteredEmployees = employees.filter(emp =>
@@ -209,22 +366,36 @@ export default function OnboardingPage() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {onboardingStats.map((stat, index) => (
-          <Card key={index} className="hover:shadow-md transition-shadow">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">{stat.title}</p>
-                  <p className="text-2xl font-bold text-gray-900 mt-1">{stat.value}</p>
-                  <p className="text-sm text-gray-500 mt-1">{stat.change}</p>
+        {loading ? (
+          Array.from({ length: 4 }).map((_, index) => (
+            <Card key={index} className="hover:shadow-md transition-shadow">
+              <CardContent className="p-6">
+                <div className="animate-pulse">
+                  <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                  <div className="h-8 bg-gray-200 rounded w-1/2 mb-2"></div>
+                  <div className="h-3 bg-gray-200 rounded w-2/3"></div>
                 </div>
-                <div className={`p-3 rounded-lg ${stat.bgColor}`}>
-                  <stat.icon className={`w-6 h-6 ${stat.color}`} />
+              </CardContent>
+            </Card>
+          ))
+        ) : (
+          onboardingStats.map((stat, index) => (
+            <Card key={index} className="hover:shadow-md transition-shadow">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">{stat.title}</p>
+                    <p className="text-2xl font-bold text-gray-900 mt-1">{stat.value}</p>
+                    <p className="text-sm text-gray-500 mt-1">{stat.change}</p>
+                  </div>
+                  <div className={`p-3 rounded-lg ${stat.bgColor}`}>
+                    <stat.icon className={`w-6 h-6 ${stat.color}`} />
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            </Card>
+          ))
+        )}
       </div>
 
       {/* Main Content */}
@@ -249,7 +420,16 @@ export default function OnboardingPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {filteredEmployees.map((employee) => (
+              {loading ? (
+                Array.from({ length: 3 }).map((_, index) => (
+                  <div key={index} className="p-4 rounded-lg border border-gray-200 animate-pulse">
+                    <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                    <div className="h-3 bg-gray-200 rounded w-1/2 mb-2"></div>
+                    <div className="h-3 bg-gray-200 rounded w-1/4"></div>
+                  </div>
+                ))
+              ) : (
+                filteredEmployees.map((employee) => (
                 <div
                   key={employee.id}
                   className={`p-4 rounded-lg border cursor-pointer transition-all hover:shadow-md ${
@@ -272,7 +452,8 @@ export default function OnboardingPage() {
                     </div>
                   </div>
                 </div>
-              ))}
+                ))
+              )}
             </div>
           </CardContent>
         </Card>
@@ -295,7 +476,7 @@ export default function OnboardingPage() {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg">
                   <div>
                     <p className="text-sm font-medium text-gray-600">Start Date</p>
-                    <p className="text-sm text-gray-900">{selectedEmployee.startDate}</p>
+                    <p className="text-sm text-gray-900">{selectedEmployee.start_date}</p>
                   </div>
                   <div>
                     <p className="text-sm font-medium text-gray-600">Department</p>
@@ -318,30 +499,48 @@ export default function OnboardingPage() {
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <h3 className="text-lg font-medium">Onboarding Tasks</h3>
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" onClick={() => setAddTaskDialogOpen(true)}>
                       <Plus className="w-4 h-4 mr-2" />
                       Add Task
                     </Button>
                   </div>
                   
                   <div className="space-y-3">
-                    {selectedEmployee.tasks.map((task) => (
+                    {selectedEmployee.tasks && selectedEmployee.tasks.length > 0 ? selectedEmployee.tasks.map((task) => (
                       <div key={task.id} className="p-4 border rounded-lg hover:bg-gray-50">
                         <div className="flex items-start gap-3">
-                          <Checkbox
-                            checked={task.isCompleted}
-                            onCheckedChange={() => handleTaskToggle(selectedEmployee.id, task.id)}
-                            className="mt-1"
-                          />
+                          <div className="relative">
+                            <input
+                              type="checkbox"
+                              checked={task.is_completed === true}
+                              onChange={() => handleTaskToggle(selectedEmployee.id, task.id)}
+                              className="mt-1 h-4 w-4 text-blue-600 bg-white border-2 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 cursor-pointer checked:bg-blue-600 checked:border-blue-600 appearance-none"
+                            />
+                            {task.is_completed === true && (
+                              <div className="absolute top-1 left-0.5 text-white text-xs font-bold">
+                                ✓
+                              </div>
+                            )}
+                          </div>
                           <div className="flex-1">
                             <div className="flex items-center justify-between mb-2">
-                              <h4 className={`font-medium ${task.isCompleted ? "line-through text-gray-500" : "text-gray-900"}`}>
+                              <h4 className={`font-medium ${task.is_completed === true ? "line-through text-gray-500" : "text-gray-900"}`}>
                                 {task.title}
                               </h4>
                               <div className="flex items-center gap-2">
                                 <Badge className={getPriorityColor(task.priority)}>
                                   {task.priority}
                                 </Badge>
+                                {task.overdue && (
+                                  <Badge className="bg-red-100 text-red-800">
+                                    Overdue
+                                  </Badge>
+                                )}
+                                {task.due_soon && !task.overdue && (
+                                  <Badge className="bg-yellow-100 text-yellow-800">
+                                    Due Soon
+                                  </Badge>
+                                )}
                                 <DropdownMenu>
                                   <DropdownMenuTrigger asChild>
                                     <Button variant="ghost" size="sm">
@@ -367,17 +566,17 @@ export default function OnboardingPage() {
                                 </DropdownMenu>
                               </div>
                             </div>
-                            <p className={`text-sm mb-2 ${task.isCompleted ? "text-gray-500" : "text-gray-600"}`}>
+                            <p className={`text-sm mb-2 ${task.is_completed === true ? "text-gray-500" : "text-gray-600"}`}>
                               {task.description}
                             </p>
                             <div className="flex items-center justify-between text-xs text-gray-500">
                               <div className="flex items-center gap-4">
                                 <span>Category: {task.category}</span>
-                                <span>Assigned to: {task.assignedTo}</span>
+                                <span>Assigned to: {task.assigned_to}</span>
                               </div>
                               <div className="flex items-center gap-2">
                                 <Calendar className="w-3 h-3" />
-                                <span>Due: {task.dueDate}</span>
+                                <span>Due: {task.due_date}</span>
                               </div>
                             </div>
                             {task.documents && task.documents.length > 0 && (
@@ -396,7 +595,11 @@ export default function OnboardingPage() {
                           </div>
                         </div>
                       </div>
-                    ))}
+                    )) : (
+                      <div className="text-center py-8 text-gray-500">
+                        <p>No tasks available for this employee.</p>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -437,43 +640,139 @@ export default function OnboardingPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="firstName">First Name</Label>
-                <Input id="firstName" placeholder="Enter first name" />
-              </div>
-              <div>
-                <Label htmlFor="lastName">Last Name</Label>
-                <Input id="lastName" placeholder="Enter last name" />
-              </div>
+            <div>
+              <Label htmlFor="employeeId">Select Employee *</Label>
+              <select
+                id="employeeId"
+                value={formData.employeeId}
+                onChange={(e) => handleInputChange('employeeId', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select an employee to add to onboarding</option>
+                {allEmployees
+                  .filter(emp => !employees.some(oe => oe.employee_id === emp.id))
+                  .map((emp) => {
+                    const department = departments.find(dept => dept.id === emp.department_id)
+                    return (
+                      <option key={emp.id} value={emp.id}>
+                        {emp.first_name} {emp.last_name} - {emp.designation} ({department?.name || 'Unknown Department'})
+                      </option>
+                    )
+                  })}
+              </select>
+              <p className="text-xs text-gray-500 mt-1">
+                Only employees not already in onboarding are shown
+              </p>
             </div>
             <div>
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" placeholder="Enter email address" />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="position">Position</Label>
-                <Input id="position" placeholder="Enter job title" />
-              </div>
-              <div>
-                <Label htmlFor="department">Department</Label>
-                <Input id="department" placeholder="Enter department" />
-              </div>
-            </div>
-            <div>
-              <Label htmlFor="startDate">Start Date</Label>
-              <Input id="startDate" type="date" />
+              <Label htmlFor="startDate">Onboarding Start Date *</Label>
+              <Input 
+                id="startDate" 
+                type="date" 
+                value={formData.startDate}
+                onChange={(e) => handleInputChange('startDate', e.target.value)}
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                This will be used to calculate task due dates
+              </p>
             </div>
           </div>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setShowAddEmployee(false)}>
               Cancel
             </Button>
-            <Button onClick={() => setShowAddEmployee(false)}>
-              Add Employee
+            <Button onClick={handleAddEmployee} disabled={loading}>
+              {loading ? 'Adding...' : 'Add Employee'}
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Task Dialog */}
+      <Dialog open={addTaskDialogOpen} onOpenChange={setAddTaskDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Add New Task</DialogTitle>
+            <DialogDescription>
+              Add a new onboarding task for {selectedEmployee?.name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="title">Task Title</Label>
+              <Input
+                id="title"
+                value={taskFormData.title}
+                onChange={(e) => handleTaskInputChange('title', e.target.value)}
+                placeholder="Enter task title"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="description">Description</Label>
+              <Textarea
+                id="description"
+                value={taskFormData.description}
+                onChange={(e) => handleTaskInputChange('description', e.target.value)}
+                placeholder="Enter task description"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="category">Category</Label>
+                <Select value={taskFormData.category} onValueChange={(value) => handleTaskInputChange('category', value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="HR">HR</SelectItem>
+                    <SelectItem value="IT">IT</SelectItem>
+                    <SelectItem value="Training">Training</SelectItem>
+                    <SelectItem value="Department">Department</SelectItem>
+                    <SelectItem value="Performance">Performance</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="priority">Priority</Label>
+                <Select value={taskFormData.priority} onValueChange={(value) => handleTaskInputChange('priority', value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select priority" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="due_date">Due Date</Label>
+              <Input
+                id="due_date"
+                type="date"
+                value={taskFormData.due_date}
+                onChange={(e) => handleTaskInputChange('due_date', e.target.value)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="assigned_to">Assigned To</Label>
+              <Input
+                id="assigned_to"
+                value={taskFormData.assigned_to}
+                onChange={(e) => handleTaskInputChange('assigned_to', e.target.value)}
+                placeholder="Enter assignee name"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddTaskDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleAddTask} disabled={!taskFormData.title.trim()}>
+              Add Task
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

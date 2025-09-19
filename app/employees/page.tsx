@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { getApiUrl, getEndpointUrl } from "@/lib/api"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -21,52 +20,75 @@ import { EmployeeForm } from "@/components/forms/employee-form"
 import { useRouter } from "next/navigation"
 
 interface Employee {
-  id: string
+  id: number
   first_name: string
   last_name: string
   email: string
   phone: string
-  department?: { name: string }
-  department_id?: string
-  designation?: string
-  location?: string
-  date_of_joining?: string
+  department_id: number
+  designation: string
+  date_of_joining: string
   status: string
+  created_at: string
+  updated_at: string
+  date_of_birth?: string
+}
+
+interface Department {
+  id: number
+  name: string
+  created_at: string
+  updated_at: string
 }
 
 export default function EmployeesPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [departmentFilter, setDepartmentFilter] = useState("all")
   const [employees, setEmployees] = useState<Employee[]>([])
+  const [departments, setDepartments] = useState<Department[]>([])
   const [showForm, setShowForm] = useState(false)
   const [loading, setLoading] = useState(false)
   const [editEmployee, setEditEmployee] = useState(null)
   const router = useRouter()
 
-  // Fetch employees from backend
+  // Fetch employees and departments from backend
   useEffect(() => {
     fetchEmployees()
+    fetchDepartments()
   }, [])
 
   const fetchEmployees = async () => {
     setLoading(true)
     try {
-      const res = await fetch(getEndpointUrl('EMPLOYEES'), {
+      const res = await fetch('http://localhost:3002/employees', {
         method: "GET",
         headers: { "Content-Type": "application/json", "Accept": "application/json" }
       })
       const data = await res.json()
       setEmployees(data)
     } catch (err) {
-      // handle error
+      console.error('Error fetching employees:', err)
     } finally {
       setLoading(false)
     }
   }
 
+  const fetchDepartments = async () => {
+    try {
+      const res = await fetch('http://localhost:3002/departments', {
+        method: "GET",
+        headers: { "Content-Type": "application/json", "Accept": "application/json" }
+      })
+      const data = await res.json()
+      setDepartments(data)
+    } catch (err) {
+      console.error('Error fetching departments:', err)
+    }
+  }
+
   const handleAddEmployee = async (formData) => {
     try {
-      const res = await fetch(getEndpointUrl('EMPLOYEES'), {
+      const res = await fetch('http://localhost:3002/employees', {
         method: "POST",
         headers: { "Content-Type": "application/json", "Accept": "application/json" },
         body: JSON.stringify({ employee: formData })
@@ -75,10 +97,10 @@ export default function EmployeesPage() {
         fetchEmployees()
         setShowForm(false)
       } else {
-        // handle error
+        console.error('Error adding employee')
       }
     } catch (err) {
-      // handle error
+      console.error('Error adding employee:', err)
     }
   }
 
@@ -89,7 +111,7 @@ export default function EmployeesPage() {
 
   const handleUpdateEmployee = async (formData) => {
     try {
-      const res = await fetch(getApiUrl(`employees/${formData.id}`), {
+      const res = await fetch(`http://localhost:3002/employees/${formData.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", "Accept": "application/json" },
         body: JSON.stringify({ employee: formData })
@@ -99,43 +121,55 @@ export default function EmployeesPage() {
         setShowForm(false)
         setEditEmployee(null)
       } else {
-        // handle error
+        console.error('Error updating employee')
       }
     } catch (err) {
-      // handle error
+      console.error('Error updating employee:', err)
     }
   }
 
   const handleDeactivateEmployee = async (employee) => {
     try {
-      const res = await fetch(getApiUrl(`employees/${employee.id}`), {
+      const res = await fetch(`http://localhost:3002/employees/${employee.id}`, {
         method: "DELETE",
         headers: { "Accept": "application/json" }
       })
       if (res.ok) {
         fetchEmployees()
       } else {
-        // handle error
+        console.error('Error deactivating employee')
       }
     } catch (err) {
-      // handle error
+      console.error('Error deactivating employee:', err)
     }
   }
 
-  const departmentStats = [
-    { name: "Engineering", count: 85, color: "bg-blue-500" },
-    { name: "Marketing", count: 32, color: "bg-green-500" },
-    { name: "HR", count: 18, color: "bg-purple-500" },
-    { name: "Finance", count: 24, color: "bg-orange-500" },
-    { name: "Operations", count: 41, color: "bg-pink-500" },
-    { name: "Sales", count: 48, color: "bg-indigo-500" },
-  ]
+  // Generate dynamic department stats from real data
+  const departmentStats = departments.map((dept, index) => {
+    const count = employees.filter(emp => emp.department_id === dept.id).length
+    const colors = [
+      "bg-blue-500", "bg-green-500", "bg-purple-500", 
+      "bg-orange-500", "bg-pink-500", "bg-indigo-500", 
+      "bg-red-500", "bg-yellow-500"
+    ]
+    return {
+      name: dept.name,
+      count: count,
+      color: colors[index % colors.length]
+    }
+  })
 
   const filteredEmployees = employees.filter((employee) => {
     const matchesSearch =
       (employee.first_name?.toLowerCase() + ' ' + employee.last_name?.toLowerCase()).includes(searchTerm.toLowerCase()) ||
       employee.email?.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesDepartment = departmentFilter === "all" || (employee.department && employee.department.name === departmentFilter)
+    
+    const matchesDepartment = departmentFilter === "all" || 
+      (() => {
+        const department = departments.find(dept => dept.id === employee.department_id)
+        return department && department.name === departmentFilter
+      })()
+    
     return matchesSearch && matchesDepartment
   })
 
@@ -216,12 +250,11 @@ export default function EmployeesPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Departments</SelectItem>
-                <SelectItem value="Engineering">Engineering</SelectItem>
-                <SelectItem value="Marketing">Marketing</SelectItem>
-                <SelectItem value="HR">HR</SelectItem>
-                <SelectItem value="Finance">Finance</SelectItem>
-                <SelectItem value="Operations">Operations</SelectItem>
-                <SelectItem value="Sales">Sales</SelectItem>
+                {departments.map((dept) => (
+                  <SelectItem key={dept.id} value={dept.name}>
+                    {dept.name}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -256,7 +289,12 @@ export default function EmployeesPage() {
                     </TableCell>
                     <TableCell>
                       <div>
-                        <p className="font-medium text-gray-900">{employee.department?.name || employee.department_id || '-'}</p>
+                        <p className="font-medium text-gray-900">
+                          {(() => {
+                            const department = departments.find(dept => dept.id === employee.department_id)
+                            return department ? department.name : `Department ${employee.department_id}`
+                          })()}
+                        </p>
                         <p className="text-sm text-gray-500">{employee.designation}</p>
                       </div>
                     </TableCell>
