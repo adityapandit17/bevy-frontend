@@ -122,6 +122,26 @@ interface OffboardingStats {
   }>
 }
 
+interface Employee {
+  id: number
+  first_name: string
+  last_name: string
+  email: string
+  department?: {
+    id: number
+    name: string
+  }
+  designation: string
+}
+
+interface OffboardingFormData {
+  employeeId: string
+  lastWorkingDay: string
+  reason: string
+  assignedTo: string
+  notes: string
+}
+
 export default function OffboardingPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [filterStatus, setFilterStatus] = useState("all")
@@ -134,12 +154,24 @@ export default function OffboardingPage() {
   const [selectedEmployee, setSelectedEmployee] = useState<OffboardingEmployee | null>(null)
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [employees, setEmployees] = useState<Employee[]>([])
+  const [formData, setFormData] = useState<OffboardingFormData>({
+    employeeId: "",
+    lastWorkingDay: "",
+    reason: "",
+    assignedTo: "",
+    notes: ""
+  })
+  const [formErrors, setFormErrors] = useState<Partial<OffboardingFormData>>({})
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchOffboardingEmployees()
     fetchOffboardingTasks()
     fetchDepartments()
     fetchStats()
+    fetchEmployees()
   }, [])
 
   // Update selected employee when allOffboardingEmployees changes
@@ -196,6 +228,25 @@ export default function OffboardingPage() {
     }
   }
 
+  const fetchEmployees = async () => {
+    try {
+      const response = await fetch(getEndpointUrl('EMPLOYEES'))
+      if (response.ok) {
+        const data = await response.json()
+        // Filter out employees who are already in offboarding
+        const offboardingEmployeeIds = offboardingEmployees.map(oe => oe.employeeId)
+        const availableEmployees = data.filter((employee: Employee) => 
+          !offboardingEmployeeIds.includes(employee.id)
+        )
+        setEmployees(availableEmployees)
+      } else {
+        console.error('Failed to fetch employees:', response.statusText)
+      }
+    } catch (error) {
+      console.error('Error fetching employees:', error)
+    }
+  }
+
   const handleTaskToggle = async (employeeId: number, taskId: number) => {
     try {
       const response = await fetch(getApiUrl(`/offboarding_tasks/${taskId}/toggle`), {
@@ -214,6 +265,128 @@ export default function OffboardingPage() {
     } catch (error) {
       console.error('Error toggling task:', error)
     }
+  }
+
+  // Form handling functions
+  const validateForm = (): boolean => {
+    const errors: Partial<OffboardingFormData> = {}
+    
+    if (!formData.employeeId) {
+      errors.employeeId = "Employee is required"
+    }
+    if (!formData.lastWorkingDay) {
+      errors.lastWorkingDay = "Last working day is required"
+    }
+    if (!formData.reason) {
+      errors.reason = "Reason is required"
+    }
+    if (!formData.assignedTo) {
+      errors.assignedTo = "Assigned to is required"
+    }
+    
+    // Validate last working day is in the future
+    if (formData.lastWorkingDay && new Date(formData.lastWorkingDay) <= new Date()) {
+      errors.lastWorkingDay = "Last working day must be in the future"
+    }
+    
+    setFormErrors(errors)
+    return Object.keys(errors).length === 0
+  }
+
+  const handleInputChange = (field: keyof OffboardingFormData, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }))
+    // Clear error when user starts typing
+    if (formErrors[field]) {
+      setFormErrors(prev => ({ ...prev, [field]: undefined }))
+    }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (!validateForm()) {
+      return
+    }
+    
+    setIsSubmitting(true)
+    setSubmitError(null) // Clear any previous errors
+    
+    try {
+      const response = await fetch(getEndpointUrl('OFFBOARDING_EMPLOYEES'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          offboarding_employee: {
+            employee_id: parseInt(formData.employeeId),
+            last_working_day: formData.lastWorkingDay,
+            status: 'pending',
+            assigned_to: formData.assignedTo,
+            notes: formData.notes
+          }
+        })
+      })
+      
+      if (response.ok) {
+        const newOffboardingEmployee = await response.json()
+        
+        // Reset form
+        setFormData({
+          employeeId: "",
+          lastWorkingDay: "",
+          reason: "",
+          assignedTo: "",
+          notes: ""
+        })
+        setFormErrors({})
+        setShowAddDialog(false)
+        
+        // Refresh data to get updated lists
+        await fetchOffboardingEmployees()
+        await fetchOffboardingTasks()
+        await fetchStats()
+        await fetchEmployees() // Refresh available employees list
+        
+        // Small delay to ensure backend has processed task creation
+        setTimeout(async () => {
+          await fetchOffboardingTasks()
+        }, 500)
+        
+        // Show success message (you could add a toast notification here)
+        console.log('Offboarding process started successfully', newOffboardingEmployee)
+      } else {
+        const errorData = await response.json()
+        console.error('Error creating offboarding employee:', errorData)
+        
+        // Display user-friendly error messages
+        if (errorData.errors && Array.isArray(errorData.errors)) {
+          setSubmitError(errorData.errors.join(', '))
+        } else if (errorData.error) {
+          setSubmitError(errorData.error)
+        } else {
+          setSubmitError('Failed to create offboarding employee. Please try again.')
+        }
+      }
+    } catch (error) {
+      console.error('Error submitting form:', error)
+      setSubmitError('Network error. Please check your connection and try again.')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleCancel = () => {
+    setFormData({
+      employeeId: "",
+      lastWorkingDay: "",
+      reason: "",
+      assignedTo: "",
+      notes: ""
+    })
+    setFormErrors({})
+    setSubmitError(null)
+    setShowAddDialog(false)
   }
 
   // Generate dynamic stats from real data
@@ -380,8 +553,10 @@ export default function OffboardingPage() {
     return offboardingTasks.filter(task => task.offboardingEmployeeId === employeeId)
   }
 
-  const handleViewDetails = (employee: OffboardingEmployee) => {
+  const handleViewDetails = async (employee: OffboardingEmployee) => {
     setSelectedEmployee(employee)
+    // Ensure we have the latest tasks for this employee
+    await fetchOffboardingTasks()
   }
 
   return (
@@ -411,83 +586,157 @@ export default function OffboardingPage() {
                   Initiate the offboarding process for an employee.
                 </DialogDescription>
               </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <label htmlFor="employee" className="text-right">
-                    Employee
-                  </label>
-                  <Select>
-                    <SelectTrigger className="col-span-3">
-                      <SelectValue placeholder="Select employee" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="employee1">John Doe</SelectItem>
-                      <SelectItem value="employee2">Jane Smith</SelectItem>
-                      <SelectItem value="employee3">Bob Wilson</SelectItem>
-                    </SelectContent>
-                  </Select>
+              
+              {/* Error Display */}
+              {submitError && (
+                <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-4">
+                  <div className="flex">
+                    <div className="flex-shrink-0">
+                      <AlertTriangle className="h-5 w-5 text-red-400" />
+                    </div>
+                    <div className="ml-3">
+                      <p className="text-sm text-red-800">{submitError}</p>
+                    </div>
+                  </div>
                 </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <label htmlFor="last-working-day" className="text-right">
-                    Last Working Day
-                  </label>
-                  <Input
-                    id="last-working-day"
-                    type="date"
-                    className="col-span-3"
-                  />
+              )}
+              
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="grid gap-4 py-4">
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <label htmlFor="employee" className="text-right text-sm font-medium">
+                      Employee *
+                    </label>
+                    <div className="col-span-3">
+                      <Select
+                        value={formData.employeeId}
+                        onValueChange={(value) => handleInputChange('employeeId', value)}
+                      >
+                        <SelectTrigger className={formErrors.employeeId ? 'border-red-500' : ''}>
+                          <SelectValue placeholder="Select employee" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {employees.length > 0 ? (
+                            employees.map((employee) => (
+                              <SelectItem key={employee.id} value={employee.id.toString()}>
+                                {employee.first_name} {employee.last_name} - {employee.email}
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <div className="p-2 text-sm text-gray-500 text-center">
+                              No employees available for offboarding
+                            </div>
+                          )}
+                        </SelectContent>
+                      </Select>
+                      {formErrors.employeeId && (
+                        <p className="text-red-500 text-xs mt-1">{formErrors.employeeId}</p>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <label htmlFor="last-working-day" className="text-right text-sm font-medium">
+                      Last Working Day *
+                    </label>
+                    <div className="col-span-3">
+                      <Input
+                        id="last-working-day"
+                        type="date"
+                        value={formData.lastWorkingDay}
+                        onChange={(e) => handleInputChange('lastWorkingDay', e.target.value)}
+                        className={formErrors.lastWorkingDay ? 'border-red-500' : ''}
+                        min={new Date().toISOString().split('T')[0]}
+                      />
+                      {formErrors.lastWorkingDay && (
+                        <p className="text-red-500 text-xs mt-1">{formErrors.lastWorkingDay}</p>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <label htmlFor="reason" className="text-right text-sm font-medium">
+                      Reason *
+                    </label>
+                    <div className="col-span-3">
+                      <Select
+                        value={formData.reason}
+                        onValueChange={(value) => handleInputChange('reason', value)}
+                      >
+                        <SelectTrigger className={formErrors.reason ? 'border-red-500' : ''}>
+                          <SelectValue placeholder="Select reason" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="resignation">Resignation</SelectItem>
+                          <SelectItem value="termination">Termination</SelectItem>
+                          <SelectItem value="retirement">Retirement</SelectItem>
+                          <SelectItem value="contract-end">Contract End</SelectItem>
+                          <SelectItem value="personal">Personal Reasons</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {formErrors.reason && (
+                        <p className="text-red-500 text-xs mt-1">{formErrors.reason}</p>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <label htmlFor="assigned-to" className="text-right text-sm font-medium">
+                      Assigned To *
+                    </label>
+                    <div className="col-span-3">
+                      <Select
+                        value={formData.assignedTo}
+                        onValueChange={(value) => handleInputChange('assignedTo', value)}
+                      >
+                        <SelectTrigger className={formErrors.assignedTo ? 'border-red-500' : ''}>
+                          <SelectValue placeholder="Select assignee" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="hr">HR Manager</SelectItem>
+                          <SelectItem value="manager">Direct Manager</SelectItem>
+                          <SelectItem value="it">IT Department</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {formErrors.assignedTo && (
+                        <p className="text-red-500 text-xs mt-1">{formErrors.assignedTo}</p>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <label htmlFor="notes" className="text-right text-sm font-medium">
+                      Notes
+                    </label>
+                    <div className="col-span-3">
+                      <textarea
+                        id="notes"
+                        value={formData.notes}
+                        onChange={(e) => handleInputChange('notes', e.target.value)}
+                        placeholder="Additional notes or special instructions"
+                        className="min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      />
+                    </div>
+                  </div>
                 </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <label htmlFor="reason" className="text-right">
-                    Reason
-                  </label>
-                  <Select>
-                    <SelectTrigger className="col-span-3">
-                      <SelectValue placeholder="Select reason" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="resignation">Resignation</SelectItem>
-                      <SelectItem value="termination">Termination</SelectItem>
-                      <SelectItem value="retirement">Retirement</SelectItem>
-                      <SelectItem value="contract-end">Contract End</SelectItem>
-                      <SelectItem value="personal">Personal Reasons</SelectItem>
-                    </SelectContent>
-                  </Select>
+                
+                <div className="flex justify-end gap-2">
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={handleCancel}
+                    disabled={isSubmitting}
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    type="submit" 
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? 'Starting...' : 'Start Offboarding'}
+                  </Button>
                 </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <label htmlFor="assigned-to" className="text-right">
-                    Assigned To
-                  </label>
-                  <Select>
-                    <SelectTrigger className="col-span-3">
-                      <SelectValue placeholder="Select assignee" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="hr">HR Manager</SelectItem>
-                      <SelectItem value="manager">Direct Manager</SelectItem>
-                      <SelectItem value="it">IT Department</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <label htmlFor="notes" className="text-right">
-                    Notes
-                  </label>
-                  <textarea
-                    id="notes"
-                    placeholder="Additional notes or special instructions"
-                    className="col-span-3 min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  />
-                </div>
-              </div>
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setShowAddDialog(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={() => setShowAddDialog(false)}>
-                  Start Offboarding
-                </Button>
-              </div>
+              </form>
             </DialogContent>
           </Dialog>
         </div>
