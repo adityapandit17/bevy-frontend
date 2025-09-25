@@ -55,6 +55,7 @@ import {
   Edit,
 } from "lucide-react"
 import { InterviewForm } from "@/components/forms/interview-form"
+import { CandidateForm } from "@/components/forms/candidate-form"
 
 interface Candidate {
   id: string
@@ -106,10 +107,12 @@ export default function ATSPage() {
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null)
   const [showAddCandidate, setShowAddCandidate] = useState(false)
+  const [showEditCandidate, setShowEditCandidate] = useState(false)
   const [showScheduleInterview, setShowScheduleInterview] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
   const [filterStatus, setFilterStatus] = useState<string>("all")
   const [filterDepartment, setFilterDepartment] = useState<string>("all")
+  const [isLoading, setIsLoading] = useState(false)
 
   useEffect(() => {
     fetchCandidates()
@@ -248,6 +251,62 @@ export default function ATSPage() {
     }
   }
 
+  const handleSaveCandidate = async (candidateData: Candidate) => {
+    setIsLoading(true)
+    try {
+      const isEdit = candidateData.id
+      const url = isEdit 
+        ? getApiUrl(`candidates/${candidateData.id}`)
+        : getEndpointUrl('CANDIDATES')
+      
+      const method = isEdit ? 'PATCH' : 'POST'
+      
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ candidate: candidateData }),
+      })
+
+      if (response.ok) {
+        const savedCandidate = await response.json()
+        
+        if (isEdit) {
+          setCandidates(prev => 
+            prev.map(c => c.id === candidateData.id ? savedCandidate : c)
+          )
+          setSelectedCandidate(savedCandidate)
+        } else {
+          setCandidates(prev => [...prev, savedCandidate])
+          setSelectedCandidate(savedCandidate)
+        }
+        
+        setShowAddCandidate(false)
+        setShowEditCandidate(false)
+      } else {
+        const errorData = await response.json()
+        console.error('Error saving candidate:', errorData)
+        // You could add toast notifications here
+      }
+    } catch (error) {
+      console.error('Error saving candidate:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleEditCandidate = (candidate: Candidate) => {
+    setSelectedCandidate(candidate)
+    setShowEditCandidate(true)
+  }
+
+  const handleCancelForm = () => {
+    setShowAddCandidate(false)
+    setShowEditCandidate(false)
+    setSelectedCandidate(null)
+  }
+
   return (
     <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6">
       {/* Header */}
@@ -369,20 +428,47 @@ export default function ATSPage() {
                 <div
                   key={candidate.id}
                   className={`p-4 rounded-lg border cursor-pointer transition-all hover:shadow-md ${
-                    selectedCandidate?.id === candidate.id ? "border-blue-500 bg-blue-50" : "border-gray-200"
+                    selectedCandidate?.id === candidate.id ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-gray-300"
                   }`}
                   onClick={() => setSelectedCandidate(candidate)}
                 >
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="font-medium text-gray-900">{candidate.name}</h3>
-                    <Badge className={getStatusColor(candidate.status)}>
-                      {candidate.status.charAt(0).toUpperCase() + candidate.status.slice(1)}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge className={getStatusColor(candidate.status)}>
+                        {candidate.status.charAt(0).toUpperCase() + candidate.status.slice(1)}
+                      </Badge>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                          <DropdownMenuItem onClick={(e) => {
+                            e.stopPropagation()
+                            handleEditCandidate(candidate)
+                          }}>
+                            <Edit className="mr-2 h-4 w-4" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={(e) => {
+                            e.stopPropagation()
+                            setSelectedCandidate(candidate)
+                            setShowScheduleInterview(true)
+                          }}>
+                            <Calendar className="mr-2 h-4 w-4" />
+                            Schedule Interview
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </div>
                   <p className="text-sm text-gray-600 mb-2">{candidate.position}</p>
                   <div className="flex items-center justify-between text-xs text-gray-500">
                     <span>{candidate.department}</span>
-                                            <span>{new Date(candidate.applied_date).toLocaleDateString()}</span>
+                    <span>{new Date(candidate.applied_date).toLocaleDateString()}</span>
                   </div>
                   {candidate.interviews.length > 0 && (
                     <div className="mt-2 flex items-center gap-1 text-xs text-gray-500">
@@ -399,13 +485,27 @@ export default function ATSPage() {
         {/* Candidate Details */}
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <UserPlus className="w-5 h-5" />
-              Candidate Profile
-            </CardTitle>
-            <CardDescription>
-              {selectedCandidate ? `${selectedCandidate.name} - ${selectedCandidate.position}` : "Select a candidate to view their profile"}
-            </CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <UserPlus className="w-5 h-5" />
+                  Candidate Profile
+                </CardTitle>
+                <CardDescription>
+                  {selectedCandidate ? `${selectedCandidate.name} - ${selectedCandidate.position}` : "Select a candidate to view their profile"}
+                </CardDescription>
+              </div>
+              {selectedCandidate && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => handleEditCandidate(selectedCandidate)}
+                >
+                  <Edit className="w-4 h-4 mr-2" />
+                  Edit
+                </Button>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             {selectedCandidate ? (
@@ -468,14 +568,30 @@ export default function ATSPage() {
                     <div>
                       <p className="text-sm font-medium text-gray-600">Documents</p>
                       <div className="space-y-1 mt-2">
-                        <div className="flex items-center gap-2 text-sm">
-                          <FileText className="w-4 h-4 text-gray-400" />
-                          <span className="text-blue-600 cursor-pointer underline">{selectedCandidate.resume}</span>
-                        </div>
+                        {selectedCandidate.resume && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <FileText className="w-4 h-4 text-gray-400" />
+                            <a 
+                              href={selectedCandidate.resume.startsWith('http') ? selectedCandidate.resume : getApiUrl(`uploads/${selectedCandidate.resume}`)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 cursor-pointer underline hover:text-blue-800"
+                            >
+                              {selectedCandidate.resume.includes('/') ? selectedCandidate.resume.split('/').pop() : 'Resume'}
+                            </a>
+                          </div>
+                        )}
                         {selectedCandidate.cover_letter && (
                           <div className="flex items-center gap-2 text-sm">
                             <FileText className="w-4 h-4 text-gray-400" />
-                            <span className="text-blue-600 cursor-pointer underline">{selectedCandidate.cover_letter}</span>
+                            <a 
+                              href={selectedCandidate.cover_letter.startsWith('http') ? selectedCandidate.cover_letter : getApiUrl(`uploads/${selectedCandidate.cover_letter}`)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 cursor-pointer underline hover:text-blue-800"
+                            >
+                              {selectedCandidate.cover_letter.includes('/') ? selectedCandidate.cover_letter.split('/').pop() : 'Cover Letter'}
+                            </a>
                           </div>
                         )}
                       </div>
@@ -505,7 +621,7 @@ export default function ATSPage() {
                 </div>
 
                 {/* Status Management */}
-                <div className="flex items-center justify-between p-4 border rounded-lg">
+                <div className="flex items-center justify-between p-4 border rounded-lg bg-gray-50">
                   <div>
                     <h3 className="text-lg font-medium mb-2">Current Status</h3>
                     <Badge className={getStatusColor(selectedCandidate.status)}>
@@ -514,7 +630,7 @@ export default function ATSPage() {
                   </div>
                   <div className="flex gap-2">
                     <Select value={selectedCandidate.status} onValueChange={(value) => handleStatusChange(selectedCandidate.id, value)}>
-                      <SelectTrigger className="w-32">
+                      <SelectTrigger className="w-40">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -684,74 +800,36 @@ export default function ATSPage() {
 
       {/* Add Candidate Dialog */}
       <Dialog open={showAddCandidate} onOpenChange={setShowAddCandidate}>
-        <DialogContent className="sm:max-w-[600px]">
+        <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add New Candidate</DialogTitle>
             <DialogDescription>
               Add a new candidate to the recruitment pipeline
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="firstName">First Name</Label>
-                <Input id="firstName" placeholder="Enter first name" />
-              </div>
-              <div>
-                <Label htmlFor="lastName">Last Name</Label>
-                <Input id="lastName" placeholder="Enter last name" />
-              </div>
-            </div>
-            <div>
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" placeholder="Enter email address" />
-            </div>
-            <div>
-              <Label htmlFor="phone">Phone</Label>
-              <Input id="phone" placeholder="Enter phone number" />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="position">Position</Label>
-                <Input id="position" placeholder="Enter job title" />
-              </div>
-              <div>
-                <Label htmlFor="department">Department</Label>
-                <Select>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select department" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Engineering">Engineering</SelectItem>
-                    <SelectItem value="Product">Product</SelectItem>
-                    <SelectItem value="Design">Design</SelectItem>
-                    <SelectItem value="Marketing">Marketing</SelectItem>
-                    <SelectItem value="Sales">Sales</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div>
-              <Label htmlFor="experience">Experience</Label>
-              <Input id="experience" placeholder="e.g., 5 years" />
-            </div>
-            <div>
-              <Label htmlFor="location">Location</Label>
-              <Input id="location" placeholder="Enter location" />
-            </div>
-            <div>
-              <Label htmlFor="notes">Notes</Label>
-              <Textarea id="notes" placeholder="Add any notes about the candidate..." />
-            </div>
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setShowAddCandidate(false)}>
-              Cancel
-            </Button>
-            <Button onClick={() => setShowAddCandidate(false)}>
-              Add Candidate
-            </Button>
-          </div>
+          <CandidateForm
+            onSave={handleSaveCandidate}
+            onCancel={handleCancelForm}
+            isLoading={isLoading}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Candidate Dialog */}
+      <Dialog open={showEditCandidate} onOpenChange={setShowEditCandidate}>
+        <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Candidate</DialogTitle>
+            <DialogDescription>
+              Update candidate information
+            </DialogDescription>
+          </DialogHeader>
+          <CandidateForm
+            candidate={selectedCandidate}
+            onSave={handleSaveCandidate}
+            onCancel={handleCancelForm}
+            isLoading={isLoading}
+          />
         </DialogContent>
       </Dialog>
 

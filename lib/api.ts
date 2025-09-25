@@ -81,6 +81,9 @@ export const API_ENDPOINTS = {
   // ATS
   CANDIDATES: '/candidates',
   
+  // File Upload
+  UPLOAD: '/uploads',
+  
   // Assets
   ASSETS: '/assets',
 } as const;
