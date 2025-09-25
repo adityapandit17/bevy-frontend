@@ -1,4 +1,4 @@
-rerun the made changet ectory "use client"
+"use client"
 
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -50,7 +50,7 @@ export default function EmployeesPage() {
   const [departments, setDepartments] = useState<Department[]>([])
   const [showForm, setShowForm] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [editEmployee, setEditEmployee] = useState(null)
+  const [editEmployee, setEditEmployee] = useState<Employee | null>(null)
   const router = useRouter()
 
   // Fetch employees and departments from backend
@@ -62,7 +62,7 @@ export default function EmployeesPage() {
   const fetchEmployees = async () => {
     setLoading(true)
     try {
-      const res = await fetch(getApiUrl('EMPLOYEES'), {
+      const res = await fetch(getApiUrl('employees'), {
         method: "GET",
         headers: { "Content-Type": "application/json", "Accept": "application/json" }
       })
@@ -90,7 +90,7 @@ export default function EmployeesPage() {
 
   const handleAddEmployee = async (formData: any) => {
     try {
-      const res = await fetch(getApiUrl('EMPLOYEES'), {
+      const res = await fetch(getApiUrl('employees'), {
         method: "POST",
         headers: { "Content-Type": "application/json", "Accept": "application/json" },
         body: JSON.stringify({ employee: formData })
@@ -113,7 +113,7 @@ export default function EmployeesPage() {
 
   const handleUpdateEmployee = async (formData: any) => {
     try {
-      const res = await fetch(`${getApiUrl('EMPLOYEES')}/${formData.id}`, {
+      const res = await fetch(`${getApiUrl('employees')}/${formData.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", "Accept": "application/json" },
         body: JSON.stringify({ employee: formData })
@@ -132,7 +132,7 @@ export default function EmployeesPage() {
 
   const handleDeactivateEmployee = async (employee: Employee) => {
     try {
-      const res = await fetch(`${getApiUrl('EMPLOYEES')}/${employee.id}`, {
+      const res = await fetch(`${getApiUrl('employees')}/${employee.id}`, {
         method: "DELETE",
         headers: { "Accept": "application/json" }
       })
