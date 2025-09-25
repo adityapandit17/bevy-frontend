@@ -45,7 +45,18 @@ export const API_ENDPOINTS = {
   
   // Attendance & Leave
   ATTENDANCE_RECORDS: '/attendance_records',
+  ATTENDANCE_TODAY: '/attendance_records/today',
+  ATTENDANCE_STATS: '/attendance_records/stats',
+  ATTENDANCE_CALENDAR: '/attendance_records/calendar',
+  ATTENDANCE_CHECK_IN: '/attendance_records/{id}/check_in',
+  ATTENDANCE_CHECK_OUT: '/attendance_records/{id}/check_out',
   LEAVE_REQUESTS: '/leave_requests',
+  LEAVE_BALANCE: '/leave_requests/balance',
+  LEAVE_CALENDAR: '/leave_requests/calendar',
+  LEAVE_STATS: '/leave_requests/stats',
+  LEAVE_APPROVE: '/leave_requests/{id}/approve',
+  LEAVE_REJECT: '/leave_requests/{id}/reject',
+  LEAVE_CANCEL: '/leave_requests/{id}/cancel',
   
   // Payroll
   PAYROLLS: '/payrolls',

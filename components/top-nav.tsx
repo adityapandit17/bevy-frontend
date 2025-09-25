@@ -63,6 +63,12 @@ const navItems = [
     segment: "attendance-leave",
   },
   {
+    title: "Leave Management",
+    href: "/leave-management",
+    icon: CalendarCheck,
+    segment: "leave-management",
+  },
+  {
     title: "Reports",
     href: "/reports",
     icon: BarChart,

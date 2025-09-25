@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react"
 import { getApiUrl, getEndpointUrl } from "@/lib/api"
+import { mapLeaveRequestToBackend } from "@/lib/leave-request-mapper"
+import { useAuth } from "@/lib/auth/auth.hooks"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -34,6 +36,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { format } from "date-fns"
 
 export default function AttendanceLeavePage() {
+  const { user, isAuthenticated } = useAuth()
   const [date, setDate] = useState<Date | undefined>(new Date())
   const [searchTerm, setSearchTerm] = useState("")
   const [attendanceStats, setAttendanceStats] = useState([])
@@ -138,10 +141,20 @@ export default function AttendanceLeavePage() {
 
   const handleApplyLeave = async (formData) => {
     try {
+      // Get current user's employee ID
+      const employeeId = user?.employee?.id
+      if (!employeeId) {
+        alert("Employee information not found. Please contact HR.")
+        return
+      }
+      
+      // Use utility function to map form data to backend format
+      const requestData = mapLeaveRequestToBackend(formData, employeeId, 'pending')
+      
       const res = await fetch(getEndpointUrl('LEAVE_REQUESTS'), {
         method: "POST",
         headers: { "Content-Type": "application/json", "Accept": "application/json" },
-        body: JSON.stringify({ leave_request: formData })
+        body: JSON.stringify(requestData)
       })
       if (res.ok) {
         fetchLeaveRequests()

@@ -14,9 +14,10 @@ import { X, Calendar, User } from "lucide-react"
 interface LeaveRequestFormProps {
   onClose: () => void
   onSubmit: (formData: any) => void
+  employeeId?: number
 }
 
-export function LeaveRequestForm({ onClose, onSubmit }: LeaveRequestFormProps) {
+export function LeaveRequestForm({ onClose, onSubmit, employeeId = 1 }: LeaveRequestFormProps) {
   const [formData, setFormData] = useState({
     type: "",
     startDate: "",
@@ -30,20 +31,37 @@ export function LeaveRequestForm({ onClose, onSubmit }: LeaveRequestFormProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    onSubmit(formData)
+    
+    // Map form data to backend parameter names
+    const mappedData = {
+      type: formData.type,
+      startDate: formData.startDate,
+      endDate: formData.endDate,
+      reason: formData.reason,
+      emergencyContact: formData.emergencyContact,
+      handoverNotes: formData.handoverNotes,
+      halfDay: formData.halfDay,
+      halfDayPeriod: formData.halfDayPeriod
+    }
+    
+    onSubmit(mappedData)
   }
 
-  const handleChange = (field: string, value: string) => {
+  const handleChange = (field: string, value: string | boolean) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
   }
 
   const calculateDays = () => {
     if (formData.startDate && formData.endDate) {
-      const start = new Date(formData.startDate)
-      const end = new Date(formData.endDate)
-      const diffTime = Math.abs(end.getTime() - start.getTime())
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1
-      return diffDays
+      if (formData.halfDay) {
+        return 0.5
+      } else {
+        const start = new Date(formData.startDate)
+        const end = new Date(formData.endDate)
+        const diffTime = Math.abs(end.getTime() - start.getTime())
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1
+        return diffDays
+      }
     }
     return 0
   }
@@ -145,13 +163,18 @@ export function LeaveRequestForm({ onClose, onSubmit }: LeaveRequestFormProps) {
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
                       <p className="text-gray-600">Total leave days</p>
-                      <p className="font-bold text-blue-600">{calculateDays()} days</p>
+                      <p className="font-bold text-blue-600">
+                        {calculateDays()} {calculateDays() === 0.5 ? 'day (Half Day)' : 'days'}
+                      </p>
                     </div>
                     <div>
                       <p className="text-gray-600">Duration</p>
                       <p className="font-medium text-gray-900">
-                        {new Date(formData.startDate).toLocaleDateString()} to{" "}
-                        {new Date(formData.endDate).toLocaleDateString()}
+                        {formData.halfDay ? (
+                          `${new Date(formData.startDate).toLocaleDateString()} (${formData.halfDayPeriod === 'morning' ? 'Morning' : 'Afternoon'})`
+                        ) : (
+                          `${new Date(formData.startDate).toLocaleDateString()} to ${new Date(formData.endDate).toLocaleDateString()}`
+                        )}
                       </p>
                     </div>
                   </div>
@@ -168,6 +191,40 @@ export function LeaveRequestForm({ onClose, onSubmit }: LeaveRequestFormProps) {
                   placeholder="Please provide a detailed reason for your leave request..."
                   required
                 />
+              </div>
+
+              {/* Half Day Leave Option */}
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2">
+                  <input
+                    id="halfDay"
+                    type="checkbox"
+                    checked={formData.halfDay}
+                    onChange={(e) => handleChange("halfDay", e.target.checked)}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <Label htmlFor="halfDay" className="text-sm font-medium text-gray-700">
+                    Half Day Leave
+                  </Label>
+                </div>
+
+                {formData.halfDay && (
+                  <div>
+                    <Label htmlFor="halfDayPeriod">Half Day Period *</Label>
+                    <Select
+                      value={formData.halfDayPeriod}
+                      onValueChange={(value) => handleChange("halfDayPeriod", value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select half day period" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="morning">Morning (9:00 AM - 1:00 PM)</SelectItem>
+                        <SelectItem value="afternoon">Afternoon (1:00 PM - 5:00 PM)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
 
               <div>
