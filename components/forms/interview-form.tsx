@@ -45,7 +45,8 @@ interface InterviewFormProps {
 
 interface Employee {
   id: string
-  name: string
+  first_name: string
+  last_name: string
   email: string
   designation: string
 }
@@ -298,10 +299,10 @@ export function InterviewForm({
               </SelectTrigger>
               <SelectContent>
                 {employees.map((employee) => (
-                  <SelectItem key={employee.id} value={employee.name}>
+                  <SelectItem key={employee.id} value={employee.first_name + " " + employee.last_name}>
                     <div className="flex items-center gap-2">
                       <User className="h-4 w-4" />
-                      {employee.name} - {employee.designation}
+                      {employee.first_name} {employee.last_name} - {employee.designation}
                     </div>
                   </SelectItem>
                 ))}

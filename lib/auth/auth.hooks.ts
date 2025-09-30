@@ -21,47 +21,50 @@ import { AUTH_CONFIG } from '@/config/auth.config';
  * Main authentication hook
  */
 export function useAuth() {
-  const [state, setState] = useState<AuthState>(() => {
-    // Initialize from localStorage if available
-    if (typeof window !== 'undefined') {
-      const token = localStorage.getItem(AUTH_CONFIG.tokenKey);
-      const userData = localStorage.getItem(AUTH_CONFIG.userKey);
-      
-      if (token && userData) {
-        try {
-          const user = JSON.parse(userData);
-          return {
-            user,
-            roles: user.roles || [],
-            permissions: user.permissions || [],
-            token,
-            isAuthenticated: true,
-            isLoading: false,
-            error: null,
-            lastActivity: Date.now(),
-          };
-        } catch (error) {
-          // Clear invalid data
-          localStorage.removeItem(AUTH_CONFIG.tokenKey);
-          localStorage.removeItem(AUTH_CONFIG.userKey);
-        }
-      }
-    }
-    
-    return {
-      user: null,
-      roles: [],
-      permissions: [],
-      token: null,
-      isAuthenticated: false,
-      isLoading: false,
-      error: null,
-      lastActivity: 0,
-    };
+  const [state, setState] = useState<AuthState>({
+    user: null,
+    roles: [],
+    permissions: [],
+    token: null,
+    isAuthenticated: false,
+    isLoading: true,
+    error: null,
+    lastActivity: 0,
   });
 
   const authService = useRef(AuthService.getInstance());
   const router = useRouter();
+
+  // Hydrate from localStorage on client after mount (SSR-safe)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    try {
+      const token = localStorage.getItem(AUTH_CONFIG.tokenKey);
+      const userData = localStorage.getItem(AUTH_CONFIG.userKey);
+
+      if (token && userData) {
+        const user = JSON.parse(userData);
+        setState(prev => ({
+          ...prev,
+          user,
+          roles: user.roles || [],
+          permissions: user.permissions || [],
+          token,
+          isAuthenticated: true,
+          isLoading: false,
+          lastActivity: Date.now(),
+        }));
+      } else {
+        setState(prev => ({ ...prev, isLoading: false }));
+      }
+    } catch (error) {
+      // If parsing fails, clear and set to logged out state
+      localStorage.removeItem(AUTH_CONFIG.tokenKey);
+      localStorage.removeItem(AUTH_CONFIG.userKey);
+      setState(prev => ({ ...prev, isLoading: false }));
+    }
+  }, []);
 
   // Cross-tab synchronization
   useEffect(() => {
