@@ -140,12 +140,43 @@ export default function RolePermissionsEditor() {
   const [loading, setLoading] = useState(false)
   const [showCreateRole, setShowCreateRole] = useState(false)
   const [newRole, setNewRole] = useState({ name: "", description: "" })
+  const [addPermissionForModule, setAddPermissionForModule] = useState<string | null>(null)
+  const [newPermissionAction, setNewPermissionAction] = useState<string>("index")
+  const [newPermissionDescription, setNewPermissionDescription] = useState<string>("")
+
+  // Auto-select first role on load for better UX
+  useEffect(() => {
+    if (!selectedRole && roles.length > 0) {
+      setSelectedRole(roles[0])
+    }
+  }, [roles, selectedRole])
 
   // Filter roles based on search term
   const filteredRoles = roles.filter(role =>
     role.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     role.description.toLowerCase().includes(searchTerm.toLowerCase())
   )
+
+  // Build a master permission template from all roles so every possible permission is visible
+  const getAllPermissionsTemplate = (): Permission[] => {
+    const nameToPermission = new Map<string, Permission>()
+    roles.forEach(role => {
+      role.permissions.forEach(p => {
+        if (!nameToPermission.has(p.name)) {
+          nameToPermission.set(p.name, { ...p, granted: false })
+        }
+      })
+    })
+    return Array.from(nameToPermission.values())
+  }
+
+  // Merge selected role permissions with the master template, defaulting missing to not granted
+  const getMergedPermissionsForSelectedRole = (): Permission[] => {
+    if (!selectedRole) return []
+    const template = getAllPermissionsTemplate()
+    const byName = new Map(selectedRole.permissions.map(p => [p.name, p]))
+    return template.map(base => byName.get(base.name) || base)
+  }
 
   // Group permissions by module
   const getPermissionsByModule = (permissions: Permission[]) => {
@@ -165,18 +196,88 @@ export default function RolePermissionsEditor() {
     return permissions.filter(p => p.resource === selectedModule)
   }
 
-  // Handle permission toggle
-  const handlePermissionToggle = (roleId: number, permissionId: number) => {
+  // Helpers to add permissions dynamically
+  const getNextPermissionId = (): number => {
+    let maxId = 0
+    roles.forEach(r => r.permissions.forEach(p => { if (p.id > maxId) maxId = p.id }))
+    return maxId + 1
+  }
+
+  const getDefaultPermissionsForModule = (module: string): Permission[] => {
+    const actions = ["index", "create", "update", "destroy"] as const
+    return actions.map((action, idx) => ({
+      id: getNextPermissionId() + idx,
+      name: `${module}.${action}`,
+      resource: module,
+      action,
+      description: `${action.charAt(0).toUpperCase() + action.slice(1)} ${module.replace('_', ' ')}`,
+      granted: false,
+    }))
+  }
+
+  const upsertPermissionsForRole = (role: Role, permissionsToAdd: Permission[]): Role => {
+    const existingNames = new Set(role.permissions.map(p => p.name))
+    const merged = [...role.permissions]
+    permissionsToAdd.forEach(p => {
+      if (!existingNames.has(p.name)) merged.push(p)
+    })
+    return { ...role, permissions: merged }
+  }
+
+  const addDefaultPermissionsForModule = (module: string) => {
+    if (!selectedRole) return
+    const defaults = getDefaultPermissionsForModule(module)
+    const updatedRole = upsertPermissionsForRole(selectedRole, defaults)
+    setRoles(prev => prev.map(r => (r.id === updatedRole.id ? updatedRole : r)))
+    setSelectedRole(updatedRole)
+  }
+
+  const addCustomPermissionForModule = () => {
+    if (!selectedRole || !addPermissionForModule) return
+    const name = `${addPermissionForModule}.${newPermissionAction}`
+    const exists = selectedRole.permissions.some(p => p.name === name)
+    const perm: Permission = {
+      id: getNextPermissionId(),
+      name,
+      resource: addPermissionForModule,
+      action: newPermissionAction,
+      description: newPermissionDescription || `${newPermissionAction} ${addPermissionForModule.replace('_', ' ')}`,
+      granted: false,
+    }
+    const updatedRole = exists ? selectedRole : upsertPermissionsForRole(selectedRole, [perm])
+    setRoles(prev => prev.map(r => (r.id === updatedRole.id ? updatedRole : r)))
+    setSelectedRole(updatedRole)
+    setAddPermissionForModule(null)
+    setNewPermissionAction("index")
+    setNewPermissionDescription("")
+  }
+
+  // Handle permission toggle by name (adds missing permission entries if needed)
+  const handlePermissionToggle = (roleId: number, permissionName: string) => {
     setRoles(prevRoles =>
       prevRoles.map(role =>
         role.id === roleId
           ? {
               ...role,
-              permissions: role.permissions.map(permission =>
-                permission.id === permissionId
-                  ? { ...permission, granted: !permission.granted }
-                  : permission
-              )
+              permissions: (() => {
+                const existing = role.permissions.find(p => p.name === permissionName)
+                if (existing) {
+                  return role.permissions.map(permission =>
+                    permission.name === permissionName
+                      ? { ...permission, granted: !permission.granted }
+                      : permission
+                  )
+                }
+                // Add missing permission using template default, toggled to granted=true
+                const template = getAllPermissionsTemplate().find(p => p.name === permissionName)
+                if (template) {
+                  return [
+                    ...role.permissions,
+                    { ...template, granted: true },
+                  ]
+                }
+                return role.permissions
+              })()
             }
           : role
       )
@@ -186,14 +287,28 @@ export default function RolePermissionsEditor() {
     if (selectedRole && selectedRole.id === roleId) {
       setSelectedRole(prev => {
         if (!prev) return null
-        return {
-          ...prev,
-          permissions: prev.permissions.map(permission =>
-            permission.id === permissionId
-              ? { ...permission, granted: !permission.granted }
-              : permission
-          )
+        const exists = prev.permissions.some(p => p.name === permissionName)
+        if (exists) {
+          return {
+            ...prev,
+            permissions: prev.permissions.map(permission =>
+              permission.name === permissionName
+                ? { ...permission, granted: !permission.granted }
+                : permission
+            )
+          }
         }
+        const template = getAllPermissionsTemplate().find(p => p.name === permissionName)
+        if (template) {
+          return {
+            ...prev,
+            permissions: [
+              ...prev.permissions,
+              { ...template, granted: true },
+            ]
+          }
+        }
+        return prev
       })
     }
   }
@@ -268,12 +383,16 @@ export default function RolePermissionsEditor() {
 
   // Get permission count for a role
   const getPermissionCount = (role: Role) => {
-    return role.permissions.filter(p => p.granted).length
+    const template = getAllPermissionsTemplate()
+    const byName = new Map(role.permissions.map(p => [p.name, p]))
+    return template
+      .map(base => byName.get(base.name) || base)
+      .filter(p => p.granted).length
   }
 
   // Get total permissions count
   const getTotalPermissions = () => {
-    return roles[0]?.permissions.length || 0
+    return getAllPermissionsTemplate().length
   }
 
   return (
@@ -463,9 +582,15 @@ export default function RolePermissionsEditor() {
                     {/* Permissions Grid */}
                     <div className="space-y-4">
                       {(() => {
-                        const groupedPermissions = getPermissionsByModule(getFilteredPermissions(selectedRole.permissions))
-                        return Object.entries(groupedPermissions).map(([module, permissions]) => {
+                        // Build modules dynamically from the merged template
+                        const mergedAll = getAllPermissionsTemplate()
+                        const modulesFromTemplate = Array.from(new Set(mergedAll.map(p => p.resource)))
+                        const modulesToShow = selectedModule === "all" ? modulesFromTemplate : [selectedModule]
+                        const mergedForRole = getMergedPermissionsForSelectedRole()
+
+                        return modulesToShow.map((module) => {
                           const moduleInfo = permissionModules.find(m => m.name === module)
+                          const permissions = mergedForRole.filter(p => p.resource === module)
                           return (
                             <div key={module} className="border rounded-lg p-4">
                               <div className="flex items-center gap-2 mb-3">
@@ -475,36 +600,88 @@ export default function RolePermissionsEditor() {
                                   {permissions.filter(p => p.granted).length}/{permissions.length} granted
                                 </Badge>
                               </div>
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                {permissions.map((permission) => (
-                                  <div
-                                    key={permission.id}
-                                    className={`flex items-center justify-between p-3 border rounded-lg ${
-                                      permission.granted ? "border-green-200 bg-green-50" : "border-gray-200"
-                                    }`}
-                                  >
-                                    <div className="flex-1">
-                                      <div className="flex items-center gap-2">
-                                        <h5 className="font-medium text-sm text-gray-900">
-                                          {permission.action.charAt(0).toUpperCase() + permission.action.slice(1)}
-                                        </h5>
-                                        {permission.granted ? (
-                                          <CheckCircle className="w-4 h-4 text-green-500" />
-                                        ) : (
-                                          <XCircle className="w-4 h-4 text-gray-400" />
-                                        )}
+                              {permissions.length > 0 ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                  {permissions.map((permission) => (
+                                    <div
+                                      key={permission.name}
+                                      className={`flex items-center justify-between p-3 border rounded-lg ${
+                                        permission.granted ? "border-green-200 bg-green-50" : "border-gray-200"
+                                      }`}
+                                    >
+                                      <div className="flex-1">
+                                        <div className="flex items-center gap-2">
+                                          <h5 className="font-medium text-sm text-gray-900">
+                                            {permission.action.charAt(0).toUpperCase() + permission.action.slice(1)}
+                                          </h5>
+                                          {permission.granted ? (
+                                            <CheckCircle className="w-4 h-4 text-green-500" />
+                                          ) : (
+                                            <XCircle className="w-4 h-4 text-gray-400" />
+                                          )}
+                                        </div>
+                                        <p className="text-xs text-gray-500 mt-1">{permission.description}</p>
                                       </div>
-                                      <p className="text-xs text-gray-500 mt-1">{permission.description}</p>
+                                      {isEditing && (
+                                        <Switch
+                                          checked={permission.granted}
+                                          onCheckedChange={() => handlePermissionToggle(selectedRole.id, permission.name)}
+                                        />
+                                      )}
                                     </div>
-                                    {isEditing && (
-                                      <Switch
-                                        checked={permission.granted}
-                                        onCheckedChange={() => handlePermissionToggle(selectedRole.id, permission.id)}
-                                      />
-                                    )}
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="p-4 rounded-lg border border-dashed text-sm text-gray-700 space-y-3">
+                                  <div className="text-gray-600">No permissions defined for this module yet.</div>
+                                  <div className="flex flex-wrap gap-2">
+                                    <Button variant="outline" size="sm" onClick={() => addDefaultPermissionsForModule(module)}>
+                                      Add default permissions
+                                    </Button>
+                                    <Dialog open={addPermissionForModule === module} onOpenChange={(open) => setAddPermissionForModule(open ? module : null)}>
+                                      <DialogTrigger asChild>
+                                        <Button variant="outline" size="sm">Add custom permission</Button>
+                                      </DialogTrigger>
+                                      <DialogContent>
+                                        <DialogHeader>
+                                          <DialogTitle>Add Permission</DialogTitle>
+                                          <DialogDescription>
+                                            Create a permission for the {module} module
+                                          </DialogDescription>
+                                        </DialogHeader>
+                                        <div className="space-y-4">
+                                          <div className="space-y-2">
+                                            <Label>Action</Label>
+                                            <Select value={newPermissionAction} onValueChange={setNewPermissionAction}>
+                                              <SelectTrigger className="w-full">
+                                                <SelectValue />
+                                              </SelectTrigger>
+                                              <SelectContent>
+                                                <SelectItem value="index">Index (read/list)</SelectItem>
+                                                <SelectItem value="create">Create</SelectItem>
+                                                <SelectItem value="update">Update</SelectItem>
+                                                <SelectItem value="destroy">Destroy</SelectItem>
+                                              </SelectContent>
+                                            </Select>
+                                          </div>
+                                          <div className="space-y-2">
+                                            <Label>Description</Label>
+                                            <Input
+                                              placeholder="Optional description"
+                                              value={newPermissionDescription}
+                                              onChange={(e) => setNewPermissionDescription(e.target.value)}
+                                            />
+                                          </div>
+                                          <div className="flex justify-end gap-2">
+                                            <Button variant="outline" onClick={() => setAddPermissionForModule(null)}>Cancel</Button>
+                                            <Button onClick={addCustomPermissionForModule}>Add</Button>
+                                          </div>
+                                        </div>
+                                      </DialogContent>
+                                    </Dialog>
                                   </div>
-                                ))}
-                              </div>
+                                </div>
+                              )}
                             </div>
                           )
                         })
