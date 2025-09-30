@@ -86,6 +86,13 @@ export const API_ENDPOINTS = {
   
   // Assets
   ASSETS: '/assets',
+
+  // Roles
+  ROLES: '/roles',
+  ROLE_PERMISSIONS_MATRIX: '/roles/{id}/permissions_matrix',
+  ROLE_TOGGLE_PERMISSION: '/roles/{id}/toggle_permission',
+  ROLE_ADD_PERMISSION: '/roles/{id}/add_permission',
+  ROLE_ADD_DEFAULTS: '/roles/{id}/add_default_module_permissions',
 } as const;
 
 /**

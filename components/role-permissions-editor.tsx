@@ -29,74 +29,10 @@ import {
   Unlock
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
+import { API_ENDPOINTS, getApiUrl } from "@/lib/api"
+import { useAuthContext } from "@/lib/auth"
 
-// Mock data - this will be replaced with actual API calls
-const mockRoles = [
-  {
-    id: 1,
-    name: "Super Admin",
-    description: "Full system access with all permissions",
-    userCount: 2,
-    permissions: [
-      { id: 1, name: "employees.index", resource: "employees", action: "index", description: "View employees list", granted: true },
-      { id: 2, name: "employees.create", resource: "employees", action: "create", description: "Create new employees", granted: true },
-      { id: 3, name: "employees.update", resource: "employees", action: "update", description: "Update employee information", granted: true },
-      { id: 4, name: "employees.destroy", resource: "employees", action: "destroy", description: "Delete employees", granted: true },
-      { id: 5, name: "payrolls.index", resource: "payrolls", action: "index", description: "View payroll list", granted: true },
-      { id: 6, name: "payrolls.create", resource: "payrolls", action: "create", description: "Create payroll records", granted: true },
-      { id: 7, name: "permissions.index", resource: "permissions", action: "index", description: "View permissions list", granted: true },
-      { id: 8, name: "permissions.update", resource: "permissions", action: "update", description: "Update permissions", granted: true },
-    ]
-  },
-  {
-    id: 2,
-    name: "HR Manager",
-    description: "Human resources management and employee oversight",
-    userCount: 5,
-    permissions: [
-      { id: 1, name: "employees.index", resource: "employees", action: "index", description: "View employees list", granted: true },
-      { id: 2, name: "employees.create", resource: "employees", action: "create", description: "Create new employees", granted: true },
-      { id: 3, name: "employees.update", resource: "employees", action: "update", description: "Update employee information", granted: true },
-      { id: 4, name: "employees.destroy", resource: "employees", action: "destroy", description: "Delete employees", granted: false },
-      { id: 5, name: "payrolls.index", resource: "payrolls", action: "index", description: "View payroll list", granted: true },
-      { id: 6, name: "payrolls.create", resource: "payrolls", action: "create", description: "Create payroll records", granted: true },
-      { id: 7, name: "permissions.index", resource: "permissions", action: "index", description: "View permissions list", granted: false },
-      { id: 8, name: "permissions.update", resource: "permissions", action: "update", description: "Update permissions", granted: false },
-    ]
-  },
-  {
-    id: 3,
-    name: "Department Head",
-    description: "Team management and department oversight",
-    userCount: 12,
-    permissions: [
-      { id: 1, name: "employees.index", resource: "employees", action: "index", description: "View employees list", granted: true },
-      { id: 2, name: "employees.create", resource: "employees", action: "create", description: "Create new employees", granted: false },
-      { id: 3, name: "employees.update", resource: "employees", action: "update", description: "Update employee information", granted: true },
-      { id: 4, name: "employees.destroy", resource: "employees", action: "destroy", description: "Delete employees", granted: false },
-      { id: 5, name: "payrolls.index", resource: "payrolls", action: "index", description: "View payroll list", granted: false },
-      { id: 6, name: "payrolls.create", resource: "payrolls", action: "create", description: "Create payroll records", granted: false },
-      { id: 7, name: "permissions.index", resource: "permissions", action: "index", description: "View permissions list", granted: false },
-      { id: 8, name: "permissions.update", resource: "permissions", action: "update", description: "Update permissions", granted: false },
-    ]
-  },
-  {
-    id: 4,
-    name: "Employee",
-    description: "Basic employee access and self-service portal",
-    userCount: 229,
-    permissions: [
-      { id: 1, name: "employees.index", resource: "employees", action: "index", description: "View employees list", granted: false },
-      { id: 2, name: "employees.create", resource: "employees", action: "create", description: "Create new employees", granted: false },
-      { id: 3, name: "employees.update", resource: "employees", action: "update", description: "Update employee information", granted: false },
-      { id: 4, name: "employees.destroy", resource: "employees", action: "destroy", description: "Delete employees", granted: false },
-      { id: 5, name: "payrolls.index", resource: "payrolls", action: "index", description: "View payroll list", granted: false },
-      { id: 6, name: "payrolls.create", resource: "payrolls", action: "create", description: "Create payroll records", granted: false },
-      { id: 7, name: "permissions.index", resource: "permissions", action: "index", description: "View permissions list", granted: false },
-      { id: 8, name: "permissions.update", resource: "permissions", action: "update", description: "Update permissions", granted: false },
-    ]
-  }
-]
+// Backend-driven; UI will fetch roles and permissions
 
 const permissionModules = [
   { name: "employees", label: "Employee Management", icon: "👥" },
@@ -127,12 +63,13 @@ interface Role {
   id: number
   name: string
   description: string
-  userCount: number
-  permissions: Permission[]
+  userCount?: number
+  permissions?: Permission[]
 }
 
 export default function RolePermissionsEditor() {
-  const [roles, setRoles] = useState<Role[]>(mockRoles)
+  const { token } = useAuthContext()
+  const [roles, setRoles] = useState<Role[]>([])
   const [selectedRole, setSelectedRole] = useState<Role | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
@@ -143,13 +80,30 @@ export default function RolePermissionsEditor() {
   const [addPermissionForModule, setAddPermissionForModule] = useState<string | null>(null)
   const [newPermissionAction, setNewPermissionAction] = useState<string>("index")
   const [newPermissionDescription, setNewPermissionDescription] = useState<string>("")
+  const [rolePermissions, setRolePermissions] = useState<Permission[]>([])
 
-  // Auto-select first role on load for better UX
+  // Load roles from backend and auto-select first
   useEffect(() => {
-    if (!selectedRole && roles.length > 0) {
-      setSelectedRole(roles[0])
+    const fetchRoles = async () => {
+      try {
+        setLoading(true)
+        const res = await fetch(getApiUrl(API_ENDPOINTS.ROLES), { headers: token ? { Authorization: `Bearer ${token}` } : undefined })
+        const json = await res.json()
+        const list: Role[] = (json.roles || []).map((r: any) => ({ id: r.id, name: r.name, description: r.description, userCount: r.user_count }))
+        console.log(list)
+        setRoles(list)
+        if (list.length > 0) {
+          await handleRoleSelect(list[0])
+        }
+      } catch (e) {
+        toast({ title: "Error", description: "Failed to load roles", variant: "destructive" })
+      } finally {
+        setLoading(false)
+      }
     }
-  }, [roles, selectedRole])
+    fetchRoles()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Filter roles based on search term
   const filteredRoles = roles.filter(role =>
@@ -159,23 +113,16 @@ export default function RolePermissionsEditor() {
 
   // Build a master permission template from all roles so every possible permission is visible
   const getAllPermissionsTemplate = (): Permission[] => {
-    const nameToPermission = new Map<string, Permission>()
-    roles.forEach(role => {
-      role.permissions.forEach(p => {
-        if (!nameToPermission.has(p.name)) {
-          nameToPermission.set(p.name, { ...p, granted: false })
-        }
-      })
+    const byName = new Map<string, Permission>()
+    rolePermissions.forEach(p => {
+      if (!byName.has(p.name)) byName.set(p.name, { ...p, granted: false })
     })
-    return Array.from(nameToPermission.values())
+    return Array.from(byName.values())
   }
 
   // Merge selected role permissions with the master template, defaulting missing to not granted
   const getMergedPermissionsForSelectedRole = (): Permission[] => {
-    if (!selectedRole) return []
-    const template = getAllPermissionsTemplate()
-    const byName = new Map(selectedRole.permissions.map(p => [p.name, p]))
-    return template.map(base => byName.get(base.name) || base)
+    return rolePermissions
   }
 
   // Group permissions by module
@@ -199,7 +146,7 @@ export default function RolePermissionsEditor() {
   // Helpers to add permissions dynamically
   const getNextPermissionId = (): number => {
     let maxId = 0
-    roles.forEach(r => r.permissions.forEach(p => { if (p.id > maxId) maxId = p.id }))
+    rolePermissions.forEach((p) => { if (p.id > maxId) maxId = p.id })
     return maxId + 1
   }
 
@@ -216,107 +163,83 @@ export default function RolePermissionsEditor() {
   }
 
   const upsertPermissionsForRole = (role: Role, permissionsToAdd: Permission[]): Role => {
-    const existingNames = new Set(role.permissions.map(p => p.name))
-    const merged = [...role.permissions]
-    permissionsToAdd.forEach(p => {
+    const existingNames = new Set((role.permissions || []).map(p => p.name))
+    const merged: Permission[] = [ ...(role.permissions || []) ]
+    permissionsToAdd.forEach((p) => {
       if (!existingNames.has(p.name)) merged.push(p)
     })
     return { ...role, permissions: merged }
   }
 
-  const addDefaultPermissionsForModule = (module: string) => {
+  const addDefaultPermissionsForModule = async (module: string) => {
     if (!selectedRole) return
-    const defaults = getDefaultPermissionsForModule(module)
-    const updatedRole = upsertPermissionsForRole(selectedRole, defaults)
-    setRoles(prev => prev.map(r => (r.id === updatedRole.id ? updatedRole : r)))
-    setSelectedRole(updatedRole)
+    try {
+      setLoading(true)
+      const url = getApiUrl(API_ENDPOINTS.ROLE_ADD_DEFAULTS.replace('{id}', String(selectedRole.id)))
+      const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ resource: module }) })
+      if (!res.ok) throw new Error('add defaults failed')
+      await handleRoleSelect(selectedRole)
+    } catch (e) {
+      toast({ title: "Error", description: "Failed to add default permissions", variant: "destructive" })
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const addCustomPermissionForModule = () => {
+  const addCustomPermissionForModule = async () => {
     if (!selectedRole || !addPermissionForModule) return
-    const name = `${addPermissionForModule}.${newPermissionAction}`
-    const exists = selectedRole.permissions.some(p => p.name === name)
-    const perm: Permission = {
-      id: getNextPermissionId(),
-      name,
-      resource: addPermissionForModule,
-      action: newPermissionAction,
-      description: newPermissionDescription || `${newPermissionAction} ${addPermissionForModule.replace('_', ' ')}`,
-      granted: false,
+    try {
+      setLoading(true)
+      const url = getApiUrl(API_ENDPOINTS.ROLE_ADD_PERMISSION.replace('{id}', String(selectedRole.id)))
+      const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ resource: addPermissionForModule, action_name: newPermissionAction, description: newPermissionDescription }) })
+      if (!res.ok) throw new Error('add permission failed')
+      await handleRoleSelect(selectedRole)
+      setAddPermissionForModule(null)
+      setNewPermissionAction('index')
+      setNewPermissionDescription('')
+    } catch (e) {
+      toast({ title: "Error", description: "Failed to add permission", variant: "destructive" })
+    } finally {
+      setLoading(false)
     }
-    const updatedRole = exists ? selectedRole : upsertPermissionsForRole(selectedRole, [perm])
-    setRoles(prev => prev.map(r => (r.id === updatedRole.id ? updatedRole : r)))
-    setSelectedRole(updatedRole)
-    setAddPermissionForModule(null)
-    setNewPermissionAction("index")
-    setNewPermissionDescription("")
   }
 
   // Handle permission toggle by name (adds missing permission entries if needed)
-  const handlePermissionToggle = (roleId: number, permissionName: string) => {
-    setRoles(prevRoles =>
-      prevRoles.map(role =>
-        role.id === roleId
-          ? {
-              ...role,
-              permissions: (() => {
-                const existing = role.permissions.find(p => p.name === permissionName)
-                if (existing) {
-                  return role.permissions.map(permission =>
-                    permission.name === permissionName
-                      ? { ...permission, granted: !permission.granted }
-                      : permission
-                  )
-                }
-                // Add missing permission using template default, toggled to granted=true
-                const template = getAllPermissionsTemplate().find(p => p.name === permissionName)
-                if (template) {
-                  return [
-                    ...role.permissions,
-                    { ...template, granted: true },
-                  ]
-                }
-                return role.permissions
-              })()
-            }
-          : role
-      )
-    )
-
-    // Update selected role if it's the one being edited
-    if (selectedRole && selectedRole.id === roleId) {
-      setSelectedRole(prev => {
-        if (!prev) return null
-        const exists = prev.permissions.some(p => p.name === permissionName)
-        if (exists) {
-          return {
-            ...prev,
-            permissions: prev.permissions.map(permission =>
-              permission.name === permissionName
-                ? { ...permission, granted: !permission.granted }
-                : permission
-            )
-          }
-        }
-        const template = getAllPermissionsTemplate().find(p => p.name === permissionName)
-        if (template) {
-          return {
-            ...prev,
-            permissions: [
-              ...prev.permissions,
-              { ...template, granted: true },
-            ]
-          }
-        }
-        return prev
-      })
+  const handlePermissionToggle = async (roleId: number, permissionName: string, permissionId?: number) => {
+    if (!selectedRole) return
+    try {
+      setLoading(true)
+      const url = getApiUrl(API_ENDPOINTS.ROLE_TOGGLE_PERMISSION.replace('{id}', String(roleId)))
+      const body = permissionId ? { permission_id: permissionId } : { resource: permissionName.split('.')[0], action_name: permissionName.split('.')[1] }
+      const res = await fetch(url, { method: 'PATCH', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body) })
+      if (!res.ok) throw new Error('toggle failed')
+      const json = await res.json()
+      const toggledId = json.permission_id
+      const granted = json.granted
+      setRolePermissions(prev => prev.map(p => p.id === toggledId ? { ...p, granted } : p))
+    } catch (e) {
+      toast({ title: "Error", description: "Failed to toggle permission", variant: "destructive" })
+    } finally {
+      setLoading(false)
     }
   }
 
   // Handle role selection
-  const handleRoleSelect = (role: Role) => {
+  const handleRoleSelect = async (role: Role) => {
     setSelectedRole(role)
     setIsEditing(false)
+    try {
+      setLoading(true)
+      const url = getApiUrl(API_ENDPOINTS.ROLE_PERMISSIONS_MATRIX.replace('{id}', String(role.id)))
+      const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : undefined })
+      const json = await res.json()
+      const perms: Permission[] = (json.permissions || []).map((p: any) => ({ id: p.id, name: p.name, resource: p.resource, action: p.action, description: p.description, granted: !!p.granted }))
+      setRolePermissions(perms)
+    } catch (e) {
+      toast({ title: "Error", description: "Failed to load permissions", variant: "destructive" })
+    } finally {
+      setLoading(false)
+    }
   }
 
   // Handle save changes
@@ -359,7 +282,6 @@ export default function RolePermissionsEditor() {
         name: newRole.name,
         description: newRole.description,
         userCount: 0,
-        permissions: mockRoles[0].permissions.map(p => ({ ...p, granted: false }))
       }
 
       setRoles(prev => [...prev, role])
@@ -381,13 +303,9 @@ export default function RolePermissionsEditor() {
     }
   }
 
-  // Get permission count for a role
-  const getPermissionCount = (role: Role) => {
-    const template = getAllPermissionsTemplate()
-    const byName = new Map(role.permissions.map(p => [p.name, p]))
-    return template
-      .map(base => byName.get(base.name) || base)
-      .filter(p => p.granted).length
+  // Get permission count for currently loaded matrix (role param unused)
+  const getPermissionCount = (_role: Role) => {
+    return rolePermissions.filter(p => p.granted).length
   }
 
   // Get total permissions count
@@ -582,11 +500,11 @@ export default function RolePermissionsEditor() {
                     {/* Permissions Grid */}
                     <div className="space-y-4">
                       {(() => {
-                        // Build modules dynamically from the merged template
-                        const mergedAll = getAllPermissionsTemplate()
+                        // Build modules dynamically from loaded permissions
+                        const mergedAll = rolePermissions
                         const modulesFromTemplate = Array.from(new Set(mergedAll.map(p => p.resource)))
                         const modulesToShow = selectedModule === "all" ? modulesFromTemplate : [selectedModule]
-                        const mergedForRole = getMergedPermissionsForSelectedRole()
+                        const mergedForRole = rolePermissions
 
                         return modulesToShow.map((module) => {
                           const moduleInfo = permissionModules.find(m => m.name === module)
@@ -625,7 +543,7 @@ export default function RolePermissionsEditor() {
                                       {isEditing && (
                                         <Switch
                                           checked={permission.granted}
-                                          onCheckedChange={() => handlePermissionToggle(selectedRole.id, permission.name)}
+                                          onCheckedChange={() => handlePermissionToggle(selectedRole.id, permission.name, permission.id)}
                                         />
                                       )}
                                     </div>
