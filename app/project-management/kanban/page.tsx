@@ -25,133 +25,125 @@ export default function KanbanBoard() {
   const router = useRouter()
   const [draggedTask, setDraggedTask] = useState<number | null>(null)
 
-  const columns = [
+  // Frontend-only tasks data; can be swapped with real API later
+  const tasks = [
     {
-      id: "backlog",
-      title: "Backlog",
-      color: "bg-gray-100",
-      tasks: [
-        {
-          id: 1,
-          title: "Research mobile app frameworks",
-          description: "Evaluate React Native vs Flutter for the mobile app",
-          priority: "medium",
-          assignee: { name: "John Doe", avatar: "/placeholder-user.jpg" },
-          dueDate: "2024-03-20",
-          storyPoints: 5,
-          tags: ["research", "mobile"]
-        },
-        {
-          id: 2,
-          title: "Setup CI/CD pipeline",
-          description: "Configure automated testing and deployment",
-          priority: "high",
-          assignee: { name: "Mike Johnson", avatar: "/placeholder-user.jpg" },
-          dueDate: "2024-03-25",
-          storyPoints: 8,
-          tags: ["devops", "automation"]
-        }
-      ]
+      id: 1,
+      title: "Research mobile app frameworks",
+      description: "Evaluate React Native vs Flutter for the mobile app",
+      priority: "medium",
+      status: "backlog",
+      assignee: { name: "John Doe", avatar: "/placeholder-user.jpg" },
+      dueDate: "2024-03-20",
+      storyPoints: 5,
+      tags: ["research", "mobile"],
     },
     {
-      id: "todo",
-      title: "To Do",
-      color: "bg-blue-100",
-      tasks: [
-        {
-          id: 3,
-          title: "Design user authentication flow",
-          description: "Create wireframes and user journey for login/signup",
-          priority: "high",
-          assignee: { name: "Sarah Wilson", avatar: "/placeholder-user.jpg" },
-          dueDate: "2024-03-15",
-          storyPoints: 3,
-          tags: ["design", "auth"]
-        },
-        {
-          id: 4,
-          title: "Implement push notifications",
-          description: "Add push notification system for important updates",
-          priority: "medium",
-          assignee: { name: "Jane Smith", avatar: "/placeholder-user.jpg" },
-          dueDate: "2024-03-22",
-          storyPoints: 5,
-          tags: ["mobile", "notifications"]
-        }
-      ]
+      id: 2,
+      title: "Setup CI/CD pipeline",
+      description: "Configure automated testing and deployment",
+      priority: "high",
+      status: "backlog",
+      assignee: { name: "Mike Johnson", avatar: "/placeholder-user.jpg" },
+      dueDate: "2024-03-25",
+      storyPoints: 8,
+      tags: ["devops", "automation"],
     },
     {
-      id: "in-progress",
-      title: "In Progress",
-      color: "bg-yellow-100",
-      tasks: [
-        {
-          id: 5,
-          title: "Develop user dashboard",
-          description: "Create the main dashboard with attendance and leave widgets",
-          priority: "high",
-          assignee: { name: "Jane Smith", avatar: "/placeholder-user.jpg" },
-          dueDate: "2024-03-10",
-          storyPoints: 8,
-          tags: ["frontend", "dashboard"]
-        },
-        {
-          id: 6,
-          title: "API integration for attendance",
-          description: "Connect frontend with attendance tracking API",
-          priority: "high",
-          assignee: { name: "Mike Johnson", avatar: "/placeholder-user.jpg" },
-          dueDate: "2024-03-12",
-          storyPoints: 5,
-          tags: ["backend", "api"]
-        }
-      ]
+      id: 3,
+      title: "Design user authentication flow",
+      description: "Create wireframes and user journey for login/signup",
+      priority: "high",
+      status: "todo",
+      assignee: { name: "Sarah Wilson", avatar: "/placeholder-user.jpg" },
+      dueDate: "2024-03-15",
+      storyPoints: 3,
+      tags: ["design", "auth"],
     },
     {
-      id: "review",
-      title: "Review",
-      color: "bg-purple-100",
-      tasks: [
-        {
-          id: 7,
-          title: "Code review for authentication module",
-          description: "Review the JWT implementation and security measures",
-          priority: "high",
-          assignee: { name: "David Brown", avatar: "/placeholder-user.jpg" },
-          dueDate: "2024-03-08",
-          storyPoints: 3,
-          tags: ["review", "security"]
-        }
-      ]
+      id: 4,
+      title: "Implement push notifications",
+      description: "Add push notification system for important updates",
+      priority: "medium",
+      status: "todo",
+      assignee: { name: "Jane Smith", avatar: "/placeholder-user.jpg" },
+      dueDate: "2024-03-22",
+      storyPoints: 5,
+      tags: ["mobile", "notifications"],
     },
     {
-      id: "done",
-      title: "Done",
-      color: "bg-green-100",
-      tasks: [
-        {
-          id: 8,
-          title: "Project setup and configuration",
-          description: "Initialize project structure and development environment",
-          priority: "high",
-          assignee: { name: "John Doe", avatar: "/placeholder-user.jpg" },
-          dueDate: "2024-02-28",
-          storyPoints: 2,
-          tags: ["setup", "configuration"]
-        },
-        {
-          id: 9,
-          title: "Database schema design",
-          description: "Design and implement the database structure",
-          priority: "high",
-          assignee: { name: "Mike Johnson", avatar: "/placeholder-user.jpg" },
-          dueDate: "2024-03-05",
-          storyPoints: 5,
-          tags: ["database", "schema"]
-        }
-      ]
-    }
-  ]
+      id: 5,
+      title: "Develop user dashboard",
+      description: "Create the main dashboard with attendance and leave widgets",
+      priority: "high",
+      status: "in-progress",
+      assignee: { name: "Jane Smith", avatar: "/placeholder-user.jpg" },
+      dueDate: "2024-03-10",
+      storyPoints: 8,
+      tags: ["frontend", "dashboard"],
+    },
+    {
+      id: 6,
+      title: "API integration for attendance",
+      description: "Connect frontend with attendance tracking API",
+      priority: "high",
+      status: "in-progress",
+      assignee: { name: "Mike Johnson", avatar: "/placeholder-user.jpg" },
+      dueDate: "2024-03-12",
+      storyPoints: 5,
+      tags: ["backend", "api"],
+    },
+    {
+      id: 7,
+      title: "Code review for authentication module",
+      description: "Review the JWT implementation and security measures",
+      priority: "high",
+      status: "review",
+      assignee: { name: "David Brown", avatar: "/placeholder-user.jpg" },
+      dueDate: "2024-03-08",
+      storyPoints: 3,
+      tags: ["review", "security"],
+    },
+    {
+      id: 8,
+      title: "Project setup and configuration",
+      description: "Initialize project structure and development environment",
+      priority: "high",
+      status: "done",
+      assignee: { name: "John Doe", avatar: "/placeholder-user.jpg" },
+      dueDate: "2024-02-28",
+      storyPoints: 2,
+      tags: ["setup", "configuration"],
+    },
+    {
+      id: 9,
+      title: "Database schema design",
+      description: "Design and implement the database structure",
+      priority: "high",
+      status: "done",
+      assignee: { name: "Mike Johnson", avatar: "/placeholder-user.jpg" },
+      dueDate: "2024-03-05",
+      storyPoints: 5,
+      tags: ["database", "schema"],
+    },
+  ] as const
+
+  const columnMeta = {
+    backlog: { title: "Backlog", color: "bg-gray-100" },
+    todo: { title: "To Do", color: "bg-blue-100" },
+    "in-progress": { title: "In Progress", color: "bg-yellow-100" },
+    review: { title: "Review", color: "bg-purple-100" },
+    done: { title: "Done", color: "bg-green-100" },
+  } as const
+
+  const statusOrder = ["backlog", "todo", "in-progress", "review", "done"] as const
+
+  const columns = statusOrder.map((status) => ({
+    id: status,
+    title: columnMeta[status].title,
+    color: columnMeta[status].color,
+    tasks: tasks.filter((t) => t.status === status),
+  }))
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
