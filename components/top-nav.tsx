@@ -16,6 +16,7 @@ import {
   Bell,
   Search,
   User,
+  MoreHorizontal as More,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -84,6 +85,7 @@ const navItems = [
 
 export function TopNav() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [isNavExpanded, setIsNavExpanded] = useState(false)
   const pathname = usePathname()
   const router = useRouter()
   const { user, logout } = useAuthContext()
@@ -102,21 +104,24 @@ export function TopNav() {
   }
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200 shadow-sm">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
+    <nav className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200 shadow-sm" role="navigation" aria-label="Top Navigation">
+      <div className="w-full px-3 sm:px-4 lg:px-6">
+        <div className="flex justify-between items-center min-h-16 py-2 gap-3">
           {/* Logo */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center">
               <Building2 className="w-5 h-5 text-white" />
             </div>
-            <div className="hidden sm:block">
-              <h1 className="text-lg font-bold text-gray-900">HRMS Pro</h1>
+            <div className="hidden sm:block min-w-0">
+              <h1 className="text-lg font-bold text-gray-900 truncate">HRMS Pro</h1>
             </div>
           </div>
 
           {/* Desktop Navigation */}
-          <div className="hidden lg:flex items-center space-x-1">
+          <div className={cn(
+            "hidden lg:flex items-center gap-1",
+            isNavExpanded ? "flex-wrap" : "overflow-x-auto"
+          )} id="desktop-nav">
             {navItems.map((item) => (
               <Button
                 key={item.title}
@@ -136,7 +141,7 @@ export function TopNav() {
           </div>
 
           {/* Right side items */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             {/* Search - Hidden on mobile */}
             <div className="hidden md:block relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
@@ -144,7 +149,7 @@ export function TopNav() {
             </div>
 
             {/* Notifications */}
-            <Button variant="ghost" size="sm" className="relative">
+            <Button variant="ghost" size="sm" className="relative" aria-label="Notifications">
               <Bell className="w-5 h-5 text-gray-600" />
               <Badge className="absolute -top-1 -right-1 w-5 h-5 p-0 flex items-center justify-center text-xs bg-red-500">
                 3
@@ -154,7 +159,7 @@ export function TopNav() {
             {/* User Menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="flex items-center gap-2">
+                <Button variant="ghost" size="sm" className="flex items-center gap-2" aria-label="Account menu">
                   <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
                     <User className="w-4 h-4 text-gray-600" />
                   </div>
@@ -178,6 +183,8 @@ export function TopNav() {
               size="sm"
               className="lg:hidden"
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              aria-label="Toggle menu"
+              aria-expanded={isMobileMenuOpen}
             >
               {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </Button>
@@ -187,7 +194,7 @@ export function TopNav() {
 
       {/* Mobile Navigation Menu */}
       {isMobileMenuOpen && (
-        <div className="lg:hidden border-t border-gray-200 bg-white">
+        <div className="lg:hidden border-t border-gray-200 bg-white fixed top-16 left-0 right-0 z-40 shadow-sm max-h-[60vh] overflow-auto">
           <div className="px-4 py-2 space-y-1">
             {/* Mobile Search */}
             <div className="md:hidden mb-3">
