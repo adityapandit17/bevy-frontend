@@ -413,6 +413,30 @@ export default function OnboardingPage() {
     alert(`Reminder sent for task: ${task.title}`)
   }
 
+  const handleSendWelcomeEmail = async () => {
+    if (!selectedEmployee) return
+
+    try {
+      const response = await fetch(getApiUrl(`/onboarding_employees/${selectedEmployee.id}/send_welcome_email`), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        alert('Welcome email has been queued and will be sent shortly!')
+      } else {
+        alert(`Failed to send welcome email: ${data.message}`)
+      }
+    } catch (error) {
+      console.error('Error sending welcome email:', error)
+      alert('Error sending welcome email. Please try again.')
+    }
+  }
+
   const handleUploadDocument = (task: OnboardingTask) => {
     // TODO: Implement upload document functionality
     alert(`Upload document for task: ${task.title}`)
@@ -730,7 +754,12 @@ export default function OnboardingPage() {
 
                 {/* Quick Actions */}
                 <div className="flex gap-2 pt-4 border-t">
-                  <Button variant="outline" size="sm">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={handleSendWelcomeEmail}
+                    disabled={selectedEmployee?.status === 'completed'}
+                  >
                     <Send className="w-4 h-4 mr-2" />
                     Send Welcome Email
                   </Button>

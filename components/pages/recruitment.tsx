@@ -16,7 +16,7 @@ const jobOpenings = [
     department: "Engineering",
     location: "Bangalore, India",
     type: "Full-time",
-    status: "Active",
+    status: "active",
     applicants: 24,
     vacancies: 2,
     postedDate: "2024-01-15",
@@ -205,7 +205,7 @@ export function RecruitmentPage() {
                         <h3 className="text-xl font-semibold text-gray-900">{job.title}</h3>
                         <Badge
                           className={
-                            job.status === "Active"
+                            job.status === "active"
                               ? "bg-green-100 text-green-800 hover:bg-green-100"
                               : "bg-gray-100 text-gray-800 hover:bg-gray-100"
                           }

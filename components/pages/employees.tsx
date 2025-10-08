@@ -19,7 +19,7 @@ const employees = [
     department: "Engineering",
     manager: "Priya Sharma",
     joiningDate: "2022-03-15",
-    status: "Active",
+    status: "active",
     employeeId: "EMP001",
     avatar: "/placeholder.svg?height=40&width=40",
   },
@@ -32,7 +32,7 @@ const employees = [
     department: "Marketing",
     manager: "Vikram Singh",
     joiningDate: "2021-11-20",
-    status: "Active",
+    status: "active",
     employeeId: "EMP002",
     avatar: "/placeholder.svg?height=40&width=40",
   },
@@ -45,7 +45,7 @@ const employees = [
     department: "Sales",
     manager: "Kavya Nair",
     joiningDate: "2023-01-10",
-    status: "On Leave",
+    status: "on leave",
     employeeId: "EMP003",
     avatar: "/placeholder.svg?height=40&width=40",
   },
@@ -58,7 +58,7 @@ const employees = [
     department: "Human Resources",
     manager: "Rohit Mehta",
     joiningDate: "2022-08-05",
-    status: "Active",
+    status: "active",
     employeeId: "EMP004",
     avatar: "/placeholder.svg?height=40&width=40",
   },
@@ -71,7 +71,7 @@ const employees = [
     department: "Finance",
     manager: "Sneha Gupta",
     joiningDate: "2023-05-12",
-    status: "Active",
+    status: "active",
     employeeId: "EMP005",
     avatar: "/placeholder.svg?height=40&width=40",
   },
@@ -192,7 +192,7 @@ export function EmployeesPage() {
                       <div className="text-right">
                         <Badge
                           className={
-                            employee.status === "Active"
+                            employee.status === "active"
                               ? "bg-green-100 text-green-800 hover:bg-green-100"
                               : "bg-yellow-100 text-yellow-800 hover:bg-yellow-100"
                           }

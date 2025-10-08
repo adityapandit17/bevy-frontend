@@ -27,7 +27,7 @@ export function EmployeeForm({ onClose, onSubmit, initialData }: EmployeeFormPro
     department_id: "",
     designation: "",
     date_of_joining: "",
-    status: "Active"
+    status: "active"
   })
   const [departments, setDepartments] = useState([])
 
