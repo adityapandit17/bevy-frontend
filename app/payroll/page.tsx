@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { IndianRupee, Search, Plus, MoreHorizontal, Download, Calculator, Clock, CheckCircle } from "lucide-react"
 import { SalaryStructureForm } from "@/components/forms/salary-structure-form"
+import { ResourceGuard } from "@/lib/auth/auth.guards"
 
 export default function PayrollPage() {
   const [searchTerm, setSearchTerm] = useState("")
@@ -196,7 +197,8 @@ export default function PayrollPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6">
+    <ResourceGuard resourceKeys={["payrolls", "salary_structures"]}>
+      <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
@@ -418,5 +420,6 @@ export default function PayrollPage() {
       </Tabs>
       {showForm && <SalaryStructureForm onClose={() => setShowForm(false)} onSubmit={handleAddSalaryStructure} />}
     </div>
+    </ResourceGuard>
   )
 }

@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { useRouter } from "next/navigation"
+import { useAuthContext } from "@/lib/auth"
 import {
   Users,
   UserCheck,
@@ -26,6 +27,7 @@ import {
 
 export default function Dashboard() {
   const router = useRouter()
+  const { checkPermission, checkRole } = useAuthContext()
   const stats = [
     {
       title: "Total Employees",
@@ -315,62 +317,96 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-4">
-              <Button variant="outline" className="h-24 flex-col gap-2 bg-transparent">
-                <Users className="w-6 h-6" />
-                <span className="text-sm">Add Employee</span>
-              </Button>
-              <Button variant="outline" className="h-24 flex-col gap-2 bg-transparent">
-                <Calendar className="w-6 h-6" />
-                <span className="text-sm">Mark Attendance</span>
-              </Button>
-              <Button variant="outline" className="h-24 flex-col gap-2 bg-transparent">
-                <IndianRupee className="w-6 h-6" />
-                <span className="text-sm">Process Payroll</span>
-              </Button>
-              <Button variant="outline" className="h-24 flex-col gap-2 bg-transparent">
-                <FileText className="w-6 h-6" />
-                <span className="text-sm">Generate Report</span>
-              </Button>
-              <Button 
-                variant="outline" 
-                className="h-24 flex-col gap-2 bg-transparent"
-                onClick={() => router.push('/assets')}
-              >
-                <Package className="w-6 h-6" />
-                <span className="text-sm">Asset Tracking</span>
-              </Button>
-              <Button 
-                variant="outline" 
-                className="h-24 flex-col gap-2 bg-transparent"
-                onClick={() => router.push('/org-chart')}
-              >
-                <Network className="w-6 h-6" />
-                <span className="text-sm">Org Chart</span>
-              </Button>
-              <Button 
-                variant="outline" 
-                className="h-24 flex-col gap-2 bg-transparent"
-                onClick={() => router.push('/documents')}
-              >
-                <Upload className="w-6 h-6" />
-                <span className="text-sm">Documents</span>
-              </Button>
-              <Button 
-                variant="outline" 
-                className="h-24 flex-col gap-2 bg-transparent"
-                onClick={() => router.push('/learning')}
-              >
-                <GraduationCap className="w-6 h-6" />
-                <span className="text-sm">Learning</span>
-              </Button>
-              <Button 
-                variant="outline" 
-                className="h-24 flex-col gap-2 bg-transparent"
-                onClick={() => router.push('/helpdesk')}
-              >
-                <HelpCircle className="w-6 h-6" />
-                <span className="text-sm">Helpdesk</span>
-              </Button>
+              {checkPermission("employees:create") && (
+                <Button 
+                  variant="outline" 
+                  className="h-24 flex-col gap-2 bg-transparent"
+                  onClick={() => router.push('/employees')}
+                >
+                  <Users className="w-6 h-6" />
+                  <span className="text-sm">Add Employee</span>
+                </Button>
+              )}
+              {checkPermission("attendance_records:create") && (
+                <Button 
+                  variant="outline" 
+                  className="h-24 flex-col gap-2 bg-transparent"
+                  onClick={() => router.push('/attendance-leave')}
+                >
+                  <Calendar className="w-6 h-6" />
+                  <span className="text-sm">Mark Attendance</span>
+                </Button>
+              )}
+              {(checkPermission("payrolls:index") || checkPermission("payrolls:create")) && (
+                <Button 
+                  variant="outline" 
+                  className="h-24 flex-col gap-2 bg-transparent"
+                  onClick={() => router.push('/payroll')}
+                >
+                  <IndianRupee className="w-6 h-6" />
+                  <span className="text-sm">Process Payroll</span>
+                </Button>
+              )}
+              {checkPermission("reports:index") && (
+                <Button 
+                  variant="outline" 
+                  className="h-24 flex-col gap-2 bg-transparent"
+                  onClick={() => router.push('/reports')}
+                >
+                  <FileText className="w-6 h-6" />
+                  <span className="text-sm">Generate Report</span>
+                </Button>
+              )}
+              {checkPermission("assets:index") && (
+                <Button 
+                  variant="outline" 
+                  className="h-24 flex-col gap-2 bg-transparent"
+                  onClick={() => router.push('/assets')}
+                >
+                  <Package className="w-6 h-6" />
+                  <span className="text-sm">Asset Tracking</span>
+                </Button>
+              )}
+              {checkPermission("employees:index") && (
+                <Button 
+                  variant="outline" 
+                  className="h-24 flex-col gap-2 bg-transparent"
+                  onClick={() => router.push('/org-chart')}
+                >
+                  <Network className="w-6 h-6" />
+                  <span className="text-sm">Org Chart</span>
+                </Button>
+              )}
+              {(checkPermission("employees:index") || checkPermission("employee_documents:index")) && (
+                <Button 
+                  variant="outline" 
+                  className="h-24 flex-col gap-2 bg-transparent"
+                  onClick={() => router.push('/documents')}
+                >
+                  <Upload className="w-6 h-6" />
+                  <span className="text-sm">Documents</span>
+                </Button>
+              )}
+              {checkRole("Super Admin") && (
+                <Button 
+                  variant="outline" 
+                  className="h-24 flex-col gap-2 bg-transparent"
+                  onClick={() => router.push('/learning')}
+                >
+                  <GraduationCap className="w-6 h-6" />
+                  <span className="text-sm">Learning</span>
+                </Button>
+              )}
+              {checkRole("Super Admin") && (
+                <Button 
+                  variant="outline" 
+                  className="h-24 flex-col gap-2 bg-transparent"
+                  onClick={() => router.push('/helpdesk')}
+                >
+                  <HelpCircle className="w-6 h-6" />
+                  <span className="text-sm">Helpdesk</span>
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>

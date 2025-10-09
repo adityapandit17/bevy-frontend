@@ -45,6 +45,7 @@ export function useAuth() {
 
       if (token && userData) {
         const user = JSON.parse(userData);
+        
         setState(prev => ({
           ...prev,
           user,
@@ -89,6 +90,7 @@ export function useAuth() {
           if (userData) {
             try {
               const user = JSON.parse(userData);
+              
               setState(prev => ({
                 ...prev,
                 user,
@@ -119,14 +121,33 @@ export function useAuth() {
     try {
       const authData = await authService.current.login(credentials);
       
-      // Store in localStorage
-      authService.current.storeAuthData(authData);
+      console.log('🔍 Auth - Raw permissions from backend:', authData.user.permissions);
+      console.log('🔍 Auth - Permissions type:', typeof authData.user.permissions);
+      console.log('🔍 Auth - Permissions length:', authData.user.permissions?.length);
+      console.log('🔍 Auth - First permission:', authData.user.permissions?.[0]);
+      
+      // Transform permissions if they're strings to objects with name property
+      const transformedPermissions = authData.user.permissions?.map(p => 
+        typeof p === 'string' ? { id: 0, name: p, display_name: p } : p
+      ) || [];
+      
+      // Store in localStorage with transformed permissions
+      const authDataToStore = {
+        ...authData,
+        user: {
+          ...authData.user,
+          permissions: transformedPermissions
+        }
+      };
+      authService.current.storeAuthData(authDataToStore);
+      
+      console.log('🔍 Auth - Transformed permissions:', transformedPermissions);
       
       setState(prev => ({
         ...prev,
         user: authData.user,
-        roles: authData.roles,
-        permissions: authData.permissions,
+        roles: authData.user.roles,
+        permissions: transformedPermissions,
         token: authData.token,
         isAuthenticated: true,
         isLoading: false,

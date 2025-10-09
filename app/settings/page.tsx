@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Building2, Users, Shield, Bell, Database, Globe, Save, Download } from "lucide-react"
 import { useEffect, useState } from "react"
 import { getEndpointUrl } from "@/lib/api"
+import { ResourceGuard } from "@/lib/auth/auth.guards"
 
 export default function SettingsPage() {
   const defaultCompany = {
@@ -104,7 +105,8 @@ export default function SettingsPage() {
   const safeCompany = company || defaultCompany
 
   return (
-    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6">
+    <ResourceGuard requiredRoles={["Super Admin", "HR Manager"]}>
+      <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
@@ -611,5 +613,6 @@ export default function SettingsPage() {
         </TabsContent>
       </Tabs>
     </div>
+    </ResourceGuard>
   )
 }

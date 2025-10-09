@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import React, { useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import {
   LayoutDashboard,
@@ -32,7 +32,16 @@ import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { useAuthContext } from "@/lib/auth"
 
-const navItems = [
+type NavItem = {
+  title: string
+  href: string
+  icon: any
+  segment: string
+  resourceKeys?: string[]
+  requiredRolesOr?: string[]
+}
+
+const navItems: NavItem[] = [
   {
     title: "Dashboard",
     href: "/dashboard",
@@ -44,42 +53,49 @@ const navItems = [
     href: "/employees",
     icon: Users,
     segment: "employees",
+    resourceKeys: ["employees"],
   },
   {
     title: "Recruitment",
     href: "/recruitment",
     icon: Briefcase,
     segment: "recruitment",
+    resourceKeys: ["candidates", "interviews"],
   },
   {
     title: "Payroll",
     href: "/payroll",
     icon: DollarSign,
     segment: "payroll",
+    resourceKeys: ["payrolls", "salary_structures"],
   },
   {
     title: "Attendance",
     href: "/attendance-leave",
     icon: CalendarCheck,
     segment: "attendance-leave",
+    resourceKeys: ["attendance_records", "leave_requests"],
   },
   {
     title: "Leave Management",
     href: "/leave-management",
     icon: CalendarCheck,
     segment: "leave-management",
+    resourceKeys: ["leave_requests"],
   },
   {
     title: "Reports",
     href: "/reports",
     icon: BarChart,
     segment: "reports",
+    resourceKeys: ["reports"],
   },
   {
     title: "Settings",
     href: "/settings",
     icon: Settings,
     segment: "settings",
+    requiredRolesOr: ["Super Admin", "HR Manager"],
   },
 ]
 
@@ -88,7 +104,70 @@ export function TopNav() {
   const [isNavExpanded, setIsNavExpanded] = useState(false)
   const pathname = usePathname()
   const router = useRouter()
-  const { user, logout } = useAuthContext()
+  const { user, logout, permissions, roles } = useAuthContext()
+
+  const userResources = React.useMemo(() => {
+    console.log('🔍 TopNav - Raw permissions:', permissions)
+    
+    const set = new Set<string>()
+    for (const p of permissions || []) {
+      // Handle both string permissions and object permissions
+      const name = typeof p === 'string' ? p : (p.name || '')
+      // Handle both colon (:) and dot (.) separators
+      const res = name.includes(':') ? name.split(':')[0] : 
+                  name.includes('.') ? name.split('.')[0] : name
+      if (res) set.add(res)
+    }
+    
+    console.log('🔍 TopNav - Extracted resources:', Array.from(set))
+    return set
+  }, [permissions])
+  
+  const roleNames = React.useMemo(() => {
+    const roleSet = new Set((roles || []).map(r => r.name))
+    return roleSet
+  }, [roles])
+
+  const canSee = (item: NavItem): boolean => {
+    console.log(`🔍 TopNav - Checking item: ${item.title}`)
+    console.log(`🔍 TopNav - Item resourceKeys:`, item.resourceKeys)
+    console.log(`🔍 TopNav - Item requiredRolesOr:`, item.requiredRolesOr)
+    console.log(`🔍 TopNav - User resources:`, Array.from(userResources))
+    console.log(`🔍 TopNav - User roles:`, Array.from(roleNames))
+    
+    if (item.segment === "dashboard") {
+      console.log(`✅ TopNav - ${item.title}: Dashboard always visible`)
+      return true
+    }
+    
+    if (roleNames.has("Super Admin")) {
+      console.log(`✅ TopNav - ${item.title}: Super Admin bypass`)
+      return true
+    }
+    
+    if (item.requiredRolesOr && item.requiredRolesOr.length > 0) {
+      const hasAnyRole = item.requiredRolesOr.some(r => roleNames.has(r))
+      console.log(`🔍 TopNav - ${item.title}: Role check - hasAnyRole: ${hasAnyRole}`)
+      if (!hasAnyRole) {
+        console.log(`❌ TopNav - ${item.title}: No required role`)
+        return false
+      }
+    }
+    
+    if (item.resourceKeys && item.resourceKeys.length > 0) {
+      const hasAny = item.resourceKeys.some(key => userResources.has(key))
+      console.log(`🔍 TopNav - ${item.title}: Resource check - hasAny: ${hasAny}`)
+      console.log(`🔍 TopNav - ${item.title}: Checking resources:`, item.resourceKeys)
+      console.log(`🔍 TopNav - ${item.title}: User has resources:`, Array.from(userResources))
+      if (!hasAny) {
+        console.log(`❌ TopNav - ${item.title}: No required resource`)
+        return false
+      }
+    }
+    
+    console.log(`✅ TopNav - ${item.title}: Access granted`)
+    return true
+  }
 
   const handleNavigation = (href: string) => {
     router.push(href)
@@ -122,7 +201,12 @@ export function TopNav() {
             "hidden lg:flex items-center gap-1",
             isNavExpanded ? "flex-wrap" : "overflow-x-auto"
           )} id="desktop-nav">
-            {navItems.map((item) => (
+            {(() => {
+              const filteredItems = navItems.filter(canSee);
+              console.log('🔍 TopNav - All nav items:', navItems.map(i => i.title));
+              console.log('🔍 TopNav - Filtered nav items:', filteredItems.map(i => i.title));
+              return filteredItems;
+            })().map((item) => (
               <Button
                 key={item.title}
                 variant="ghost"
@@ -204,7 +288,7 @@ export function TopNav() {
               </div>
             </div>
 
-            {navItems.map((item) => (
+            {navItems.filter(canSee).map((item) => (
               <Button
                 key={item.title}
                 variant="ghost"
