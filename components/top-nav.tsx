@@ -107,7 +107,6 @@ export function TopNav() {
   const { user, logout, permissions, roles } = useAuthContext()
 
   const userResources = React.useMemo(() => {
-    console.log('🔍 TopNav - Raw permissions:', permissions)
     
     const set = new Set<string>()
     for (const p of permissions || []) {
@@ -119,7 +118,6 @@ export function TopNav() {
       if (res) set.add(res)
     }
     
-    console.log('🔍 TopNav - Extracted resources:', Array.from(set))
     return set
   }, [permissions])
   
@@ -128,44 +126,29 @@ export function TopNav() {
     return roleSet
   }, [roles])
 
-  const canSee = (item: NavItem): boolean => {
-    console.log(`🔍 TopNav - Checking item: ${item.title}`)
-    console.log(`🔍 TopNav - Item resourceKeys:`, item.resourceKeys)
-    console.log(`🔍 TopNav - Item requiredRolesOr:`, item.requiredRolesOr)
-    console.log(`🔍 TopNav - User resources:`, Array.from(userResources))
-    console.log(`🔍 TopNav - User roles:`, Array.from(roleNames))
-    
+  const canSee = (item: NavItem): boolean => {    
     if (item.segment === "dashboard") {
-      console.log(`✅ TopNav - ${item.title}: Dashboard always visible`)
       return true
     }
     
     if (roleNames.has("Super Admin")) {
-      console.log(`✅ TopNav - ${item.title}: Super Admin bypass`)
       return true
     }
     
     if (item.requiredRolesOr && item.requiredRolesOr.length > 0) {
       const hasAnyRole = item.requiredRolesOr.some(r => roleNames.has(r))
-      console.log(`🔍 TopNav - ${item.title}: Role check - hasAnyRole: ${hasAnyRole}`)
       if (!hasAnyRole) {
-        console.log(`❌ TopNav - ${item.title}: No required role`)
         return false
       }
     }
     
     if (item.resourceKeys && item.resourceKeys.length > 0) {
       const hasAny = item.resourceKeys.some(key => userResources.has(key))
-      console.log(`🔍 TopNav - ${item.title}: Resource check - hasAny: ${hasAny}`)
-      console.log(`🔍 TopNav - ${item.title}: Checking resources:`, item.resourceKeys)
-      console.log(`🔍 TopNav - ${item.title}: User has resources:`, Array.from(userResources))
       if (!hasAny) {
-        console.log(`❌ TopNav - ${item.title}: No required resource`)
         return false
       }
     }
     
-    console.log(`✅ TopNav - ${item.title}: Access granted`)
     return true
   }
 
@@ -203,8 +186,6 @@ export function TopNav() {
           )} id="desktop-nav">
             {(() => {
               const filteredItems = navItems.filter(canSee);
-              console.log('🔍 TopNav - All nav items:', navItems.map(i => i.title));
-              console.log('🔍 TopNav - Filtered nav items:', filteredItems.map(i => i.title));
               return filteredItems;
             })().map((item) => (
               <Button

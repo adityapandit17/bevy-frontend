@@ -6,6 +6,74 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000';
 
 /**
+ * Get JWT token from localStorage
+ */
+const getToken = (): string | null => {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem('auth_token');
+};
+
+/**
+ * Make authenticated API request
+ * Automatically includes JWT token in Authorization header
+ */
+export const apiRequest = async <T>(
+  url: string,
+  options: RequestInit = {}
+): Promise<T> => {
+  const defaultHeaders: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+  };
+
+  // Add JWT token if available
+  const token = getToken();
+  if (token) {
+    defaultHeaders['Authorization'] = `Bearer ${token}`;
+  }
+
+  const config: RequestInit = {
+    ...options,
+    headers: {
+      ...defaultHeaders,
+      ...options.headers,
+    },
+  };
+
+  try {
+    const response = await fetch(url, config);
+    
+    if (!response.ok) {
+      // Handle 401 Unauthorized - token might be expired
+      if (response.status === 401) {
+        // Clear invalid token
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('auth_user');
+        // Redirect to login
+        if (typeof window !== 'undefined') {
+          window.location.href = '/login';
+        }
+        throw new Error('Authentication failed. Please login again.');
+      }
+      
+      const errorText = await response.text();
+      throw new Error(`API request failed: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+    // Handle empty responses
+    const text = await response.text();
+    if (!text) {
+      return {} as T;
+    }
+
+    return JSON.parse(text);
+  } catch (error) {
+    console.error('API request error:', error);
+    throw error;
+  }
+};
+
+/**
  * Get the full API URL for a given endpoint
  * @param endpoint - The API endpoint (e.g., '/employees', '/departments')
  * @returns The complete API URL
@@ -112,6 +180,7 @@ export const getEndpointUrl = (endpoint: keyof typeof API_ENDPOINTS): string => 
 export default {
   getApiUrl,
   getEndpointUrl,
+  apiRequest,
   API_ENDPOINTS,
   API_BASE_URL,
 };

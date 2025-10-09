@@ -90,7 +90,6 @@ export default function RolePermissionsEditor() {
         const res = await fetch(getApiUrl(API_ENDPOINTS.ROLES), { headers: token ? { Authorization: `Bearer ${token}` } : undefined })
         const json = await res.json()
         const list: Role[] = (json.roles || []).map((r: any) => ({ id: r.id, name: r.name, description: r.description, userCount: r.user_count }))
-        console.log(list)
         setRoles(list)
         if (list.length > 0) {
           await handleRoleSelect(list[0])

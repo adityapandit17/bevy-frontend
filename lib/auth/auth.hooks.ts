@@ -121,10 +121,6 @@ export function useAuth() {
     try {
       const authData = await authService.current.login(credentials);
       
-      console.log('🔍 Auth - Raw permissions from backend:', authData.user.permissions);
-      console.log('🔍 Auth - Permissions type:', typeof authData.user.permissions);
-      console.log('🔍 Auth - Permissions length:', authData.user.permissions?.length);
-      console.log('🔍 Auth - First permission:', authData.user.permissions?.[0]);
       
       // Transform permissions if they're strings to objects with name property
       const transformedPermissions = authData.user.permissions?.map(p => 
@@ -140,8 +136,6 @@ export function useAuth() {
         }
       };
       authService.current.storeAuthData(authDataToStore);
-      
-      console.log('🔍 Auth - Transformed permissions:', transformedPermissions);
       
       setState(prev => ({
         ...prev,

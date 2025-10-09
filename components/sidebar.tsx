@@ -153,8 +153,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { permissions, roles } = useAuthContext()
 
   const userResources = React.useMemo(() => {
-    console.log('🔍 Sidebar - Raw permissions:', permissions)
-    console.log('🔍 Sidebar - Raw roles:', roles)
     
     const set = new Set<string>()
     for (const p of permissions || []) {
@@ -166,50 +164,38 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       if (res) set.add(res)
     }
     
-    console.log('🔍 Sidebar - Extracted resources:', Array.from(set))
     return set
   }, [permissions])
   
   const roleNames = React.useMemo(() => {
     const roleSet = new Set((roles || []).map(r => r.name))
-    console.log('🔍 Sidebar - Role names:', Array.from(roleSet))
     return roleSet
   }, [roles])
 
   const canSee = (item: NavItem): boolean => {
-    console.log(`🔍 Sidebar - Checking item: ${item.title}`)
-    console.log(`🔍 Sidebar - Item resourceKeys:`, item.resourceKeys)
-    console.log(`🔍 Sidebar - Item requiredRolesOr:`, item.requiredRolesOr)
     
     if (item.segment === "dashboard") {
-      console.log(`✅ Sidebar - ${item.title}: Dashboard always visible`)
       return true
     }
     
     if (roleNames.has("Super Admin")) {
-      console.log(`✅ Sidebar - ${item.title}: Super Admin bypass`)
       return true
     }
     
     if (item.requiredRolesOr && item.requiredRolesOr.length > 0) {
       const hasAnyRole = item.requiredRolesOr.some(r => roleNames.has(r))
-      console.log(`🔍 Sidebar - ${item.title}: Role check - hasAnyRole: ${hasAnyRole}`)
       if (!hasAnyRole) {
-        console.log(`❌ Sidebar - ${item.title}: No required role`)
         return false
       }
     }
     
     if (item.resourceKeys && item.resourceKeys.length > 0) {
       const hasAny = item.resourceKeys.some(key => userResources.has(key))
-      console.log(`🔍 Sidebar - ${item.title}: Resource check - hasAny: ${hasAny}`)
       if (!hasAny) {
-        console.log(`❌ Sidebar - ${item.title}: No required resource`)
         return false
       }
     }
     
-    console.log(`✅ Sidebar - ${item.title}: Access granted`)
     return true
   }
 

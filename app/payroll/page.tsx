@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { getApiUrl, getEndpointUrl } from "@/lib/api"
+import { getApiUrl, getEndpointUrl, apiRequest } from "@/lib/api"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -41,15 +41,9 @@ export default function PayrollPage() {
   const fetchPayrollRecords = async () => {
     setLoading(true)
     try {
-      const res = await fetch(getEndpointUrl('PAYROLLS'))
-      if (res.ok) {
-        const data = await res.json()
-        // Ensure data is an array
-        setPayrollRecords(Array.isArray(data) ? data : [])
-      } else {
-        console.error("Failed to fetch payroll records:", res.status, res.statusText)
-        setPayrollRecords([])
-      }
+      const data = await apiRequest(getEndpointUrl('PAYROLLS'))
+      // Ensure data is an array
+      setPayrollRecords(Array.isArray(data) ? data : [])
     } catch (err) {
       console.error("Error fetching payroll records:", err)
       setPayrollRecords([])
@@ -61,15 +55,9 @@ export default function PayrollPage() {
   const fetchSalaryStructures = async () => {
     setLoading(true)
     try {
-      const res = await fetch(getEndpointUrl('SALARY_STRUCTURES'))
-      if (res.ok) {
-        const data = await res.json()
-        // Ensure data is an array
-        setSalaryStructures(Array.isArray(data) ? data : [])
-      } else {
-        console.error("Failed to fetch salary structures:", res.status, res.statusText)
-        setSalaryStructures([])
-      }
+      const data = await apiRequest(getEndpointUrl('SALARY_STRUCTURES'))
+      // Ensure data is an array
+      setSalaryStructures(Array.isArray(data) ? data : [])
     } catch (err) {
       console.error("Error fetching salary structures:", err)
       setSalaryStructures([])
@@ -80,14 +68,8 @@ export default function PayrollPage() {
 
   const fetchEmployees = async () => {
     try {
-      const res = await fetch(getEndpointUrl('EMPLOYEES'))
-      if (res.ok) {
-        const data = await res.json()
-        setEmployees(Array.isArray(data) ? data : [])
-      } else {
-        console.error("Failed to fetch employees:", res.status, res.statusText)
-        setEmployees([])
-      }
+      const data = await apiRequest(getEndpointUrl('EMPLOYEES'))
+      setEmployees(Array.isArray(data) ? data : [])
     } catch (err) {
       console.error("Error fetching employees:", err)
       setEmployees([])
@@ -96,14 +78,8 @@ export default function PayrollPage() {
 
   const fetchDepartments = async () => {
     try {
-      const res = await fetch(getEndpointUrl('DEPARTMENTS'))
-      if (res.ok) {
-        const data = await res.json()
-        setDepartments(Array.isArray(data) ? data : [])
-      } else {
-        console.error("Failed to fetch departments:", res.status, res.statusText)
-        setDepartments([])
-      }
+      const data = await apiRequest(getEndpointUrl('DEPARTMENTS'))
+      setDepartments(Array.isArray(data) ? data : [])
     } catch (err) {
       console.error("Error fetching departments:", err)
       setDepartments([])

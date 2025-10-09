@@ -18,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Users, Search, Filter, Plus, MoreHorizontal, Mail, Phone, MapPin, Calendar, Download, UserPlus, UserMinus } from "lucide-react"
 import { EmployeeForm } from "@/components/forms/employee-form"
 import { useRouter } from "next/navigation"
-import { getEndpointUrl, getApiUrl } from "@/lib/api"
+import { getEndpointUrl, getApiUrl, apiRequest } from "@/lib/api"
 import { ResourceGuard } from "@/lib/auth/auth.guards"
 
 interface Employee {
@@ -63,11 +63,9 @@ export default function EmployeesPage() {
   const fetchEmployees = async () => {
     setLoading(true)
     try {
-      const res = await fetch(getApiUrl('employees'), {
-        method: "GET",
-        headers: { "Content-Type": "application/json", "Accept": "application/json" }
+      const data = await apiRequest<Employee[]>(getApiUrl('employees'), {
+        method: "GET"
       })
-      const data = await res.json()
       setEmployees(data)
     } catch (err) {
       console.error('Error fetching employees:', err)
@@ -78,11 +76,9 @@ export default function EmployeesPage() {
 
   const fetchDepartments = async () => {
     try {
-      const res = await fetch(getEndpointUrl('DEPARTMENTS'), {
-        method: "GET",
-        headers: { "Content-Type": "application/json", "Accept": "application/json" }
+      const data = await apiRequest<Department[]>(getEndpointUrl('DEPARTMENTS'), {
+        method: "GET"
       })
-      const data = await res.json()
       setDepartments(data)
     } catch (err) {
       console.error('Error fetching departments:', err)
@@ -91,17 +87,12 @@ export default function EmployeesPage() {
 
   const handleAddEmployee = async (formData: any) => {
     try {
-      const res = await fetch(getApiUrl('employees'), {
+      await apiRequest(getApiUrl('employees'), {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Accept": "application/json" },
         body: JSON.stringify({ employee: formData })
       })
-      if (res.ok) {
-        fetchEmployees()
-        setShowForm(false)
-      } else {
-        console.error('Error adding employee')
-      }
+      fetchEmployees()
+      setShowForm(false)
     } catch (err) {
       console.error('Error adding employee:', err)
     }

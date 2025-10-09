@@ -18,7 +18,7 @@ import {
   Activity,
 } from "lucide-react"
 import { useEffect, useState } from "react"
-import { getEndpointUrl } from "@/lib/api"
+import { getEndpointUrl, apiRequest } from "@/lib/api"
 import { ResourceGuard } from "@/lib/auth/auth.guards"
 
 export default function ReportsPage() {
@@ -32,21 +32,19 @@ export default function ReportsPage() {
 
   const fetchEmployees = async () => {
     try {
-      const res = await fetch(getEndpointUrl('EMPLOYEES'))
-      const data = await res.json()
+      const data = await apiRequest(getEndpointUrl('EMPLOYEES'))
       setEmployees(data)
     } catch (err) {
-      // handle error
+      console.error('Error fetching employees:', err)
     }
   }
 
   const fetchDepartments = async () => {
     try {
-      const res = await fetch(getEndpointUrl('DEPARTMENTS'))
-      const data = await res.json()
+      const data = await apiRequest(getEndpointUrl('DEPARTMENTS'))
       setDepartments(data)
     } catch (err) {
-      // handle error
+      console.error('Error fetching departments:', err)
     }
   }
 
