@@ -25,6 +25,7 @@ interface ResourceGuardProps {
   resourceKeys: string[];
   requiredRoles?: string[];
   fallback?: React.ReactNode;
+  pageName?: string;
 }
 
 /**
@@ -92,7 +93,7 @@ export function GuestGuard({ children, fallback }: GuestGuardProps) {
 /**
  * ResourceGuard - Protects routes based on user permissions and roles
  */
-export function ResourceGuard({ children, resourceKeys, requiredRoles, fallback }: ResourceGuardProps) {
+export function ResourceGuard({ children, resourceKeys, requiredRoles, fallback, pageName }: ResourceGuardProps) {
   const { isAuthenticated, isLoading, permissions, roles } = useAuthContext();
   const router = useRouter();
 
@@ -121,9 +122,11 @@ export function ResourceGuard({ children, resourceKeys, requiredRoles, fallback 
     if (isSuperAdmin) return; // Super Admin bypasses all checks
 
     if (!hasRequiredPermission && !hasRequiredRole) {
+      console.log('🚫 ResourceGuard - Access denied, showing toast and redirecting');
+      const pageTitle = pageName || 'this page';
       toast({
         title: "Access Denied",
-        description: "You don't have permission to access this page.",
+        description: `You don't have permission to access ${pageTitle}. You've been redirected to the dashboard.`,
         variant: "destructive",
       });
       router.push('/dashboard'); // Redirect to dashboard if no permission

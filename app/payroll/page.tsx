@@ -173,7 +173,7 @@ export default function PayrollPage() {
   }
 
   return (
-    <ResourceGuard resourceKeys={["payrolls", "salary_structures"]}>
+    <ResourceGuard resourceKeys={["payrolls", "salary_structures"]} pageName="Payroll">
       <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">

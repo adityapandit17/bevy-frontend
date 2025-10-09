@@ -179,7 +179,7 @@ export default function ReportsPage() {
   ]
 
   return (
-    <ResourceGuard resourceKeys={["reports"]}>
+    <ResourceGuard resourceKeys={["reports"]} pageName="Reports">
       <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">

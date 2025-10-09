@@ -6,6 +6,7 @@ import { TopNav } from "@/components/top-nav"
 import { cn } from "@/lib/utils"
 import { LoginLayout } from "@/components/login-layout"
 import { AuthProvider } from "@/lib/auth"
+import { Toaster } from "@/components/ui/toaster"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -27,6 +28,7 @@ export default function RootLayout({
           <LoginLayout>
             {children}
           </LoginLayout>
+          <Toaster />
         </AuthProvider>
       </body>
     </html>
