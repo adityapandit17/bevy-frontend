@@ -22,7 +22,7 @@ interface GuestGuardProps {
 
 interface ResourceGuardProps {
   children: React.ReactNode;
-  resourceKeys: string[];
+  resourceKeys?: string[];
   requiredRoles?: string[];
   fallback?: React.ReactNode;
   pageName?: string;
@@ -97,18 +97,22 @@ export function ResourceGuard({ children, resourceKeys, requiredRoles, fallback,
   const { isAuthenticated, isLoading, permissions, roles } = useAuthContext();
   const router = useRouter();
 
-  const isSuperAdmin = roles.some(role => role.name === "Super Admin");
+  const safePermissions = Array.isArray(permissions) ? permissions : [];
+  const safeRoles = Array.isArray(roles) ? roles : [];
+  const safeResourceKeys = Array.isArray(resourceKeys) ? resourceKeys : [];
+
+  const isSuperAdmin = safeRoles.some(role => role.name === "Super Admin");
   
   // Check if user has required permissions or roles
-  const hasRequiredPermission = resourceKeys.some(resource => 
-    permissions.some(p => {
+  const hasRequiredPermission = safeResourceKeys.length > 0 && safeResourceKeys.some(resource => 
+    safePermissions.some(p => {
       const permissionName = typeof p === 'string' ? p : p.name;
       return permissionName.startsWith(resource + ':') || permissionName.startsWith(resource + '.');
     })
   );
   
-  const hasRequiredRole = requiredRoles?.some(role => 
-    roles.some(r => r.name === role)
+  const hasRequiredRole = (requiredRoles || []).some(role => 
+    safeRoles.some(r => r.name === role)
   ) || false;
 
   useEffect(() => {

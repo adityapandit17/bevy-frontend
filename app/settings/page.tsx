@@ -105,7 +105,7 @@ export default function SettingsPage() {
   const safeCompany = company || defaultCompany
 
   return (
-    <ResourceGuard requiredRoles={["Super Admin", "HR Manager"]} pageName="Settings">
+    <ResourceGuard resourceKeys={["settings"]} requiredRoles={["Super Admin", "HR Manager"]} pageName="Settings">
       <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">

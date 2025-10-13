@@ -142,7 +142,7 @@ const navItems: NavItem[] = [
     href: "/settings",
     icon: Settings,
     segment: "settings",
-    requiredRolesOr: ["Super Admin", "HR Manager"],
+    resourceKeys: ["settings"],
   },
 ]
 
