@@ -108,6 +108,29 @@ export default function ATSPage() {
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null)
   const [showAddCandidate, setShowAddCandidate] = useState(false)
+  
+  // Save selected candidate to localStorage
+  const saveSelectedCandidate = (candidate: Candidate | null) => {
+    if (candidate) {
+      localStorage.setItem('ats_selected_candidate_id', candidate.id)
+    } else {
+      localStorage.removeItem('ats_selected_candidate_id')
+    }
+  }
+  
+  // Restore selected candidate from localStorage
+  const restoreSelectedCandidate = (candidatesList: Candidate[]) => {
+    const savedCandidateId = localStorage.getItem('ats_selected_candidate_id')
+    if (savedCandidateId) {
+      const candidate = candidatesList.find(c => c.id === savedCandidateId)
+      if (candidate) {
+        setSelectedCandidate(candidate)
+      } else {
+        // Clear saved candidate if it no longer exists
+        localStorage.removeItem('ats_selected_candidate_id')
+      }
+    }
+  }
   const [showEditCandidate, setShowEditCandidate] = useState(false)
   const [showScheduleInterview, setShowScheduleInterview] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
@@ -128,6 +151,8 @@ export default function ATSPage() {
       const response = await fetch(getEndpointUrl('CANDIDATES'))
       const data = await response.json()
       setCandidates(data)
+      // Restore selected candidate from localStorage
+      restoreSelectedCandidate(data)
     } catch (error) {
       console.error('Error fetching candidates:', error)
     }
@@ -283,9 +308,11 @@ export default function ATSPage() {
             prev.map(c => c.id === candidateData.id ? savedCandidate : c)
           )
           setSelectedCandidate(savedCandidate)
+          saveSelectedCandidate(savedCandidate)
         } else {
           setCandidates(prev => [...prev, savedCandidate])
           setSelectedCandidate(savedCandidate)
+          saveSelectedCandidate(savedCandidate)
         }
         
         setShowAddCandidate(false)
@@ -304,6 +331,7 @@ export default function ATSPage() {
 
   const handleEditCandidate = (candidate: Candidate) => {
     setSelectedCandidate(candidate)
+    saveSelectedCandidate(candidate)
     setShowEditCandidate(true)
   }
 
@@ -311,6 +339,7 @@ export default function ATSPage() {
     setShowAddCandidate(false)
     setShowEditCandidate(false)
     setSelectedCandidate(null)
+    saveSelectedCandidate(null)
   }
 
 
@@ -449,7 +478,23 @@ export default function ATSPage() {
                   className={`p-4 rounded-lg border cursor-pointer transition-all hover:shadow-md ${
                     selectedCandidate?.id === candidate.id ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-gray-300"
                   }`}
-                  onClick={() => setSelectedCandidate(candidate)}
+                  onClick={() => {
+                    setSelectedCandidate(candidate)
+                    saveSelectedCandidate(candidate)
+                    // Scroll to the candidate profile section
+                    setTimeout(() => {
+                      const profileSection = document.getElementById('candidate-profile')
+                      if (profileSection) {
+                        const elementPosition = profileSection.getBoundingClientRect().top
+                        const offsetPosition = elementPosition + window.pageYOffset - 80 // 80px offset to show main header
+                        
+                        window.scrollTo({
+                          top: offsetPosition,
+                          behavior: 'smooth'
+                        })
+                      }
+                    }, 100)
+                  }}
                 >
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="font-medium text-gray-900">{candidate.name}</h3>
@@ -502,7 +547,7 @@ export default function ATSPage() {
         </Card>
 
         {/* Candidate Details */}
-        <Card className="lg:col-span-2">
+        <Card id="candidate-profile" className="lg:col-span-2">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
@@ -908,9 +953,27 @@ export default function ATSPage() {
           email: selectedCandidate.email,
           position: selectedCandidate.position
         } : undefined}
-        onSuccess={() => {
-          fetchCandidates()
+        onSuccess={async () => {
           setShowScheduleInterview(false)
+          // Refresh candidates and update selected candidate
+          try {
+            const response = await fetch(getApiUrl('candidates'))
+            if (response.ok) {
+              const updatedCandidates = await response.json()
+              setCandidates(updatedCandidates)
+              
+              // Update the selected candidate with fresh data
+              if (selectedCandidate) {
+                const updatedCandidate = updatedCandidates.find((c: any) => c.id === selectedCandidate.id)
+                if (updatedCandidate) {
+                  setSelectedCandidate(updatedCandidate)
+                  saveSelectedCandidate(updatedCandidate)
+                }
+              }
+            }
+          } catch (error) {
+            console.error('Error refreshing candidates:', error)
+          }
         }}
       />
 
