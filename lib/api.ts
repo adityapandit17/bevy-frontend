@@ -177,10 +177,71 @@ export const getEndpointUrl = (endpoint: keyof typeof API_ENDPOINTS): string => 
   return getApiUrl(endpointPath);
 };
 
+/**
+ * Get document URL for uploaded files
+ * @param documentPath - The document path from the database
+ * @param download - Whether to force download (adds download=true parameter)
+ * @returns The complete URL for accessing the document
+ */
+export const getDocumentUrl = (documentPath: string, download: boolean = false): string => {
+  if (!documentPath) return ""
+  
+  // If it's already a full URL, return as is
+  if (documentPath.startsWith('http')) {
+    return documentPath
+  }
+  
+  let baseUrl: string
+  
+  // If the path already includes 'uploads/', don't add it again
+  if (documentPath.startsWith('uploads/')) {
+    baseUrl = getApiUrl(documentPath)
+  } else {
+    // Construct the proper URL for uploaded files
+    baseUrl = getApiUrl(`uploads/${documentPath}`)
+  }
+  
+  // Add download parameter if needed
+  if (download) {
+    const separator = baseUrl.includes('?') ? '&' : '?'
+    return `${baseUrl}${separator}download=true`
+  }
+  
+  return baseUrl
+}
+
+/**
+ * Get file type from filename
+ * @param filename - The filename
+ * @returns The file type/extension
+ */
+export const getFileType = (filename: string): string => {
+  if (!filename) return "pdf"
+  const extension = filename.split('.').pop()?.toLowerCase()
+  return extension || "pdf"
+}
+
+/**
+ * Get display name from filename
+ * @param filename - The filename
+ * @param defaultName - Default name if filename is invalid
+ * @returns The display name
+ */
+export const getDisplayName = (filename: string, defaultName: string): string => {
+  if (!filename) return defaultName
+  if (filename.includes('/')) {
+    return filename.split('/').pop() || defaultName
+  }
+  return filename
+}
+
 export default {
   getApiUrl,
   getEndpointUrl,
   apiRequest,
+  getDocumentUrl,
+  getFileType,
+  getDisplayName,
   API_ENDPOINTS,
   API_BASE_URL,
 };

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { getApiUrl, getEndpointUrl } from "@/lib/api"
+import { getApiUrl, getEndpointUrl, getDocumentUrl, getFileType, getDisplayName, apiRequest } from "@/lib/api"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -56,6 +56,7 @@ import {
 } from "lucide-react"
 import { InterviewForm } from "@/components/forms/interview-form"
 import { CandidateForm } from "@/components/forms/candidate-form"
+import { DocumentPreview, useDocumentPreview } from "@/components/ui/document-preview"
 
 interface Candidate {
   id: string
@@ -113,6 +114,9 @@ export default function ATSPage() {
   const [filterStatus, setFilterStatus] = useState<string>("all")
   const [filterDepartment, setFilterDepartment] = useState<string>("all")
   const [isLoading, setIsLoading] = useState(false)
+  
+  // Document preview functionality
+  const { previewState, openPreview, closePreview } = useDocumentPreview()
 
   useEffect(() => {
     fetchCandidates()
@@ -131,8 +135,10 @@ export default function ATSPage() {
 
   const fetchStats = async () => {
     try {
-      const response = await fetch(getApiUrl('candidates/stats'))
-      const data = await response.json()
+      const url = getApiUrl('candidates/stats')
+      console.log('Fetching stats from URL:', url)
+      const data = await apiRequest(url)
+      console.log('Stats data:', data)
       // Update stats if needed
     } catch (error) {
       console.error('Error fetching stats:', error)
@@ -305,6 +311,19 @@ export default function ATSPage() {
     setShowAddCandidate(false)
     setShowEditCandidate(false)
     setSelectedCandidate(null)
+  }
+
+
+  // Handle document preview
+  const handleDocumentPreview = (documentPath: string, documentName: string) => {
+    const url = getDocumentUrl(documentPath)
+    const fileType = getFileType(documentPath)
+    const displayName = getDisplayName(documentPath, documentName)
+    
+    
+    if (url) {
+      openPreview(url, displayName, fileType)
+    }
   }
 
   return (
@@ -567,31 +586,77 @@ export default function ATSPage() {
                     </div>
                     <div>
                       <p className="text-sm font-medium text-gray-600">Documents</p>
-                      <div className="space-y-1 mt-2">
+                      <div className="space-y-2 mt-2">
                         {selectedCandidate.resume && (
-                          <div className="flex items-center gap-2 text-sm">
-                            <FileText className="w-4 h-4 text-gray-400" />
-                            <a 
-                              href={selectedCandidate.resume.startsWith('http') ? selectedCandidate.resume : getApiUrl(`uploads/${selectedCandidate.resume}`)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-blue-600 cursor-pointer underline hover:text-blue-800"
-                            >
-                              {selectedCandidate.resume.includes('/') ? selectedCandidate.resume.split('/').pop() : 'Resume'}
-                            </a>
+                          <div className="flex items-center justify-between p-2 border rounded-lg hover:bg-gray-50">
+                            <div className="flex items-center gap-2 text-sm">
+                              <FileText className="w-4 h-4 text-gray-400" />
+                              <span className="text-gray-700 font-medium">
+                                Resume
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDocumentPreview(selectedCandidate.resume, 'Resume')}
+                                className="h-8 px-2 text-blue-600 hover:text-blue-800"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  const downloadUrl = getDocumentUrl(selectedCandidate.resume, true)
+                                  const link = document.createElement('a')
+                                  link.href = downloadUrl
+                                  link.download = 'Resume.pdf'
+                                  document.body.appendChild(link)
+                                  link.click()
+                                  document.body.removeChild(link)
+                                }}
+                                className="h-8 px-2 text-blue-600 hover:text-blue-800"
+                              >
+                                <Download className="w-4 h-4" />
+                              </Button>
+                            </div>
                           </div>
                         )}
                         {selectedCandidate.cover_letter && (
-                          <div className="flex items-center gap-2 text-sm">
-                            <FileText className="w-4 h-4 text-gray-400" />
-                            <a 
-                              href={selectedCandidate.cover_letter.startsWith('http') ? selectedCandidate.cover_letter : getApiUrl(`uploads/${selectedCandidate.cover_letter}`)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-blue-600 cursor-pointer underline hover:text-blue-800"
-                            >
-                              {selectedCandidate.cover_letter.includes('/') ? selectedCandidate.cover_letter.split('/').pop() : 'Cover Letter'}
-                            </a>
+                          <div className="flex items-center justify-between p-2 border rounded-lg hover:bg-gray-50">
+                            <div className="flex items-center gap-2 text-sm">
+                              <FileText className="w-4 h-4 text-gray-400" />
+                              <span className="text-gray-700 font-medium">
+                                Cover Letter
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDocumentPreview(selectedCandidate.cover_letter, 'Cover Letter')}
+                                className="h-8 px-2 text-blue-600 hover:text-blue-800"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  const downloadUrl = getDocumentUrl(selectedCandidate.cover_letter, true)
+                                  const link = document.createElement('a')
+                                  link.href = downloadUrl
+                                  link.download = 'Cover_Letter.pdf'
+                                  document.body.appendChild(link)
+                                  link.click()
+                                  document.body.removeChild(link)
+                                }}
+                                className="h-8 px-2 text-blue-600 hover:text-blue-800"
+                              >
+                                <Download className="w-4 h-4" />
+                              </Button>
+                            </div>
                           </div>
                         )}
                       </div>
@@ -847,6 +912,15 @@ export default function ATSPage() {
           fetchCandidates()
           setShowScheduleInterview(false)
         }}
+      />
+
+      {/* Document Preview Dialog */}
+      <DocumentPreview
+        open={previewState.open}
+        onOpenChange={closePreview}
+        documentUrl={previewState.documentUrl}
+        documentName={previewState.documentName}
+        documentType={previewState.documentType}
       />
     </div>
   )
