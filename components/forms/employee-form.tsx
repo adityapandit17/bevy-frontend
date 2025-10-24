@@ -178,6 +178,7 @@ export function EmployeeForm({ onClose, onSubmit, initialData }: EmployeeFormPro
                   <Label htmlFor="status">Status</Label>
                   <Input
                     id="status"
+                    disabled
                     value={formData.status}
                     onChange={(e) => handleChange("status", e.target.value)}
                   />
