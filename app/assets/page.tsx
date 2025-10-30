@@ -174,7 +174,7 @@ export default function AssetsPage() {
       try {
         const response = await fetch(getApiUrl('assets/stats'))
         const data = await response.json()
-        
+
         setAssetStats([
           {
             title: "Total Assets",

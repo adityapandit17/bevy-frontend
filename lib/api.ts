@@ -42,7 +42,7 @@ export const apiRequest = async <T>(
 
   try {
     const response = await fetch(url, config);
-    
+
     if (!response.ok) {
       // Handle 401 Unauthorized - token might be expired
       if (response.status === 401) {
@@ -55,7 +55,7 @@ export const apiRequest = async <T>(
         }
         throw new Error('Authentication failed. Please login again.');
       }
-      
+
       const errorText = await response.text();
       throw new Error(`API request failed: ${response.status} ${response.statusText} - ${errorText}`);
     }
@@ -84,7 +84,7 @@ export const getApiUrl = (endpoint: string): string => {
     console.error('getApiUrl called with undefined or null endpoint');
     return API_BASE_URL;
   }
-  
+
   // Remove leading slash if present to avoid double slashes
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
   return `${API_BASE_URL}/${cleanEndpoint}`;
@@ -96,21 +96,21 @@ export const getApiUrl = (endpoint: string): string => {
 export const API_ENDPOINTS = {
   // Dashboard
   DASHBOARD_STATS: '/dashboard_stats',
-  
+
   // Employees
   EMPLOYEES: '/employees',
   EMPLOYEE_PROFILES: '/employee_profiles',
-  
+
   // Departments
   DEPARTMENTS: '/departments',
-  
+
   // Job Openings
   JOB_OPENINGS: '/job_openings',
-  
+
   // Interviews
   INTERVIEWS: '/interviews',
   INTERVIEWS_STATS: '/interviews/stats',
-  
+
   // Attendance & Leave
   ATTENDANCE_RECORDS: '/attendance_records',
   ATTENDANCE_TODAY: '/attendance_records/today',
@@ -125,33 +125,33 @@ export const API_ENDPOINTS = {
   LEAVE_APPROVE: '/leave_requests/{id}/approve',
   LEAVE_REJECT: '/leave_requests/{id}/reject',
   LEAVE_CANCEL: '/leave_requests/{id}/cancel',
-  
+
   // Payroll
   PAYROLLS: '/payrolls',
   SALARY_STRUCTURES: '/salary_structures',
-  
+
   // Company
   COMPANY: '/company',
-  
+
   // Onboarding
   ONBOARDING_EMPLOYEES: '/onboarding_employees',
   ONBOARDING_EMPLOYEES_STATS: '/onboarding_employees/stats',
   ONBOARDING_EMPLOYEES_CHECK: '/onboarding_employees/check_employee',
   ONBOARDING_TASKS: '/onboarding_tasks',
   ONBOARDING_TASK_TOGGLE: '/onboarding_tasks/{id}/toggle',
-  
+
   // Offboarding
   OFFBOARDING_EMPLOYEES: '/offboarding_employees',
   OFFBOARDING_EMPLOYEES_STATS: '/offboarding_employees/stats',
   OFFBOARDING_TASKS: '/offboarding_tasks',
   OFFBOARDING_TASK_TOGGLE: '/offboarding_tasks/{id}/toggle',
-  
+
   // ATS
   CANDIDATES: '/candidates',
-  
+
   // File Upload
   UPLOAD: '/uploads',
-  
+
   // Assets
   ASSETS: '/assets',
 
@@ -185,14 +185,14 @@ export const getEndpointUrl = (endpoint: keyof typeof API_ENDPOINTS): string => 
  */
 export const getDocumentUrl = (documentPath: string, download: boolean = false): string => {
   if (!documentPath) return ""
-  
+
   // If it's already a full URL, return as is
   if (documentPath.startsWith('http')) {
     return documentPath
   }
-  
+
   let baseUrl: string
-  
+
   // If the path already includes 'uploads/', don't add it again
   if (documentPath.startsWith('uploads/')) {
     baseUrl = getApiUrl(documentPath)
@@ -200,13 +200,13 @@ export const getDocumentUrl = (documentPath: string, download: boolean = false):
     // Construct the proper URL for uploaded files
     baseUrl = getApiUrl(`uploads/${documentPath}`)
   }
-  
+
   // Add download parameter if needed
   if (download) {
     const separator = baseUrl.includes('?') ? '&' : '?'
     return `${baseUrl}${separator}download=true`
   }
-  
+
   return baseUrl
 }
 

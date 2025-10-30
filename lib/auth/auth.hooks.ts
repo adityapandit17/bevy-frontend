@@ -7,12 +7,12 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { 
-  AuthState, 
-  LoginCredentials, 
-  User, 
-  Role, 
-  Permission 
+import {
+  AuthState,
+  LoginCredentials,
+  User,
+  Role,
+  Permission
 } from '@/types/auth.types';
 import { AuthService, AuthServiceError } from './auth.service';
 import { AUTH_CONFIG } from '@/config/auth.config';

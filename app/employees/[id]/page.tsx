@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
-import { getApiUrl, getEndpointUrl } from "@/lib/api"
+import { getApiUrl, apiRequest } from "@/lib/api"
 import { useParams, useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -254,102 +254,37 @@ export default function EmployeeProfilePage() {
   useEffect(() => {
     const fetchEmployeeData = async () => {
       try {
-        // Fetch employee profile data from backend
-        const response = await fetch(getApiUrl(`employee_profiles/${employeeId}`))
-        if (response.ok) {
-          const data = await response.json()
-          
-          // Set employee data
-          setEmployee({
-            id: data.employee.id,
-            name: data.employee.name,
-            email: data.employee.email,
-            phone: data.employee.phone,
-            position: data.employee.position,
-            department: data.employee.department,
-            hireDate: data.employee.hire_date,
-            status: data.employee.status,
-            avatar: data.employee.avatar,
-            manager: data.employee.manager,
-            location: data.employee.location,
-            salary: data.employee.salary,
-            employeeId: data.employee.employee_id,
-            emergencyContact: data.employee.emergency_contact
-          })
+        const data = await apiRequest<any>(getApiUrl(`employee_profiles/${employeeId}`))
 
-          // Set job details
-          setJobDetails(data.job_details)
+        setEmployee({
+          id: data.employee.id,
+          name: data.employee.name,
+          email: data.employee.email,
+          phone: data.employee.phone,
+          position: data.employee.position,
+          department: data.employee.department,
+          hireDate: data.employee.hire_date,
+          status: data.employee.status,
+          avatar: data.employee.avatar,
+          manager: data.employee.manager,
+          location: data.employee.location,
+          salary: data.employee.salary,
+          employeeId: data.employee.employee_id,
+          emergencyContact: data.employee.emergency_contact
+        })
 
-          // Set time off data
-          setTimeOff(data.time_off)
-
-          // Set pay info
-          setPayInfo(data.pay_info)
-
-          // Set documents
-          setDocuments(data.documents)
-
-          // Set performance data
-          setPerformance(data.performance)
-
-          // Set timesheets
-          setTimesheets(data.timesheets)
-
-          // Set benefits
-          setBenefits(data.benefits)
-
-          // Set training
-          setTraining(data.training)
-
-          // Set assets
-          setAssets(data.assets)
-        } else {
-          console.error('Failed to fetch employee data')
-          // Fallback to mock data for now
-          setEmployee({
-            id: employeeId,
-            name: "John Doe",
-            email: "john.doe@company.com",
-            phone: "+91 98765 43210",
-            position: "Senior Software Engineer",
-            department: "Engineering",
-            hireDate: "2023-01-15",
-            status: "active",
-            avatar: "/placeholder-user.jpg",
-            manager: "Sarah Johnson",
-            location: "Mumbai, India",
-            salary: 850000,
-            employeeId: "EMP001",
-            emergencyContact: {
-              name: "Jane Doe",
-              phone: "+91 87654 32109",
-              relationship: "Spouse"
-            }
-          })
-        }
+        setJobDetails(data.job_details || null)
+        setTimeOff(Array.isArray(data.time_off) ? data.time_off : [])
+        setPayInfo(data.pay_info || null)
+        setDocuments(Array.isArray(data.documents) ? data.documents : [])
+        setPerformance(data.performance || null)
+        setTimesheets(Array.isArray(data.timesheets) ? data.timesheets : [])
+        setBenefits(Array.isArray(data.benefits) ? data.benefits : [])
+        setTraining(Array.isArray(data.training) ? data.training : [])
+        setAssets(Array.isArray(data.assets) ? data.assets : [])
       } catch (error) {
         console.error('Error fetching employee data:', error)
-        // Fallback to mock data
-        setEmployee({
-          id: employeeId,
-          name: "John Doe",
-          email: "john.doe@company.com",
-          phone: "+91 98765 43210",
-          position: "Senior Software Engineer",
-          department: "Engineering",
-          hireDate: "2023-01-15",
-          status: "active",
-          avatar: "/placeholder-user.jpg",
-          manager: "Sarah Johnson",
-          location: "Mumbai, India",
-          salary: 850000,
-          employeeId: "EMP001",
-          emergencyContact: {
-            name: "Jane Doe",
-            phone: "+91 87654 32109",
-            relationship: "Spouse"
-          }
-        })
+        setEmployee(null)
       }
     }
 
@@ -357,7 +292,7 @@ export default function EmployeeProfilePage() {
   }, [employeeId])
 
   if (!employee) {
-    return <div>Loading...</div>
+    return <div className="max-w-4xl mx-auto p-6 text-gray-600">Loading employee...</div>
   }
 
   const getStatusColor = (status: string) => {
@@ -515,7 +450,7 @@ export default function EmployeeProfilePage() {
                   <div>
                     <p className="text-sm font-medium text-gray-600 mb-2">Skills</p>
                     <div className="flex flex-wrap gap-2">
-                      {jobDetails.skills.map((skill, index) => (
+                      {(jobDetails.skills || []).map((skill, index) => (
                         <Badge key={index} variant="outline">
                           {skill}
                         </Badge>
@@ -525,7 +460,7 @@ export default function EmployeeProfilePage() {
                   <div>
                     <p className="text-sm font-medium text-gray-600 mb-2">Certifications</p>
                     <div className="flex flex-wrap gap-2">
-                      {jobDetails.certifications.map((cert, index) => (
+                      {(jobDetails.certifications || []).map((cert, index) => (
                         <Badge key={index} variant="outline">
                           {cert}
                         </Badge>
@@ -562,7 +497,7 @@ export default function EmployeeProfilePage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {timeOff.map((leave) => (
+                    {(timeOff || []).map((leave) => (
                       <TableRow key={leave.id}>
                         <TableCell>{leave.type}</TableCell>
                         <TableCell>{new Date(leave.startDate).toLocaleDateString()}</TableCell>
@@ -597,7 +532,7 @@ export default function EmployeeProfilePage() {
                 <CardContent className="space-y-4">
                   <div>
                     <p className="text-sm font-medium text-gray-600">Basic Salary</p>
-                    <p className="text-2xl font-bold text-gray-900">₹{payInfo.basicSalary?.toLocaleString()}</p>
+                    <p className="text-2xl font-bold text-gray-900">₹{payInfo?.basicSalary?.toLocaleString?.() || 0}</p>
                   </div>
                   
                   <Separator />
@@ -607,19 +542,19 @@ export default function EmployeeProfilePage() {
                     <div className="space-y-2">
                       <div className="flex justify-between">
                         <span className="text-sm text-gray-600">Housing</span>
-                        <span className="text-sm font-medium">₹{payInfo.allowances.housing?.toLocaleString()}</span>
+                        <span className="text-sm font-medium">₹{payInfo?.allowances?.housing?.toLocaleString?.() || 0}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-sm text-gray-600">Transport</span>
-                        <span className="text-sm font-medium">₹{payInfo.allowances.transport?.toLocaleString()}</span>
+                        <span className="text-sm font-medium">₹{payInfo?.allowances?.transport?.toLocaleString?.() || 0}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-sm text-gray-600">Meal</span>
-                        <span className="text-sm font-medium">₹{payInfo.allowances.meal?.toLocaleString()}</span>
+                        <span className="text-sm font-medium">₹{payInfo?.allowances?.meal?.toLocaleString?.() || 0}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-sm text-gray-600">Other</span>
-                        <span className="text-sm font-medium">₹{payInfo.allowances.other?.toLocaleString()}</span>
+                        <span className="text-sm font-medium">₹{payInfo?.allowances?.other?.toLocaleString?.() || 0}</span>
                       </div>
                     </div>
                   </div>
@@ -631,15 +566,15 @@ export default function EmployeeProfilePage() {
                     <div className="space-y-2">
                       <div className="flex justify-between">
                         <span className="text-sm text-gray-600">Tax</span>
-                        <span className="text-sm font-medium text-red-600">-₹{payInfo.deductions.tax?.toLocaleString()}</span>
+                        <span className="text-sm font-medium text-red-600">-₹{payInfo?.deductions?.tax?.toLocaleString?.() || 0}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-sm text-gray-600">Insurance</span>
-                        <span className="text-sm font-medium text-red-600">-₹{payInfo.deductions.insurance?.toLocaleString()}</span>
+                        <span className="text-sm font-medium text-red-600">-₹{payInfo?.deductions?.insurance?.toLocaleString?.() || 0}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-sm text-gray-600">Pension</span>
-                        <span className="text-sm font-medium text-red-600">-₹{payInfo.deductions.pension?.toLocaleString()}</span>
+                        <span className="text-sm font-medium text-red-600">-₹{payInfo?.deductions?.pension?.toLocaleString?.() || 0}</span>
                       </div>
                     </div>
                   </div>
@@ -648,7 +583,7 @@ export default function EmployeeProfilePage() {
 
                   <div>
                     <p className="text-sm font-medium text-gray-600">Net Salary</p>
-                    <p className="text-2xl font-bold text-green-600">₹{payInfo.netSalary?.toLocaleString()}</p>
+                    <p className="text-2xl font-bold text-green-600">₹{payInfo?.netSalary?.toLocaleString?.() || 0}</p>
                   </div>
                 </CardContent>
               </Card>
@@ -663,24 +598,24 @@ export default function EmployeeProfilePage() {
                 <CardContent className="space-y-4">
                   <div>
                     <p className="text-sm font-medium text-gray-600">Bank Name</p>
-                    <p className="text-gray-900">{payInfo.bankDetails.bankName}</p>
+                    <p className="text-gray-900">{payInfo?.bankDetails?.bankName || '-'}</p>
                   </div>
                   <div>
                     <p className="text-sm font-medium text-gray-600">Account Number</p>
-                    <p className="text-gray-900">{payInfo.bankDetails.accountNumber}</p>
+                    <p className="text-gray-900">{payInfo?.bankDetails?.accountNumber || '-'}</p>
                   </div>
                   <div>
                     <p className="text-sm font-medium text-gray-600">IFSC Code</p>
-                    <p className="text-gray-900">{payInfo.bankDetails.ifscCode}</p>
+                    <p className="text-gray-900">{payInfo?.bankDetails?.ifscCode || '-'}</p>
                   </div>
                   <Separator />
                   <div>
                     <p className="text-sm font-medium text-gray-600">Pay Schedule</p>
-                    <p className="text-gray-900">{payInfo.paySchedule}</p>
+                    <p className="text-gray-900">{payInfo?.paySchedule || '-'}</p>
                   </div>
                   <div>
                     <p className="text-sm font-medium text-gray-600">Next Pay Date</p>
-                    <p className="text-gray-900">{new Date(payInfo.nextPayDate || '').toLocaleDateString()}</p>
+                    <p className="text-gray-900">{payInfo?.nextPayDate ? new Date(payInfo.nextPayDate).toLocaleDateString() : '-'}</p>
                   </div>
                 </CardContent>
               </Card>
@@ -700,7 +635,7 @@ export default function EmployeeProfilePage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {documents.map((doc) => (
+                    {(documents || []).map((doc) => (
                   <div key={doc.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
                     <div className="flex items-center gap-4">
                       <div className="p-2 bg-blue-100 rounded-lg">
@@ -785,7 +720,7 @@ export default function EmployeeProfilePage() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {performance.goals.map((goal) => (
+                    {(performance?.goals || []).map((goal) => (
                       <div key={goal.id} className="space-y-2">
                         <div className="flex items-center justify-between">
                           <h4 className="font-medium text-gray-900">{goal.title}</h4>
@@ -834,7 +769,7 @@ export default function EmployeeProfilePage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {timesheets.map((timesheet) => (
+                    {(timesheets || []).map((timesheet) => (
                       <TableRow key={timesheet.id}>
                         <TableCell>{new Date(timesheet.date).toLocaleDateString()}</TableCell>
                         <TableCell>{timesheet.hours}</TableCell>
@@ -867,7 +802,7 @@ export default function EmployeeProfilePage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {benefits.map((benefit) => (
+                {(benefits || []).map((benefit) => (
                   <div key={benefit.id} className="p-4 border rounded-lg hover:bg-gray-50">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
@@ -906,7 +841,7 @@ export default function EmployeeProfilePage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {training.map((program) => (
+                {(training || []).map((program) => (
                   <div key={program.id} className="p-4 border rounded-lg hover:bg-gray-50">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
@@ -953,7 +888,7 @@ export default function EmployeeProfilePage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {assets.map((asset) => (
+                {(assets || []).map((asset) => (
                   <div key={asset.id} className="p-4 border rounded-lg hover:bg-gray-50">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
