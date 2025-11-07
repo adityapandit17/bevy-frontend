@@ -15,7 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Users, Search, Filter, Plus, MoreHorizontal, Mail, Phone, MapPin, Calendar, Download, UserPlus, UserMinus } from "lucide-react"
+import { Users, Search, Filter, Plus, MoreHorizontal, Mail, Phone, MapPin, Calendar, Download, UserPlus, UserMinus, UserCheck, Network } from "lucide-react"
 import { EmployeeForm } from "@/components/forms/employee-form"
 import { useRouter } from "next/navigation"
 import { getEndpointUrl, getApiUrl, apiRequest } from "@/lib/api"
@@ -185,6 +185,14 @@ export default function EmployeesPage() {
             <Button variant="outline" size="sm" onClick={() => router.push('/offboarding')} className="border-red-200 text-red-700 hover:bg-red-50">
               <UserMinus className="w-4 h-4 mr-2" />
               Offboarding
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => router.push('/team-assignment')} className="border-blue-200 text-blue-700 hover:bg-blue-50">
+              <UserCheck className="w-4 h-4 mr-2" />
+              Team Management
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => router.push('/org-chart')} className="border-purple-200 text-purple-700 hover:bg-purple-50">
+              <Network className="w-4 h-4 mr-2" />
+              Org Chart
             </Button>
             <Button variant="outline" size="sm">
               <Download className="w-4 h-4 mr-2" />

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -21,158 +21,95 @@ import {
   UserPlus,
   Mail,
   MapPin,
-  Phone
+  Phone,
+  UserCheck,
+  RefreshCw
 } from "lucide-react"
 import { OrgChart, buildOrgHierarchy } from "@/components/ui/org-chart"
 import { useRouter } from "next/navigation"
+import { getApiUrl, getEndpointUrl, apiRequest } from "@/lib/api"
+import { ResourceGuard } from "@/lib/auth/auth.guards"
 
-// Sample organization data
-const sampleEmployees = [
-  {
-    id: "1",
-    name: "Sarah Johnson",
-    title: "Chief Executive Officer",
-    department: "Executive",
-    email: "sarah.johnson@company.com",
-    phone: "+1 (555) 123-4567",
-    location: "New York",
-    status: "active" as const,
-    reportsTo: undefined,
-  },
-  {
-    id: "2",
-    name: "Michael Chen",
-    title: "Chief Technology Officer",
-    department: "Engineering",
-    email: "michael.chen@company.com",
-    phone: "+1 (555) 123-4568",
-    location: "San Francisco",
-    status: "active" as const,
-    reportsTo: "1",
-  },
-  {
-    id: "3",
-    name: "Emily Rodriguez",
-    title: "Chief Marketing Officer",
-    department: "Marketing",
-    email: "emily.rodriguez@company.com",
-    phone: "+1 (555) 123-4569",
-    location: "Los Angeles",
-    status: "active" as const,
-    reportsTo: "1",
-  },
-  {
-    id: "4",
-    name: "David Wilson",
-    title: "VP of Engineering",
-    department: "Engineering",
-    email: "david.wilson@company.com",
-    phone: "+1 (555) 123-4570",
-    location: "San Francisco",
-    status: "active" as const,
-    reportsTo: "2",
-  },
-  {
-    id: "5",
-    name: "Lisa Wang",
-    title: "VP of Product",
-    department: "Product",
-    email: "lisa.wang@company.com",
-    phone: "+1 (555) 123-4571",
-    location: "San Francisco",
-    status: "active" as const,
-    reportsTo: "2",
-  },
-  {
-    id: "6",
-    name: "James Brown",
-    title: "Senior Software Engineer",
-    department: "Engineering",
-    email: "james.brown@company.com",
-    phone: "+1 (555) 123-4572",
-    location: "San Francisco",
-    status: "active" as const,
-    reportsTo: "4",
-  },
-  {
-    id: "7",
-    name: "Priya Sharma",
-    title: "Software Engineer",
-    department: "Engineering",
-    email: "priya.sharma@company.com",
-    phone: "+1 (555) 123-4573",
-    location: "Remote",
-    status: "active" as const,
-    reportsTo: "4",
-  },
-  {
-    id: "8",
-    name: "Alex Thompson",
-    title: "Product Manager",
-    department: "Product",
-    email: "alex.thompson@company.com",
-    phone: "+1 (555) 123-4574",
-    location: "San Francisco",
-    status: "active" as const,
-    reportsTo: "5",
-  },
-  {
-    id: "9",
-    name: "Maria Garcia",
-    title: "Marketing Director",
-    department: "Marketing",
-    email: "maria.garcia@company.com",
-    phone: "+1 (555) 123-4575",
-    location: "Los Angeles",
-    status: "active" as const,
-    reportsTo: "3",
-  },
-  {
-    id: "10",
-    name: "Robert Kim",
-    title: "Marketing Specialist",
-    department: "Marketing",
-    email: "robert.kim@company.com",
-    phone: "+1 (555) 123-4576",
-    location: "Los Angeles",
-    status: "active" as const,
-    reportsTo: "9",
-  },
-  {
-    id: "11",
-    name: "Jennifer Lee",
-    title: "HR Director",
-    department: "Human Resources",
-    email: "jennifer.lee@company.com",
-    phone: "+1 (555) 123-4577",
-    location: "New York",
-    status: "active" as const,
-    reportsTo: "1",
-  },
-  {
-    id: "12",
-    name: "Thomas Anderson",
-    title: "HR Specialist",
-    department: "Human Resources",
-    email: "thomas.anderson@company.com",
-    phone: "+1 (555) 123-4578",
-    location: "New York",
-    status: "active" as const,
-    reportsTo: "11",
-  },
-]
+interface Employee {
+  id: number
+  first_name: string
+  last_name: string
+  email: string
+  phone: string
+  designation: string
+  department_id: number
+  department?: { id: number; name: string }
+  manager_id?: number
+  manager?: { id: number; first_name: string; last_name: string }
+  status: string
+  direct_reports?: Array<{ id: number; first_name: string; last_name: string }>
+}
+
+interface Department {
+  id: number
+  name: string
+}
+
+// Transform backend employee to org-chart format
+const transformEmployeeForOrgChart = (emp: Employee) => ({
+  id: emp.id.toString(),
+  name: `${emp.first_name} ${emp.last_name}`,
+  title: emp.designation,
+  department: emp.department?.name || "Unknown",
+  email: emp.email,
+  phone: emp.phone,
+  status: emp.status === "active" ? "active" as const : "inactive" as const,
+  reportsTo: emp.manager_id?.toString(),
+  location: undefined // Add if available in backend
+})
 
 export default function OrgChartPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [departmentFilter, setDepartmentFilter] = useState("all")
   const [selectedEmployee, setSelectedEmployee] = useState<any>(null)
+  const [employees, setEmployees] = useState<Employee[]>([])
+  const [departments, setDepartments] = useState<Department[]>([])
+  const [loading, setLoading] = useState(true)
   const router = useRouter()
 
+  useEffect(() => {
+    fetchEmployees()
+    fetchDepartments()
+  }, [])
+
+  const fetchEmployees = async () => {
+    setLoading(true)
+    try {
+      const data = await apiRequest<Employee[]>(getApiUrl('employees'), {
+        method: "GET"
+      })
+      setEmployees(data)
+    } catch (err) {
+      console.error('Error fetching employees:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fetchDepartments = async () => {
+    try {
+      const data = await apiRequest<Department[]>(getEndpointUrl('DEPARTMENTS'), {
+        method: "GET"
+      })
+      setDepartments(data)
+    } catch (err) {
+      console.error('Error fetching departments:', err)
+    }
+  }
+
+  // Transform employees for org chart
+  const transformedEmployees = employees.map(transformEmployeeForOrgChart)
+
   // Build hierarchical structure
-  const orgData = buildOrgHierarchy(sampleEmployees)
+  const orgData = buildOrgHierarchy(transformedEmployees)
 
   // Filter employees based on search and department
-  const filteredEmployees = sampleEmployees.filter((employee) => {
+  const filteredEmployees = transformedEmployees.filter((employee) => {
     const matchesSearch = employee.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          employee.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          employee.email.toLowerCase().includes(searchTerm.toLowerCase())
@@ -180,13 +117,28 @@ export default function OrgChartPage() {
     return matchesSearch && matchesDepartment
   })
 
+  // Calculate department stats dynamically
+  const departmentStats = departments.map(dept => {
+    const count = employees.filter(emp => emp.department_id === dept.id).length
+    const colors = [
+      "bg-blue-500", "bg-green-500", "bg-purple-500", 
+      "bg-orange-500", "bg-pink-500", "bg-indigo-500", 
+      "bg-red-500", "bg-yellow-500"
+    ]
+    return {
+      name: dept.name,
+      count: count,
+      color: colors[dept.id % colors.length]
+    }
+  }).filter(dept => dept.count > 0) // Only show departments with employees
+
   const handleEmployeeClick = (employee: any) => {
     setSelectedEmployee(employee)
   }
 
   const handleEditEmployee = (employee: any) => {
-    // Navigate to employee edit page or open modal
-    console.log("Edit employee:", employee)
+    // Navigate to employee edit page
+    router.push(`/employees/${employee.id}`)
   }
 
   const handleViewProfile = (employee: any) => {
@@ -194,15 +146,8 @@ export default function OrgChartPage() {
     router.push(`/employees/${employee.id}`)
   }
 
-  const departmentStats = [
-    { name: "Engineering", count: 4, color: "bg-blue-500" },
-    { name: "Marketing", count: 3, color: "bg-green-500" },
-    { name: "Product", count: 2, color: "bg-purple-500" },
-    { name: "Human Resources", count: 2, color: "bg-orange-500" },
-    { name: "Executive", count: 1, color: "bg-indigo-500" },
-  ]
-
   return (
+    <ResourceGuard resourceKeys={["employees"]} pageName="Organization Chart">
     <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -211,6 +156,10 @@ export default function OrgChartPage() {
           <p className="text-gray-600">Visualize your company's hierarchical structure</p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => router.push('/team-assignment')} className="border-blue-200 text-blue-700 hover:bg-blue-50">
+            <UserCheck className="w-4 h-4 mr-2" />
+            Team Management
+          </Button>
           <Button variant="outline" size="sm">
             <Download className="w-4 h-4 mr-2" />
             Export
@@ -256,10 +205,14 @@ export default function OrgChartPage() {
                     Company Hierarchy
                   </CardTitle>
                   <CardDescription>
-                    {sampleEmployees.length} employees • Click on cards to view details
+                    {employees.length} employees • Click on cards to view details
                   </CardDescription>
                 </div>
                 <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={fetchEmployees}>
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Refresh
+                  </Button>
                   <Button variant="outline" size="sm">
                     <ZoomIn className="w-4 h-4 mr-2" />
                     Zoom In
@@ -277,12 +230,29 @@ export default function OrgChartPage() {
             </CardHeader>
             <CardContent className="p-0">
               <div className="border-t">
-                <OrgChart
-                  data={orgData}
-                  onEmployeeClick={handleEmployeeClick}
-                  onEditEmployee={handleEditEmployee}
-                  onViewProfile={handleViewProfile}
-                />
+                {loading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <RefreshCw className="w-6 h-6 animate-spin mr-2" />
+                    <span>Loading organization chart...</span>
+                  </div>
+                ) : orgData.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <Building2 className="w-12 h-12 text-gray-400 mb-4" />
+                    <p className="text-gray-600 mb-2">No organization structure found</p>
+                    <p className="text-sm text-gray-500 mb-4">Assign managers to employees to build the organization chart</p>
+                    <Button onClick={() => router.push('/team-assignment')} variant="outline">
+                      <UserCheck className="w-4 h-4 mr-2" />
+                      Go to Team Management
+                    </Button>
+                  </div>
+                ) : (
+                  <OrgChart
+                    data={orgData}
+                    onEmployeeClick={handleEmployeeClick}
+                    onEditEmployee={handleEditEmployee}
+                    onViewProfile={handleViewProfile}
+                  />
+                )}
               </div>
             </CardContent>
           </Card>
@@ -296,7 +266,7 @@ export default function OrgChartPage() {
                 Employee Directory
               </CardTitle>
               <CardDescription>
-                {filteredEmployees.length} of {sampleEmployees.length} employees
+                {filteredEmployees.length} of {employees.length} employees
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -317,11 +287,11 @@ export default function OrgChartPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Departments</SelectItem>
-                    <SelectItem value="Engineering">Engineering</SelectItem>
-                    <SelectItem value="Marketing">Marketing</SelectItem>
-                    <SelectItem value="Product">Product</SelectItem>
-                    <SelectItem value="Human Resources">Human Resources</SelectItem>
-                    <SelectItem value="Executive">Executive</SelectItem>
+                    {departments.map((dept) => (
+                      <SelectItem key={dept.id} value={dept.name}>
+                        {dept.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -418,5 +388,6 @@ export default function OrgChartPage() {
         </Card>
       )}
     </div>
+    </ResourceGuard>
   )
 } 

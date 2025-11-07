@@ -254,19 +254,25 @@ export const OrgChart: React.FC<OrgChartProps> = ({
   onEditEmployee,
   onViewProfile
 }) => {
-  // Find root employees (those who don't report to anyone or are at the top level)
-  const rootEmployees = data.filter(emp => !emp.reportsTo || emp.reportsTo === "CEO")
+  // Find root employees (those who don't report to anyone)
+  const rootEmployees = data.filter(emp => !emp.reportsTo || emp.reportsTo === undefined || emp.reportsTo === "")
 
   return (
     <div className="w-full overflow-auto">
       <div className="min-w-max p-8">
-        <OrgChartLevel
-          employees={rootEmployees}
-          level={0}
-          onEmployeeClick={onEmployeeClick}
-          onEditEmployee={onEditEmployee}
-          onViewProfile={onViewProfile}
-        />
+        {rootEmployees.length > 0 ? (
+          <OrgChartLevel
+            employees={rootEmployees}
+            level={0}
+            onEmployeeClick={onEmployeeClick}
+            onEditEmployee={onEditEmployee}
+            onViewProfile={onViewProfile}
+          />
+        ) : (
+          <div className="text-center py-12 text-gray-500">
+            No top-level employees found. All employees have managers assigned.
+          </div>
+        )}
       </div>
     </div>
   )
