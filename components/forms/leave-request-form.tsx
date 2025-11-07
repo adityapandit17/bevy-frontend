@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,14 +10,38 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { X, Calendar, User } from "lucide-react"
+import { getApiUrl, getEndpointUrl } from "@/lib/api"
 
 interface LeaveRequestFormProps {
   onClose: () => void
-  onSubmit: (formData: any) => void
+  onSubmit: (formData: any, selectedEmployeeId: number) => void
   employeeId?: number
+  canSelectEmployee?: boolean
+  employees?: Array<{ id: number; first_name: string; last_name: string; email: string }>
+  mode?: 'self' | 'manager'
 }
 
-export function LeaveRequestForm({ onClose, onSubmit, employeeId = 1 }: LeaveRequestFormProps) {
+export function LeaveRequestForm({ 
+  onClose, 
+  onSubmit, 
+  employeeId, 
+  canSelectEmployee = false,
+  employees = [],
+  mode
+}: LeaveRequestFormProps) {
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(employeeId || null)
+  const [leaveBalance, setLeaveBalance] = useState<{
+    annual: { total: number; used: number; remaining: number }
+    sick: { total: number; used: number; remaining: number }
+    personal: { total: number; used: number; remaining: number }
+    [key: string]: { total: number; used: number; remaining: number }
+  }>({
+    annual: { total: 0, used: 0, remaining: 0 },
+    sick: { total: 0, used: 0, remaining: 0 },
+    personal: { total: 0, used: 0, remaining: 0 },
+  })
+  const [loadingBalance, setLoadingBalance] = useState(false)
+  
   const [formData, setFormData] = useState({
     type: "",
     startDate: "",
@@ -29,8 +53,71 @@ export function LeaveRequestForm({ onClose, onSubmit, employeeId = 1 }: LeaveReq
     halfDayPeriod: "",
   })
 
+  // Update selectedEmployeeId when employeeId prop changes
+  useEffect(() => {
+    if (employeeId) {
+      setSelectedEmployeeId(employeeId)
+    } else if (!canSelectEmployee) {
+      // For regular employees, if no employeeId provided, we can't proceed
+      setSelectedEmployeeId(null)
+    }
+  }, [employeeId, canSelectEmployee])
+
+  // Fetch leave balance when employee changes
+  useEffect(() => {
+    if (selectedEmployeeId) {
+      fetchLeaveBalance(selectedEmployeeId)
+    } else {
+      // Reset balance when no employee is selected
+      setLeaveBalance({
+        annual: { total: 0, used: 0, remaining: 0 },
+        sick: { total: 0, used: 0, remaining: 0 },
+        personal: { total: 0, used: 0, remaining: 0 },
+      })
+    }
+  }, [selectedEmployeeId])
+
+  const fetchLeaveBalance = async (empId: number) => {
+    setLoadingBalance(true)
+    try {
+      const response = await fetch(getApiUrl(`/leave_requests/balance?employee_id=${empId}`))
+      if (response.ok) {
+        const data = await response.json()
+        // Transform backend data to frontend format
+        const balance: typeof leaveBalance = {
+          annual: { total: 0, used: 0, remaining: 0 },
+          sick: { total: 0, used: 0, remaining: 0 },
+          personal: { total: 0, used: 0, remaining: 0 },
+        }
+        
+        data.forEach((item: any) => {
+          const type = item.leave_type || item.leave_type_label?.toLowerCase()
+          if (type === 'annual' || type === 'annual leave') {
+            balance.annual = { total: item.total || 0, used: item.used || 0, remaining: item.remaining || 0 }
+          } else if (type === 'sick' || type === 'sick leave') {
+            balance.sick = { total: item.total || 0, used: item.used || 0, remaining: item.remaining || 0 }
+          } else if (type === 'personal' || type === 'personal leave') {
+            balance.personal = { total: item.total || 0, used: item.used || 0, remaining: item.remaining || 0 }
+          }
+        })
+        
+        setLeaveBalance(balance)
+      }
+    } catch (error) {
+      console.error('Error fetching leave balance:', error)
+    } finally {
+      setLoadingBalance(false)
+    }
+  }
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // Validate that an employee is selected
+    if (!selectedEmployeeId) {
+      alert("Please select an employee")
+      return
+    }
     
     // Map form data to backend parameter names
     const mappedData = {
@@ -44,7 +131,7 @@ export function LeaveRequestForm({ onClose, onSubmit, employeeId = 1 }: LeaveReq
       halfDayPeriod: formData.halfDayPeriod
     }
     
-    onSubmit(mappedData)
+    onSubmit(mappedData, selectedEmployeeId)
   }
 
   const handleChange = (field: string, value: string | boolean) => {
@@ -66,12 +153,6 @@ export function LeaveRequestForm({ onClose, onSubmit, employeeId = 1 }: LeaveReq
     return 0
   }
 
-  const leaveBalance = {
-    annual: { total: 21, used: 8, remaining: 13 },
-    sick: { total: 12, used: 3, remaining: 9 },
-    personal: { total: 5, used: 2, remaining: 3 },
-  }
-
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -86,24 +167,63 @@ export function LeaveRequestForm({ onClose, onSubmit, employeeId = 1 }: LeaveReq
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Leave Balance Summary */}
-            <div className="p-4 bg-green-50 rounded-lg">
-              <h3 className="font-medium text-gray-900 mb-3">Your Leave Balance</h3>
-              <div className="grid grid-cols-3 gap-4 text-sm">
-                <div className="text-center">
-                  <p className="text-gray-600">Annual Leave</p>
-                  <p className="font-bold text-green-600">{leaveBalance.annual.remaining} days</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-gray-600">Sick Leave</p>
-                  <p className="font-bold text-blue-600">{leaveBalance.sick.remaining} days</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-gray-600">Personal Leave</p>
-                  <p className="font-bold text-purple-600">{leaveBalance.personal.remaining} days</p>
-                </div>
+            {/* Employee Selector (only for HR/Admin or manager mode) */}
+            {(mode === 'manager' || canSelectEmployee) && (
+              <div>
+                <Label htmlFor="employee">Employee *</Label>
+                {employees.length > 0 ? (
+                  <Select 
+                    value={selectedEmployeeId?.toString() || ""} 
+                    onValueChange={(value) => setSelectedEmployeeId(parseInt(value))}
+                    required
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select employee" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {employees.map((employee) => (
+                        <SelectItem key={employee.id} value={employee.id.toString()}>
+                          {employee.first_name} {employee.last_name} ({employee.email})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                    <p className="text-sm text-yellow-800">Loading employees...</p>
+                  </div>
+                )}
               </div>
-            </div>
+            )}
+
+            {/* Leave Balance Summary */}
+            {selectedEmployeeId && (
+              <div className="p-4 bg-green-50 rounded-lg">
+                <h3 className="font-medium text-gray-900 mb-3">
+                  {canSelectEmployee ? 'Leave Balance' : 'Your Leave Balance'}
+                </h3>
+                {loadingBalance ? (
+                  <div className="text-center py-4">
+                    <p className="text-gray-600">Loading leave balance...</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-3 gap-4 text-sm">
+                    <div className="text-center">
+                      <p className="text-gray-600">Annual Leave</p>
+                      <p className="font-bold text-green-600">{leaveBalance.annual.remaining} days</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-gray-600">Sick Leave</p>
+                      <p className="font-bold text-blue-600">{leaveBalance.sick.remaining} days</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-gray-600">Personal Leave</p>
+                      <p className="font-bold text-purple-600">{leaveBalance.personal.remaining} days</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="space-y-4">
               <div>

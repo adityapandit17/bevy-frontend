@@ -19,6 +19,7 @@ import {
   Target,
   Zap,
   Shirt,
+  UserCheck,
 } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
 
@@ -68,6 +69,13 @@ const navItems: NavItem[] = [
     resourceKeys: ["employees"],
   },
   {
+    title: "Team Assignment",
+    href: "/team-assignment",
+    icon: UserCheck,
+    segment: "team-assignment",
+    resourceKeys: ["employees"],
+  },
+  {
     title: "Documents",
     href: "/documents",
     icon: FileText,
@@ -101,6 +109,13 @@ const navItems: NavItem[] = [
     icon: CalendarCheck,
     segment: "attendance-leave",
     resourceKeys: ["attendance_records", "leave_requests"],
+  },
+  {
+    title: "Leave Management",
+    href: "/leave-management",
+    icon: CalendarCheck,
+    segment: "leave-management",
+    resourceKeys: ["leave_requests"],
   },
   {
     title: "Learning & Development",
@@ -153,49 +168,48 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { permissions, roles } = useAuthContext()
 
   const userResources = React.useMemo(() => {
-    
     const set = new Set<string>()
     for (const p of permissions || []) {
       // Handle both string permissions and object permissions
       const name = typeof p === 'string' ? p : (p.name || '')
       // Handle both colon (:) and dot (.) separators
-      const res = name.includes(':') ? name.split(':')[0] : 
+      const res = name.includes(':') ? name.split(':')[0] :
                   name.includes('.') ? name.split('.')[0] : name
       if (res) set.add(res)
     }
-    
+
     return set
   }, [permissions])
-  
+
   const roleNames = React.useMemo(() => {
     const roleSet = new Set((roles || []).map(r => r.name))
     return roleSet
   }, [roles])
 
   const canSee = (item: NavItem): boolean => {
-    
+
     if (item.segment === "dashboard") {
       return true
     }
-    
+
     if (roleNames.has("Super Admin")) {
       return true
     }
-    
+
     if (item.requiredRolesOr && item.requiredRolesOr.length > 0) {
       const hasAnyRole = item.requiredRolesOr.some(r => roleNames.has(r))
       if (!hasAnyRole) {
         return false
       }
     }
-    
+
     if (item.resourceKeys && item.resourceKeys.length > 0) {
       const hasAny = item.resourceKeys.some(key => userResources.has(key))
       if (!hasAny) {
         return false
       }
     }
-    
+
     return true
   }
 

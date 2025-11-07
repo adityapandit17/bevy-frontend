@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from "react"
 import { getEndpointUrl } from "@/lib/api"
 import { useAuth } from "@/lib/auth/auth.hooks"
+import { LeaveRequestForm } from "@/components/forms/leave-request-form"
+import { mapLeaveRequestToBackend } from "@/lib/leave-request-mapper"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -100,7 +102,7 @@ interface LeaveStats {
 }
 
 export default function LeaveManagementPage() {
-  const { user, isAuthenticated } = useAuth()
+  const { user, isAuthenticated, checkRole, checkPermission, roles, permissions } = useAuth()
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([])
   const [stats, setStats] = useState<LeaveStats | null>(null)
   const [loading, setLoading] = useState(true)
@@ -111,6 +113,21 @@ export default function LeaveManagementPage() {
   const [showDetails, setShowDetails] = useState(false)
   const [actionLoading, setActionLoading] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [showLeaveForm, setShowLeaveForm] = useState(false)
+  const [employees, setEmployees] = useState<any[]>([])
+
+  // Determine if user can apply on behalf of others
+  const isHRManager = checkRole("HR Manager") || roles?.some((r: any) => r?.name === "HR Manager")
+  const isHR = checkRole("HR") || roles?.some((r: any) => r?.name === "HR")
+  const isSuperAdmin = checkRole("Super Admin") || roles?.some((r: any) => r?.name === "Super Admin")
+  const hasLeavePermission = checkPermission("leave_requests.index") || 
+    checkPermission("leave_requests.create") ||
+    checkPermission("leave_requests.approve") ||
+    permissions?.some((p: any) => {
+      const permName = typeof p === 'string' ? p : p.name
+      return permName?.includes("leave_requests")
+    })
+  const canApplyOnBehalf = isHRManager || isHR || isSuperAdmin || hasLeavePermission
 
   // Fetch leave requests
   const fetchLeaveRequests = async () => {
@@ -127,6 +144,18 @@ export default function LeaveManagementPage() {
       setError(`Network error: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchEmployees = async () => {
+    try {
+      const response = await fetch(getEndpointUrl('EMPLOYEES'))
+      if (response.ok) {
+        const data = await response.json()
+        setEmployees(data)
+      }
+    } catch (e) {
+      // ignore
     }
   }
 
@@ -227,8 +256,9 @@ export default function LeaveManagementPage() {
     if (isAuthenticated) {
       fetchLeaveRequests()
       fetchLeaveStats()
+      if (canApplyOnBehalf) fetchEmployees()
     }
-  }, [isAuthenticated])
+  }, [isAuthenticated, canApplyOnBehalf])
 
   if (!isAuthenticated) {
     return (
@@ -249,10 +279,17 @@ export default function LeaveManagementPage() {
           <h1 className="text-3xl font-bold text-gray-900">Leave Management</h1>
           <p className="text-gray-600">Manage employee leave requests and approvals</p>
         </div>
-        <Button onClick={() => { fetchLeaveRequests(); fetchLeaveStats(); }} variant="outline">
-          <RefreshCw className="w-4 h-4 mr-2" />
-          Refresh
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => { fetchLeaveRequests(); fetchLeaveStats(); }} variant="outline">
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Refresh
+          </Button>
+          {canApplyOnBehalf && (
+            <Button onClick={() => setShowLeaveForm(true)}>
+              Apply Leave
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Error Display */}
@@ -629,6 +666,42 @@ export default function LeaveManagementPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Apply Leave Modal (on behalf) */}
+      {canApplyOnBehalf && showLeaveForm && (
+        <LeaveRequestForm
+          onClose={() => setShowLeaveForm(false)}
+          onSubmit={async (formData: any, selectedEmployeeId: number) => {
+            try {
+              setError(null)
+              if (!selectedEmployeeId) {
+                setError("Please select an employee to apply leave for.")
+                return
+              }
+              const requestData = mapLeaveRequestToBackend(formData, selectedEmployeeId, 'pending')
+              const res = await fetch(getEndpointUrl('LEAVE_REQUESTS'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                body: JSON.stringify(requestData)
+              })
+              if (res.ok) {
+                setShowLeaveForm(false)
+                await fetchLeaveRequests()
+                await fetchLeaveStats()
+              } else {
+                const err = await res.json()
+                setError(err.errors?.join(', ') || 'Failed to create leave request')
+              }
+            } catch (e) {
+              setError(`Network error: ${e instanceof Error ? e.message : 'Unknown error'}`)
+            }
+          }}
+          employeeId={undefined}
+          canSelectEmployee={true}
+          mode="manager"
+          employees={employees}
+        />
+      )}
     </div>
   )
 }

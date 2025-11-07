@@ -5,13 +5,277 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
+import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Building2, Users, Shield, Bell, Database, Globe, Save, Download } from "lucide-react"
+import { Building2, Users, Shield, Bell, Database, Globe, Save, Download, Calendar } from "lucide-react"
 import { useEffect, useState } from "react"
 import { getEndpointUrl } from "@/lib/api"
 import { ResourceGuard } from "@/lib/auth/auth.guards"
+import { getApiUrl } from "@/lib/api"
+import { AUTH_CONFIG } from "@/config/auth.config"
+
+// Leave Policies Tab Component
+function LeavePoliciesTab() {
+  const [policies, setPolicies] = useState<any[]>([])
+  const [currentPolicy, setCurrentPolicy] = useState<any>(null)
+  const [loading, setLoading] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [formData, setFormData] = useState({
+    year: new Date().getFullYear(),
+    holidays_per_year: 10,
+    annual_leave: 21,
+    sick_leave: 12,
+    personal_leave: 5,
+    maternity_leave: 90,
+    paternity_leave: 15,
+    unpaid_leave: 30,
+    other_leave: 5,
+    active: true
+  })
+
+  useEffect(() => {
+    fetchPolicies()
+    fetchCurrentPolicy()
+  }, [])
+
+  const fetchPolicies = async () => {
+    try {
+      const res = await fetch(getApiUrl('/leave_policies'))
+      if (res.ok) {
+        const data = await res.json()
+        setPolicies(data)
+      }
+    } catch (err) {
+      console.error('Error fetching policies:', err)
+    }
+  }
+
+  const fetchCurrentPolicy = async () => {
+    try {
+      const res = await fetch(getApiUrl('/leave_policies/current'))
+      if (res.ok) {
+        const data = await res.json()
+        setCurrentPolicy(data)
+        if (data) {
+          setFormData({
+            year: data.year || new Date().getFullYear(),
+            holidays_per_year: data.holidays_per_year || 10,
+            annual_leave: data.annual_leave || 21,
+            sick_leave: data.sick_leave || 12,
+            personal_leave: data.personal_leave || 5,
+            maternity_leave: data.maternity_leave || 90,
+            paternity_leave: data.paternity_leave || 15,
+            unpaid_leave: data.unpaid_leave || 30,
+            other_leave: data.other_leave || 5,
+            active: data.active !== false
+          })
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching current policy:', err)
+    }
+  }
+
+  const handleSave = async () => {
+    setLoading(true)
+    try {
+      const token = localStorage.getItem(AUTH_CONFIG.tokenKey) || localStorage.getItem('auth_token') || localStorage.getItem('token')
+      const headers: any = { "Content-Type": "application/json" }
+      if (token) headers['Authorization'] = `Bearer ${token}`
+
+      let res
+      if (currentPolicy?.id) {
+        // Update existing policy
+        res = await fetch(getApiUrl(`/leave_policies/${currentPolicy.id}`), {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify({ leave_policy: formData })
+        })
+      } else {
+        // Create new policy
+        res = await fetch(getApiUrl('/leave_policies'), {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ leave_policy: formData })
+        })
+      }
+
+      if (res.ok) {
+        setEditing(false)
+        await fetchPolicies()
+        await fetchCurrentPolicy()
+      } else {
+        const error = await res.json()
+        alert(error.errors?.join(', ') || 'Failed to save policy')
+      }
+    } catch (err) {
+      console.error('Error saving policy:', err)
+      alert('Failed to save policy')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Calendar className="w-5 h-5" />
+          Leave Policies Configuration
+        </CardTitle>
+        <CardDescription>
+          Configure the number of holidays per year and leave allocations for employees
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h4 className="font-medium text-gray-900">Current Year Policy ({new Date().getFullYear()})</h4>
+            <p className="text-sm text-gray-500">Configure leave allocations and holidays for the current year</p>
+          </div>
+          <Button onClick={editing ? handleSave : () => setEditing(true)} disabled={loading}>
+            <Save className="w-4 h-4 mr-2" />
+            {editing ? "Save Changes" : "Edit Policy"}
+          </Button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-2">
+            <Label htmlFor="year">Year</Label>
+            <Input
+              id="year"
+              type="number"
+              value={formData.year}
+              onChange={(e) => setFormData({ ...formData, year: parseInt(e.target.value) || new Date().getFullYear() })}
+              disabled={!editing}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="holidays_per_year">Holidays Per Year</Label>
+            <Input
+              id="holidays_per_year"
+              type="number"
+              value={formData.holidays_per_year}
+              onChange={(e) => setFormData({ ...formData, holidays_per_year: parseInt(e.target.value) || 0 })}
+              disabled={!editing}
+            />
+          </div>
+        </div>
+
+        <div className="border-t pt-6">
+          <h4 className="font-medium text-gray-900 mb-4">Leave Allocations (Days)</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="annual_leave">Annual Leave</Label>
+              <Input
+                id="annual_leave"
+                type="number"
+                value={formData.annual_leave}
+                onChange={(e) => setFormData({ ...formData, annual_leave: parseInt(e.target.value) || 0 })}
+                disabled={!editing}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="sick_leave">Sick Leave</Label>
+              <Input
+                id="sick_leave"
+                type="number"
+                value={formData.sick_leave}
+                onChange={(e) => setFormData({ ...formData, sick_leave: parseInt(e.target.value) || 0 })}
+                disabled={!editing}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="personal_leave">Personal Leave</Label>
+              <Input
+                id="personal_leave"
+                type="number"
+                value={formData.personal_leave}
+                onChange={(e) => setFormData({ ...formData, personal_leave: parseInt(e.target.value) || 0 })}
+                disabled={!editing}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="maternity_leave">Maternity Leave</Label>
+              <Input
+                id="maternity_leave"
+                type="number"
+                value={formData.maternity_leave}
+                onChange={(e) => setFormData({ ...formData, maternity_leave: parseInt(e.target.value) || 0 })}
+                disabled={!editing}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="paternity_leave">Paternity Leave</Label>
+              <Input
+                id="paternity_leave"
+                type="number"
+                value={formData.paternity_leave}
+                onChange={(e) => setFormData({ ...formData, paternity_leave: parseInt(e.target.value) || 0 })}
+                disabled={!editing}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="unpaid_leave">Unpaid Leave</Label>
+              <Input
+                id="unpaid_leave"
+                type="number"
+                value={formData.unpaid_leave}
+                onChange={(e) => setFormData({ ...formData, unpaid_leave: parseInt(e.target.value) || 0 })}
+                disabled={!editing}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="other_leave">Other Leave</Label>
+              <Input
+                id="other_leave"
+                type="number"
+                value={formData.other_leave}
+                onChange={(e) => setFormData({ ...formData, other_leave: parseInt(e.target.value) || 0 })}
+                disabled={!editing}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between pt-4 border-t">
+          <div className="space-y-0.5">
+            <Label>Active Policy</Label>
+            <p className="text-sm text-gray-500">This policy will be used for leave calculations</p>
+          </div>
+          <Switch
+            checked={formData.active}
+            onCheckedChange={(checked) => setFormData({ ...formData, active: checked })}
+            disabled={!editing}
+          />
+        </div>
+
+        {policies.length > 0 && (
+          <div className="pt-6 border-t">
+            <h4 className="font-medium text-gray-900 mb-4">Previous Policies</h4>
+            <div className="space-y-2">
+              {policies.slice(0, 5).map((policy) => (
+                <div key={policy.id} className="flex items-center justify-between p-3 border rounded-lg">
+                  <div>
+                    <p className="font-medium">{policy.year} Policy</p>
+                    <p className="text-sm text-gray-500">
+                      {policy.holidays_per_year} holidays, {policy.annual_leave} annual, {policy.sick_leave} sick
+                    </p>
+                  </div>
+                  <Badge variant={policy.active ? "default" : "secondary"}>
+                    {policy.active ? "Active" : "Inactive"}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
 
 export default function SettingsPage() {
   const defaultCompany = {
@@ -72,7 +336,7 @@ export default function SettingsPage() {
     setLoading(true)
     try {
       // Get JWT token from localStorage
-      const token = localStorage.getItem('token')
+      const token = localStorage.getItem(AUTH_CONFIG.tokenKey) || localStorage.getItem('auth_token') || localStorage.getItem('token')
       const headers = { "Content-Type": "application/json" }
 
       if (token) {
@@ -121,9 +385,10 @@ export default function SettingsPage() {
 
       {/* Settings Tabs */}
       <Tabs defaultValue="company" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3 lg:grid-cols-6">
+        <TabsList className="grid w-full grid-cols-3 lg:grid-cols-7">
           <TabsTrigger value="company">Company</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
+          <TabsTrigger value="leave-policies">Leave Policies</TabsTrigger>
           <TabsTrigger value="security">Security</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
           <TabsTrigger value="integrations">Integrations</TabsTrigger>
@@ -268,6 +533,11 @@ export default function SettingsPage() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Leave Policies */}
+        <TabsContent value="leave-policies" className="space-y-6">
+          <LeavePoliciesTab />
         </TabsContent>
 
         {/* User Management */}

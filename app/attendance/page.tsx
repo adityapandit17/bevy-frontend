@@ -126,7 +126,40 @@ interface LeaveBalance {
 }
 
 export default function AttendancePage() {
-  const { user, isAuthenticated } = useAuth()
+  const { user, isAuthenticated, checkRole, checkPermission, roles, permissions } = useAuth()
+  
+  // Check if user is HR Manager, HR, or Super Admin
+  // Also check roles array directly as fallback
+  const isHRManager = checkRole("HR Manager") || roles?.some((r: any) => r?.name === "HR Manager")
+  const isHR = checkRole("HR") || roles?.some((r: any) => r?.name === "HR")
+  const isSuperAdmin = checkRole("Super Admin") || roles?.some((r: any) => r?.name === "Super Admin")
+  
+  // Check for leave management permissions (any leave permission indicates management access)
+  const hasLeavePermission = checkPermission("leave_requests.index") || 
+    checkPermission("leave_requests.create") ||
+    checkPermission("leave_requests.approve") ||
+    permissions?.some((p: any) => {
+      const permName = typeof p === 'string' ? p : p.name
+      return permName?.includes("leave_requests") || 
+             permName?.includes("leave") && (permName?.includes("create") || permName?.includes("approve") || permName?.includes("index"))
+    })
+  
+  // Attendance is self-service only per plan → never allow selecting other employees here
+  const canSelectEmployee = false
+  
+  // Debug logging
+  useEffect(() => {
+    if (user) {
+      console.log('🔍 User roles:', roles)
+      console.log('🔍 User permissions:', permissions)
+      console.log('🔍 isHRManager:', isHRManager)
+      console.log('🔍 isHR:', isHR)
+      console.log('🔍 isSuperAdmin:', isSuperAdmin)
+      console.log('🔍 hasLeavePermission:', hasLeavePermission)
+      console.log('🔍 canSelectEmployee:', canSelectEmployee)
+      console.log('🔍 employees count:', employees.length)
+    }
+  }, [user, roles, permissions, isHRManager, isHR, isSuperAdmin, hasLeavePermission, canSelectEmployee, employees.length])
   
   // State
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date())
@@ -134,6 +167,8 @@ export default function AttendancePage() {
   const [filterStatus, setFilterStatus] = useState("all")
   const [filterDepartment, setFilterDepartment] = useState("all")
   const [activeTab, setActiveTab] = useState("attendance")
+  const [selectedEmployeeForLeave, setSelectedEmployeeForLeave] = useState<number | null>(null)
+  const [selectedEmployeeForBalance, setSelectedEmployeeForBalance] = useState<number | null>(null)
   
   // Data
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([])
@@ -163,9 +198,16 @@ export default function AttendancePage() {
     fetchEmployees()
     fetchDepartments()
     fetchAttendanceStats()
-    fetchLeaveBalance()
     fetchTodayAttendance()
   }, [])
+
+  // Fetch leave balance after user data is loaded
+  useEffect(() => {
+    // Only fetch leave balance if user is not HR/Admin or has employee_id
+    if (!canSelectEmployee || user?.employee?.id) {
+      fetchLeaveBalance()
+    }
+  }, [canSelectEmployee, user?.employee?.id])
 
   // Fetch functions
   const fetchAttendanceRecords = async () => {
@@ -185,7 +227,12 @@ export default function AttendancePage() {
 
   const fetchLeaveRequests = async () => {
     try {
-      const response = await fetch(getEndpointUrl('LEAVE_REQUESTS'))
+      let url = getEndpointUrl('LEAVE_REQUESTS')
+      // For regular employees, filter by their employee_id
+      if (!canSelectEmployee && user?.employee?.id) {
+        url = `${url}?employee_id=${user.employee.id}`
+      }
+      const response = await fetch(url)
       if (response.ok) {
         const data = await response.json()
         setLeaveRequests(data)
@@ -231,15 +278,32 @@ export default function AttendancePage() {
     }
   }
 
-  const fetchLeaveBalance = async () => {
+  const fetchLeaveBalance = async (employeeId?: number) => {
     try {
-      const response = await fetch(getApiUrl('/leave_requests/balance'))
-      if (response.ok) {
-        const data = await response.json()
-        setLeaveBalance(data)
+      let url = getApiUrl('/leave_requests/balance')
+      // Use provided employeeId, or selected employee for balance, or current user's employee ID
+      const targetEmployeeId = employeeId || selectedEmployeeForBalance || (canSelectEmployee ? null : user?.employee?.id)
+      
+      // For HR/Admin, require explicit employee selection
+      if (canSelectEmployee && !targetEmployeeId) {
+        setLeaveBalance([])
+        return
+      }
+      
+      if (targetEmployeeId) {
+        url = `${url}?employee_id=${targetEmployeeId}`
+        const response = await fetch(url)
+        if (response.ok) {
+          const data = await response.json()
+          setLeaveBalance(data)
+        }
+      } else {
+        // No valid employee ID, set empty balance
+        setLeaveBalance([])
       }
     } catch (error) {
       console.error('Error fetching leave balance:', error)
+      setLeaveBalance([])
     }
   }
 
@@ -312,15 +376,19 @@ export default function AttendancePage() {
     }
   }
 
-  const handleLeaveSubmit = async (formData: any) => {
+  const handleLeaveSubmit = async (formData: any, selectedEmployeeId: number) => {
     try {
       // Clear any previous errors
       setLeaveError(null)
       
-      // Get current user's employee ID
-      const employeeId = user?.employee?.id
+      // For HR/Admin, selectedEmployeeId is required. For regular employees, use their own employee ID
+      const employeeId = canSelectEmployee ? selectedEmployeeId : (selectedEmployeeId || user?.employee?.id)
       if (!employeeId) {
-        setLeaveError("Employee information not found. Please contact HR.")
+        if (canSelectEmployee) {
+          setLeaveError("Please select an employee to apply leave for.")
+        } else {
+          setLeaveError("Employee information not found. Please contact HR.")
+        }
         return
       }
       
@@ -699,37 +767,84 @@ export default function AttendancePage() {
 
         {/* Leave Balance Tab */}
         <TabsContent value="leave-balance" className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {leaveBalance.map((balance) => (
-              <Card key={balance.leave_type}>
-                <CardHeader>
-                  <CardTitle className="text-lg">{balance.leave_type_label}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Total</span>
-                      <span className="font-medium">{balance.total} days</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Used</span>
-                      <span className="font-medium text-red-600">{balance.used} days</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Remaining</span>
-                      <span className="font-medium text-green-600">{balance.remaining} days</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-                      <div
-                        className="bg-blue-600 h-2 rounded-full"
-                        style={{ width: `${(balance.used / balance.total) * 100}%` }}
-                      ></div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          {/* Employee Selector for HR/Admin */}
+          {canSelectEmployee && employees.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Select Employee</CardTitle>
+                <CardDescription>View leave balance for a specific employee</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Select 
+                  value={selectedEmployeeForBalance?.toString() || ""} 
+                  onValueChange={(value) => {
+                    const empId = parseInt(value)
+                    setSelectedEmployeeForBalance(empId)
+                    fetchLeaveBalance(empId)
+                  }}
+                >
+                  <SelectTrigger className="w-full sm:w-64">
+                    <SelectValue placeholder="Select employee to view balance" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {employees.map((employee) => (
+                      <SelectItem key={employee.id} value={employee.id.toString()}>
+                        {employee.first_name} {employee.last_name} ({employee.email})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </CardContent>
+            </Card>
+          )}
+          
+          {canSelectEmployee && !selectedEmployeeForBalance ? (
+            <Card>
+              <CardContent className="py-8 text-center">
+                <p className="text-gray-500">Please select an employee to view their leave balance</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {leaveBalance.length > 0 ? (
+                leaveBalance.map((balance) => (
+                  <Card key={balance.leave_type}>
+                    <CardHeader>
+                      <CardTitle className="text-lg">{balance.leave_type_label}</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-600">Total</span>
+                          <span className="font-medium">{balance.total} days</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-600">Used</span>
+                          <span className="font-medium text-red-600">{balance.used} days</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-600">Remaining</span>
+                          <span className="font-medium text-green-600">{balance.remaining} days</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                          <div
+                            className="bg-blue-600 h-2 rounded-full"
+                            style={{ width: `${(balance.used / balance.total) * 100}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              ) : (
+                <Card>
+                  <CardContent className="py-8 text-center">
+                    <p className="text-gray-500">No leave balance data available</p>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
         </TabsContent>
 
         {/* Calendar Tab */}
@@ -756,8 +871,24 @@ export default function AttendancePage() {
         <LeaveRequestForm
           onClose={() => setShowLeaveForm(false)}
           onSubmit={handleLeaveSubmit}
-          employeeId={user?.employee?.id || 1}
+          employeeId={user?.employee?.id || undefined}
+          canSelectEmployee={false}
+          mode="self"
+          employees={employees}
         />
+      )}
+      
+      {/* Debug info - remove in production */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="fixed bottom-4 right-4 bg-gray-800 text-white p-2 text-xs rounded z-50 max-w-xs">
+          <div>canSelectEmployee: {canSelectEmployee ? 'true' : 'false'}</div>
+          <div>employees: {employees.length}</div>
+          <div>isSuperAdmin: {isSuperAdmin ? 'true' : 'false'}</div>
+          <div>isHRManager: {isHRManager ? 'true' : 'false'}</div>
+          <div>isHR: {isHR ? 'true' : 'false'}</div>
+          <div>hasLeavePermission: {hasLeavePermission ? 'true' : 'false'}</div>
+          <div>roles: {roles?.map((r: any) => r?.name).join(', ') || 'none'}</div>
+        </div>
       )}
 
       {/* Attendance Marking Modal */}

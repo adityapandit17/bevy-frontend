@@ -39,6 +39,7 @@ import {
   Trash2,
 } from "lucide-react"
 import { format } from "date-fns"
+import { useAuth } from "@/lib/auth/auth.hooks"
 
 interface LeaveRequest {
   id: number
@@ -73,6 +74,16 @@ interface LeaveRequestManagementProps {
 }
 
 export function LeaveRequestManagement({ onRefresh, onError, onViewDetails }: LeaveRequestManagementProps) {
+  const { user, checkRole, checkPermission, roles, permissions } = useAuth()
+  const isHRManager = checkRole("HR Manager") || roles?.some((r: any) => r?.name === "HR Manager")
+  const isHR = checkRole("HR") || roles?.some((r: any) => r?.name === "HR")
+  const isSuperAdmin = checkRole("Super Admin") || roles?.some((r: any) => r?.name === "Super Admin")
+  const hasLeavePermission = checkPermission("leave_requests.index") || 
+    permissions?.some((p: any) => {
+      const permName = typeof p === 'string' ? p : p.name
+      return permName === "leave_requests.index" || permName?.includes("leave")
+    })
+  const canViewAllRequests = isHRManager || isHR || isSuperAdmin || hasLeavePermission
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([])
   const [filteredRequests, setFilteredRequests] = useState<LeaveRequest[]>([])
   const [searchTerm, setSearchTerm] = useState("")
@@ -114,7 +125,12 @@ export function LeaveRequestManagement({ onRefresh, onError, onViewDetails }: Le
   const fetchLeaveRequests = async () => {
     setLoading(true)
     try {
-      const response = await fetch(getEndpointUrl('LEAVE_REQUESTS'))
+      let url = getEndpointUrl('LEAVE_REQUESTS')
+      // For regular employees, filter by their employee_id
+      if (!canViewAllRequests && user?.employee?.id) {
+        url = `${url}?employee_id=${user.employee.id}`
+      }
+      const response = await fetch(url)
       if (response.ok) {
         const data = await response.json()
         setLeaveRequests(data)
