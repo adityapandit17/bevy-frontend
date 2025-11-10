@@ -37,6 +37,7 @@ export default function RecruitmentPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [departments, setDepartments] = useState([])
   const [jobOpenings, setJobOpenings] = useState([])
+  const [allJobOpenings, setAllJobOpenings] = useState([]) // For stats calculation
   const [candidates, setCandidates] = useState([])
   const [interviews, setInterviews] = useState([])
   const [stats, setStats] = useState({
@@ -54,7 +55,8 @@ export default function RecruitmentPage() {
 
   useEffect(() => {
     fetchDepartments()
-    fetchJobOpenings()
+    fetchAllJobOpenings() // Fetch all for stats
+    fetchJobOpenings() // Fetch for display (may be filtered)
     fetchCandidates()
     fetchInterviews()
   }, [])
@@ -70,6 +72,10 @@ export default function RecruitmentPage() {
     return () => clearTimeout(delayDebounce)
   }, [searchTerm])
 
+  // Recalculate stats when data changes (use allJobOpenings for accurate stats)
+  useEffect(() => {
+    calculateStats()
+  }, [allJobOpenings, candidates, interviews])
 
   const fetchDepartments = async () => {
     try {
@@ -78,6 +84,18 @@ export default function RecruitmentPage() {
       setDepartments(data)
     } catch (err) {
       // handle error
+    }
+  }
+
+  const fetchAllJobOpenings = async () => {
+    try {
+      const res = await fetch(getEndpointUrl("JOB_OPENINGS"))
+      if (res.ok) {
+        const data = await res.json()
+        setAllJobOpenings(data) // Keep all job openings for stats
+      }
+    } catch (err) {
+      console.error("Error fetching all jobs:", err)
     }
   }
 
@@ -90,9 +108,15 @@ export default function RecruitmentPage() {
       const res = await fetch(url)
       const data = await res.json()
 
-      setJobOpenings(data)
+      setJobOpenings(data) // Filtered results for display
+      // Also update allJobOpenings if no search query (for stats)
+      if (!query) {
+        setAllJobOpenings(data)
+      }
     } catch (err) {
       console.error("Error fetching jobs:", err)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -121,8 +145,8 @@ export default function RecruitmentPage() {
   }
 
   const calculateStats = () => {
-    // Active job openings (status = "open")
-    const activeJobOpenings = jobOpenings.filter(job => {
+    // Active job openings (status = "open") - use allJobOpenings for accurate stats
+    const activeJobOpenings = allJobOpenings.filter((job: any) => {
       const status = (job.status || "").toLowerCase()
       return status === "open"
     }).length
@@ -132,7 +156,7 @@ export default function RecruitmentPage() {
 
     // Interviews scheduled (scheduled or upcoming interviews)
     const now = new Date()
-    const interviewsScheduled = interviews.filter(interview => {
+    const interviewsScheduled = interviews.filter((interview: any) => {
       if (!interview.scheduled_date) return false
       const interviewDate = new Date(interview.scheduled_date)
       return interview.status === "scheduled" || 
@@ -140,7 +164,7 @@ export default function RecruitmentPage() {
     }).length
 
     // Offers extended (candidates with status "offered" or "hired")
-    const offersExtended = candidates.filter(candidate => 
+    const offersExtended = candidates.filter((candidate: any) => 
       candidate.status === "offered" || candidate.status === "hired"
     ).length
 
@@ -179,6 +203,7 @@ export default function RecruitmentPage() {
       })
       if (res.ok) {
         fetchJobOpenings()
+        fetchAllJobOpenings() // Refresh stats
         setShowForm(false)
         setEditJob(null)
       } else {
@@ -203,6 +228,7 @@ export default function RecruitmentPage() {
       })
       if (res.ok) {
         fetchJobOpenings()
+        fetchAllJobOpenings() // Refresh stats
         setShowForm(false)
         setEditJob(null)
       } else {
@@ -212,7 +238,7 @@ export default function RecruitmentPage() {
       // handle error
     }
   }
-  
+
   const handleDeactivateJob = async (job) => {
     try {
       const res = await fetch(getApiUrl(`job_openings/${job.id}`), {
@@ -220,7 +246,8 @@ export default function RecruitmentPage() {
         headers: { Accept: "application/json" },
       });
       if (res.ok) {
-        fetchJobOpenings(); // refresh after closing
+        fetchJobOpenings(); // refresh display
+        fetchAllJobOpenings(); // refresh stats
       } else {
         console.error("Failed to close job:", res.statusText);
       }
@@ -242,9 +269,10 @@ export default function RecruitmentPage() {
         job_opening: { status: "open" },
       }),
     });
-    if (res.ok) {
-      fetchJobOpenings(); // refresh list
-    } else {
+     if (res.ok) {
+       fetchJobOpenings(); // refresh display
+       fetchAllJobOpenings(); // refresh stats
+     } else {
       console.error("Failed to open job:", res.statusText);
     }
   } catch (err) {
@@ -270,7 +298,7 @@ export default function RecruitmentPage() {
     // For now, return placeholder text. Can be enhanced with historical data comparison
     switch (statType) {
       case "activeJobOpenings":
-        const drafts = jobOpenings.filter(j => {
+        const drafts = allJobOpenings.filter((j: any) => {
           const status = (j.status || "").toLowerCase()
           return status === "draft"
         }).length
