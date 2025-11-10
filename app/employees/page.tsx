@@ -122,21 +122,20 @@ export default function EmployeesPage() {
     }
   }
 
-  const handleDeactivateEmployee = async (employee: Employee) => {
+  const handleToggleEmployeeStatus = async (employee: Employee) => {
+    const newStatus = employee.status === "active" ? "inactive" : "active";
+
     try {
-      const res = await fetch(`${getApiUrl('employees')}/${employee.id}`, {
-        method: "DELETE",
-        headers: { "Accept": "application/json" }
-      })
-      if (res.ok) {
-        fetchEmployees()
-      } else {
-        console.error('Error deactivating employee')
-      }
+      await apiRequest(`${getApiUrl('employees')}/${employee.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ employee: { status: newStatus } }),
+      });
+
+    fetchEmployees();
     } catch (err) {
-      console.error('Error deactivating employee:', err)
+      console.error("Error updating employee status:", err);
     }
-  }
+  };
 
   // Generate dynamic department stats from real data
   const departmentStats = departments.map((dept, index) => {
@@ -346,7 +345,12 @@ export default function EmployeesPage() {
                           <DropdownMenuItem onClick={() => router.push(`/employees/${employee.id}`)}>View Profile</DropdownMenuItem>
                           <DropdownMenuItem>View Payroll</DropdownMenuItem>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem className="text-red-600" onClick={() => handleDeactivateEmployee(employee)}>Deactivate</DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => handleToggleEmployeeStatus(employee)}
+                            className={employee.status === "active" ? "text-red-600" : "text-green-600"}
+                          >
+                            {employee.status === "active" ? "Deactivate" : "Activate"}
+                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
