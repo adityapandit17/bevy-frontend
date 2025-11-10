@@ -142,8 +142,8 @@ export default function EmployeesPage() {
   const departmentStats = departments.map((dept, index) => {
     const count = employees.filter(emp => emp.department_id === dept.id).length
     const colors = [
-      "bg-blue-500", "bg-green-500", "bg-purple-500", 
-      "bg-orange-500", "bg-pink-500", "bg-indigo-500", 
+      "bg-blue-500", "bg-green-500", "bg-purple-500",
+      "bg-orange-500", "bg-pink-500", "bg-indigo-500",
       "bg-red-500", "bg-yellow-500"
     ]
     return {
@@ -157,13 +157,13 @@ export default function EmployeesPage() {
     const matchesSearch =
       (employee.first_name?.toLowerCase() + ' ' + employee.last_name?.toLowerCase()).includes(searchTerm.toLowerCase()) ||
       employee.email?.toLowerCase().includes(searchTerm.toLowerCase())
-    
-    const matchesDepartment = departmentFilter === "all" || 
+
+    const matchesDepartment = departmentFilter === "all" ||
       (() => {
         const department = departments.find(dept => dept.id === employee.department_id)
         return department && department.name === departmentFilter
       })()
-    
+
     return matchesSearch && matchesDepartment
   })
 

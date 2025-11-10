@@ -137,6 +137,15 @@ export default function ATSPage() {
   const [filterStatus, setFilterStatus] = useState<string>("all")
   const [filterDepartment, setFilterDepartment] = useState<string>("all")
   const [isLoading, setIsLoading] = useState(false)
+  const [stats, setStats] = useState({
+    total_applications: 0,
+    active_candidates: 0,
+    interviews_this_week: 0,
+    offers_extended: 0,
+    hired_this_month: 0,
+    pipeline: {} as Record<string, number>
+  })
+  const [interviews, setInterviews] = useState<Interview[]>([])
   
   // Document preview functionality
   const { previewState, openPreview, closePreview } = useDocumentPreview()
@@ -144,7 +153,24 @@ export default function ATSPage() {
   useEffect(() => {
     fetchCandidates()
     fetchStats()
+    fetchInterviews()
   }, [])
+
+  useEffect(() => {
+    // Update selected candidate's interviews when interviews data changes
+    if (selectedCandidate && interviews.length > 0) {
+      const candidateInterviews = interviews.filter(i => 
+        i.candidate_id === selectedCandidate.id || 
+        (i as any).candidate?.id === selectedCandidate.id
+      )
+      if (candidateInterviews.length > 0) {
+        setSelectedCandidate({
+          ...selectedCandidate,
+          interviews: candidateInterviews
+        })
+      }
+    }
+  }, [interviews])
 
   const fetchCandidates = async () => {
     try {
@@ -161,59 +187,93 @@ export default function ATSPage() {
   const fetchStats = async () => {
     try {
       const url = getApiUrl('candidates/stats')
-      console.log('Fetching stats from URL:', url)
-      const data = await apiRequest(url)
-      console.log('Stats data:', data)
-      // Update stats if needed
+      const data = await apiRequest<any>(url)
+      setStats(data)
     } catch (error) {
       console.error('Error fetching stats:', error)
+    }
+  }
+
+  const fetchInterviews = async () => {
+    try {
+      const response = await fetch(getEndpointUrl('INTERVIEWS'))
+      if (response.ok) {
+        const data = await response.json()
+        setInterviews(data)
+      }
+    } catch (error) {
+      console.error('Error fetching interviews:', error)
+    }
+  }
+
+  // Calculate change indicators
+  const getChangeText = (statType: string) => {
+    switch (statType) {
+      case "totalApplications":
+        const thisWeek = candidates.filter(c => {
+          if (!c.applied_date) return false
+          const appliedDate = new Date(c.applied_date)
+          const weekAgo = new Date()
+          weekAgo.setDate(weekAgo.getDate() - 7)
+          return appliedDate >= weekAgo
+        }).length
+        return thisWeek > 0 ? `+${thisWeek} this week` : "No new applications"
+      case "inPipeline":
+        return `${stats.active_candidates} active candidates`
+      case "interviewsThisWeek":
+        return stats.interviews_this_week > 0 ? `${stats.interviews_this_week} scheduled` : "No interviews"
+      case "offersExtended":
+        return stats.hired_this_month > 0 ? `${stats.hired_this_month} hired this month` : "No hires this month"
+      default:
+        return ""
     }
   }
 
   const atsStats = [
     {
       title: "Total Applications",
-      value: "234",
-      change: "+45 this week",
+      value: stats.total_applications.toString(),
+      change: getChangeText("totalApplications"),
       icon: Users,
       color: "text-blue-600",
       bgColor: "bg-blue-50",
     },
     {
       title: "In Pipeline",
-      value: "89",
-      change: "Active candidates",
+      value: stats.active_candidates.toString(),
+      change: getChangeText("inPipeline"),
       icon: TrendingUp,
       color: "text-green-600",
       bgColor: "bg-green-50",
     },
     {
       title: "Interviews This Week",
-      value: "12",
-      change: "Scheduled",
+      value: stats.interviews_this_week.toString(),
+      change: getChangeText("interviewsThisWeek"),
       icon: Calendar,
       color: "text-purple-600",
       bgColor: "bg-purple-50",
     },
     {
       title: "Offers Extended",
-      value: "5",
-      change: "This month",
+      value: stats.offers_extended.toString(),
+      change: getChangeText("offersExtended"),
       icon: CheckCircle,
       color: "text-orange-600",
       bgColor: "bg-orange-50",
     },
   ]
 
+  // Build pipeline stages from stats
   const pipelineStages = [
-    { stage: "applied", label: "Applied", count: 45, color: "bg-gray-100 text-gray-800" },
-    { stage: "screening", label: "Screening", count: 23, color: "bg-blue-100 text-blue-800" },
-    { stage: "interview", label: "Interview", count: 15, color: "bg-yellow-100 text-yellow-800" },
-    { stage: "technical", label: "Technical", count: 8, color: "bg-purple-100 text-purple-800" },
-    { stage: "final", label: "Final", count: 5, color: "bg-indigo-100 text-indigo-800" },
-    { stage: "offered", label: "Offered", count: 3, color: "bg-green-100 text-green-800" },
-    { stage: "hired", label: "Hired", count: 2, color: "bg-emerald-100 text-emerald-800" },
-    { stage: "rejected", label: "Rejected", count: 12, color: "bg-red-100 text-red-800" },
+    { stage: "applied", label: "Applied", count: stats.pipeline?.applied || 0, color: "bg-gray-100 text-gray-800" },
+    { stage: "screening", label: "Screening", count: stats.pipeline?.screening || 0, color: "bg-blue-100 text-blue-800" },
+    { stage: "interview", label: "Interview", count: stats.pipeline?.interview || 0, color: "bg-yellow-100 text-yellow-800" },
+    { stage: "technical", label: "Technical", count: stats.pipeline?.technical || 0, color: "bg-purple-100 text-purple-800" },
+    { stage: "final", label: "Final", count: stats.pipeline?.final || 0, color: "bg-indigo-100 text-indigo-800" },
+    { stage: "offered", label: "Offered", count: stats.pipeline?.offered || 0, color: "bg-green-100 text-green-800" },
+    { stage: "hired", label: "Hired", count: stats.pipeline?.hired || 0, color: "bg-emerald-100 text-emerald-800" },
+    { stage: "rejected", label: "Rejected", count: stats.pipeline?.rejected || 0, color: "bg-red-100 text-red-800" },
   ]
 
   const getStatusColor = (status: string) => {
@@ -275,7 +335,8 @@ export default function ATSPage() {
       
       if (response.ok) {
         // Refresh the data
-        fetchCandidates()
+        await fetchCandidates()
+        await fetchStats()
       }
     } catch (error) {
       console.error('Error updating candidate status:', error)
@@ -314,6 +375,9 @@ export default function ATSPage() {
           setSelectedCandidate(savedCandidate)
           saveSelectedCandidate(savedCandidate)
         }
+        
+        // Refresh stats after saving
+        await fetchStats()
         
         setShowAddCandidate(false)
         setShowEditCandidate(false)
@@ -955,24 +1019,23 @@ export default function ATSPage() {
         } : undefined}
         onSuccess={async () => {
           setShowScheduleInterview(false)
-          // Refresh candidates and update selected candidate
-          try {
-            const response = await fetch(getApiUrl('candidates'))
-            if (response.ok) {
-              const updatedCandidates = await response.json()
-              setCandidates(updatedCandidates)
-              
-              // Update the selected candidate with fresh data
-              if (selectedCandidate) {
-                const updatedCandidate = updatedCandidates.find((c: any) => c.id === selectedCandidate.id)
-                if (updatedCandidate) {
-                  setSelectedCandidate(updatedCandidate)
-                  saveSelectedCandidate(updatedCandidate)
-                }
+          // Refresh all data
+          await fetchCandidates()
+          await fetchStats()
+          await fetchInterviews()
+          
+          // Update the selected candidate with fresh data
+          if (selectedCandidate) {
+            try {
+              const response = await fetch(getApiUrl(`candidates/${selectedCandidate.id}`))
+              if (response.ok) {
+                const updatedCandidate = await response.json()
+                setSelectedCandidate(updatedCandidate)
+                saveSelectedCandidate(updatedCandidate)
               }
+            } catch (error) {
+              console.error('Error refreshing selected candidate:', error)
             }
-          } catch (error) {
-            console.error('Error refreshing candidates:', error)
           }
         }}
       />

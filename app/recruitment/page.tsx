@@ -37,6 +37,15 @@ export default function RecruitmentPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [departments, setDepartments] = useState([])
   const [jobOpenings, setJobOpenings] = useState([])
+  const [candidates, setCandidates] = useState([])
+  const [interviews, setInterviews] = useState([])
+  const [stats, setStats] = useState({
+    activeJobOpenings: 0,
+    totalApplications: 0,
+    interviewsScheduled: 0,
+    offersExtended: 0
+  })
+  const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editJob, setEditJob] = useState(null)
   const [showInterviewForm, setShowInterviewForm] = useState(false)
@@ -46,7 +55,13 @@ export default function RecruitmentPage() {
   useEffect(() => {
     fetchDepartments()
     fetchJobOpenings()
+    fetchCandidates()
+    fetchInterviews()
   }, [])
+
+  useEffect(() => {
+    calculateStats()
+  }, [jobOpenings, candidates, interviews])
 
   const fetchDepartments = async () => {
     try {
@@ -64,8 +79,66 @@ export default function RecruitmentPage() {
       const data = await res.json()
       setJobOpenings(data)
     } catch (err) {
-      // handle error
+      console.error('Error fetching job openings:', err)
+    } finally {
+      setLoading(false)
     }
+  }
+
+  const fetchCandidates = async () => {
+    try {
+      const res = await fetch(getEndpointUrl('CANDIDATES'))
+      if (res.ok) {
+        const data = await res.json()
+        setCandidates(data)
+      }
+    } catch (err) {
+      console.error('Error fetching candidates:', err)
+    }
+  }
+
+  const fetchInterviews = async () => {
+    try {
+      const res = await fetch(getEndpointUrl('INTERVIEWS'))
+      if (res.ok) {
+        const data = await res.json()
+        setInterviews(data)
+      }
+    } catch (err) {
+      console.error('Error fetching interviews:', err)
+    }
+  }
+
+  const calculateStats = () => {
+    // Active job openings (status = "open")
+    const activeJobOpenings = jobOpenings.filter(job => {
+      const status = (job.status || "").toLowerCase()
+      return status === "open"
+    }).length
+
+    // Total applications (total candidates)
+    const totalApplications = candidates.length
+
+    // Interviews scheduled (scheduled or upcoming interviews)
+    const now = new Date()
+    const interviewsScheduled = interviews.filter(interview => {
+      if (!interview.scheduled_date) return false
+      const interviewDate = new Date(interview.scheduled_date)
+      return interview.status === "scheduled" || 
+             (interview.status === "pending" && interviewDate >= now)
+    }).length
+
+    // Offers extended (candidates with status "offered" or "hired")
+    const offersExtended = candidates.filter(candidate => 
+      candidate.status === "offered" || candidate.status === "hired"
+    ).length
+
+    setStats({
+      activeJobOpenings,
+      totalApplications,
+      interviewsScheduled,
+      offersExtended
+    })
   }
 
   const getDepartmentName = (idOrName) => {
@@ -140,89 +213,82 @@ export default function RecruitmentPage() {
   const handleInterviewSuccess = () => {
     setShowInterviewForm(false)
     setSelectedCandidate(null)
-    // Optionally refresh candidate data here
+    // Refresh data after interview is scheduled
+    fetchInterviews()
+    fetchCandidates()
   }
 
-  const candidates = [
-    {
-      id: "CAN001",
-      name: "Arjun Mehta",
-      email: "arjun.mehta@email.com",
-      phone: "+91 98765 43210",
-      position: "Senior Software Engineer",
-      experience: "5 years",
-      location: "Mumbai",
-      status: "Interview Scheduled",
-      appliedDate: "2024-11-01",
-      stage: "Technical Round",
-    },
-    {
-      id: "CAN002",
-      name: "Kavya Nair",
-      email: "kavya.nair@email.com",
-      phone: "+91 87654 32109",
-      position: "Product Manager",
-      experience: "7 years",
-      location: "Bangalore",
-      status: "Under Review",
-      appliedDate: "2024-11-02",
-      stage: "Resume Review",
-    },
-    {
-      id: "CAN003",
-      name: "Rohit Gupta",
-      email: "rohit.gupta@email.com",
-      phone: "+91 76543 21098",
-      position: "UI/UX Designer",
-      experience: "3 years",
-      location: "Delhi",
-      status: "Shortlisted",
-      appliedDate: "2024-11-03",
-      stage: "Portfolio Review",
-    },
-    {
-      id: "CAN004",
-      name: "Neha Joshi",
-      email: "neha.joshi@email.com",
-      phone: "+91 65432 10987",
-      position: "Data Analyst",
-      experience: "2 years",
-      location: "Pune",
-      status: "Rejected",
-      appliedDate: "2024-10-30",
-      stage: "Initial Screening",
-    },
-  ]
+  // Calculate change indicators
+  const getChangeText = (statType: string) => {
+    // For now, return placeholder text. Can be enhanced with historical data comparison
+    switch (statType) {
+      case "activeJobOpenings":
+        const drafts = jobOpenings.filter(j => {
+          const status = (j.status || "").toLowerCase()
+          return status === "draft"
+        }).length
+        return drafts > 0 ? `${drafts} drafts` : "All active"
+      case "totalApplications":
+        const thisWeek = candidates.filter(c => {
+          if (!c.applied_date) return false
+          const appliedDate = new Date(c.applied_date)
+          const weekAgo = new Date()
+          weekAgo.setDate(weekAgo.getDate() - 7)
+          return appliedDate >= weekAgo
+        }).length
+        return thisWeek > 0 ? `+${thisWeek} this week` : "No new applications"
+      case "interviewsScheduled":
+        const nextWeek = interviews.filter(i => {
+          if (!i.scheduled_date) return false
+          const interviewDate = new Date(i.scheduled_date)
+          const weekFromNow = new Date()
+          weekFromNow.setDate(weekFromNow.getDate() + 7)
+          return interviewDate <= weekFromNow && interviewDate >= new Date()
+        }).length
+        return nextWeek > 0 ? `${nextWeek} next 7 days` : "No upcoming interviews"
+      case "offersExtended":
+        const thisMonth = candidates.filter(c => {
+          if (!c.applied_date) return false
+          const appliedDate = new Date(c.applied_date)
+          const monthAgo = new Date()
+          monthAgo.setMonth(monthAgo.getMonth() - 1)
+          return (c.status === "offered" || c.status === "hired") && appliedDate >= monthAgo
+        }).length
+        return thisMonth > 0 ? `${thisMonth} this month` : "No offers this month"
+      default:
+        return ""
+    }
+  }
 
   const recruitmentStats = [
     {
       title: "Active Job Openings",
-      value: "12",
-      change: "+3 this month",
+      value: stats.activeJobOpenings.toString(),
+      change: getChangeText("activeJobOpenings"),
       icon: Briefcase,
       color: "text-blue-600",
       bgColor: "bg-blue-50",
     },
     {
       title: "Total Applications",
-      value: "234",
-      change: "+45 this week",
+      value: stats.totalApplications.toString(),
+      change: getChangeText("totalApplications"),
       icon: Users,
       color: "text-green-600",
       bgColor: "bg-green-50",
     },
     {
       title: "Interviews Scheduled",
-      value: "18",
-      change: "Next 7 days",
+      value: stats.interviewsScheduled.toString(),
+      change: getChangeText("interviewsScheduled"),
       icon: Calendar,
       color: "text-purple-600",
       bgColor: "bg-purple-50",
     },
     {
       title: "Offers Extended",
-      value: "5",
-      change: "This month",
+      value: stats.offersExtended.toString(),
+      change: getChangeText("offersExtended"),
       icon: CheckCircle,
       color: "text-orange-600",
       bgColor: "bg-orange-50",
@@ -230,19 +296,28 @@ export default function RecruitmentPage() {
   ]
 
   const getStatusColor = (status: string) => {
-    switch (status) {
-      case "Active":
+    const statusLower = (status || "").toLowerCase()
+    switch (statusLower) {
+      case "open":
         return "bg-green-100 text-green-800"
-      case "Draft":
+      case "draft":
         return "bg-gray-100 text-gray-800"
-      case "Interview Scheduled":
-        return "bg-blue-100 text-blue-800"
-      case "Under Review":
-        return "bg-yellow-100 text-yellow-800"
-      case "Shortlisted":
-        return "bg-purple-100 text-purple-800"
-      case "Rejected":
+      case "closed":
         return "bg-red-100 text-red-800"
+      case "filled":
+        return "bg-blue-100 text-blue-800"
+      case "interview scheduled":
+        return "bg-blue-100 text-blue-800"
+      case "under review":
+        return "bg-yellow-100 text-yellow-800"
+      case "shortlisted":
+        return "bg-purple-100 text-purple-800"
+      case "rejected":
+        return "bg-red-100 text-red-800"
+      case "offered":
+        return "bg-green-100 text-green-800"
+      case "hired":
+        return "bg-green-100 text-green-800"
       default:
         return "bg-gray-100 text-gray-800"
     }
@@ -423,52 +498,66 @@ export default function RecruitmentPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {candidates.map((candidate) => (
-                      <TableRow key={candidate.id}>
-                        <TableCell>
-                          <div>
-                            <p className="font-medium text-gray-900">{candidate.name}</p>
-                            <p className="text-sm text-gray-500">{candidate.email}</p>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <span className="text-sm text-gray-600">{candidate.position}</span>
-                        </TableCell>
-                        <TableCell>
-                          <span className="text-sm text-gray-600">{candidate.experience}</span>
-                        </TableCell>
-                        <TableCell>
-                          <span className="text-sm text-gray-600">{candidate.stage}</span>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2 text-sm text-gray-600">
-                            <Clock className="w-3 h-3" />
-                            <span>{new Date(candidate.appliedDate).toLocaleDateString()}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={getStatusColor(candidate.status)}>{candidate.status}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm">
-                                <MoreHorizontal className="w-4 h-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                              <DropdownMenuItem>View Profile</DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleScheduleInterview(candidate)}>Schedule Interview</DropdownMenuItem>
-                              <DropdownMenuItem>Send Message</DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem>Move to Next Stage</DropdownMenuItem>
-                              <DropdownMenuItem className="text-red-600">Reject Application</DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                    {candidates.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center py-8 text-gray-500">
+                          No candidates found
                         </TableCell>
                       </TableRow>
-                    ))}
+                    ) : (
+                      candidates.map((candidate) => (
+                        <TableRow key={candidate.id}>
+                          <TableCell>
+                            <div>
+                              <p className="font-medium text-gray-900">{candidate.name}</p>
+                              <p className="text-sm text-gray-500">{candidate.email}</p>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-sm text-gray-600">{candidate.position || "N/A"}</span>
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-sm text-gray-600">{candidate.experience || "N/A"}</span>
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-sm text-gray-600">{candidate.status || "N/A"}</span>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2 text-sm text-gray-600">
+                              <Clock className="w-3 h-3" />
+                              <span>
+                                {candidate.applied_date 
+                                  ? new Date(candidate.applied_date).toLocaleDateString()
+                                  : "N/A"}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge className={getStatusColor(candidate.status || "")}>
+                              {candidate.status || "Unknown"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm">
+                                  <MoreHorizontal className="w-4 h-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                <DropdownMenuItem>View Profile</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleScheduleInterview(candidate)}>Schedule Interview</DropdownMenuItem>
+                                <DropdownMenuItem>Send Message</DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem>Move to Next Stage</DropdownMenuItem>
+                                <DropdownMenuItem className="text-red-600">Reject Application</DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
                   </TableBody>
                 </Table>
               </div>
