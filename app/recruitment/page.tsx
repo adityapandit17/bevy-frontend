@@ -60,8 +60,16 @@ export default function RecruitmentPage() {
   }, [])
 
   useEffect(() => {
-    calculateStats()
-  }, [jobOpenings, candidates, interviews])
+    const delayDebounce = setTimeout(() => {
+      if (searchTerm.trim() === "") {
+        fetchJobOpenings()
+      } else {
+        fetchJobOpenings(searchTerm)
+      }
+    }, 400) 
+    return () => clearTimeout(delayDebounce)
+  }, [searchTerm])
+
 
   const fetchDepartments = async () => {
     try {
@@ -73,15 +81,17 @@ export default function RecruitmentPage() {
     }
   }
 
-  const fetchJobOpenings = async () => {
+  const fetchJobOpenings = async (query = "") => {
     try {
-      const res = await fetch(getEndpointUrl('JOB_OPENINGS'))
+      const url = query
+        ? `${getEndpointUrl("JOB_OPENINGS")}?search=${encodeURIComponent(query)}`
+        : getEndpointUrl("JOB_OPENINGS")
+
+      const res = await fetch(url)
       const data = await res.json()
       setJobOpenings(data)
     } catch (err) {
-      console.error('Error fetching job openings:', err)
-    } finally {
-      setLoading(false)
+      console.error("Error fetching jobs:", err)
     }
   }
 
@@ -188,22 +198,45 @@ export default function RecruitmentPage() {
       // handle error
     }
   }
-
+  
   const handleDeactivateJob = async (job) => {
     try {
       const res = await fetch(getApiUrl(`job_openings/${job.id}`), {
         method: "DELETE",
-        headers: { "Accept": "application/json" }
-      })
+        headers: { Accept: "application/json" },
+      });
       if (res.ok) {
-        fetchJobOpenings()
+        fetchJobOpenings(); // refresh after closing
       } else {
-        // handle error
+        console.error("Failed to close job:", res.statusText);
       }
     } catch (err) {
-      // handle error
+      console.error("Error closing job:", err);
     }
+  };
+
+
+ const handleActivateJob = async (job) => {
+  try {
+    const res = await fetch(getApiUrl(`job_openings/${job.id}`), {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        job_opening: { status: "open" },
+      }),
+    });
+    if (res.ok) {
+      fetchJobOpenings(); // refresh list
+    } else {
+      console.error("Failed to open job:", res.statusText);
+    }
+  } catch (err) {
+    console.error("Error opening job:", err);
   }
+};
 
   const handleScheduleInterview = (candidate = null) => {
     setSelectedCandidate(candidate)
@@ -454,7 +487,16 @@ export default function RecruitmentPage() {
                               <DropdownMenuItem onClick={() => handleEditJob(job)}>Edit Job</DropdownMenuItem>
                               <DropdownMenuItem>View Applications</DropdownMenuItem>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem className="text-red-600" onClick={() => handleDeactivateJob(job)}>Close Job</DropdownMenuItem>
+                              <DropdownMenuItem
+                                className={job.status === "closed" ? "text-green-600" : "text-red-600"}
+                                onClick={() =>
+                                  job.status === "closed"
+                                    ? handleActivateJob(job)
+                                    : handleDeactivateJob(job)
+                                }
+                              >
+                                {job.status === "closed" ? "Open Job" : "Close Job"}
+                              </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </TableCell>

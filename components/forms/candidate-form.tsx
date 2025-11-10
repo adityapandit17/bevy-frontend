@@ -96,10 +96,25 @@ export function CandidateForm({ candidate, onSave, onCancel, isLoading = false }
 
   useEffect(() => {
     if (candidate) {
-      setFormData({
+      setFormData(prev => ({
+        ...prev,
         ...candidate,
-        skills: candidate.skills || [],
-      })
+        skills: Array.isArray(candidate.skills)
+          ? candidate.skills
+          : (candidate.skills || "")
+              .split(",")
+              .map(s => s.trim())
+              .filter(Boolean),
+        resume: candidate.resume || prev.resume,
+        cover_letter: candidate.cover_letter || prev.cover_letter,
+        department:
+          departmentOptions.includes(candidate.department)
+            ? candidate.department
+            : departmentOptions.find(
+                d => d.toLowerCase() === (candidate.department || "").toLowerCase()
+              ) || prev.department,
+        status: candidate.status || prev.status,
+      }))
     }
   }, [candidate])
 
@@ -218,15 +233,19 @@ export function CandidateForm({ candidate, onSave, onCancel, isLoading = false }
       // Upload files if they exist
       if (resumeFile) {
         candidateData.resume = await uploadFile(resumeFile)
+      } else {
+        candidateData.resume = formData.resume // keep old one
       }
       if (coverLetterFile) {
         candidateData.cover_letter = await uploadFile(coverLetterFile)
+      } else {
+        candidateData.cover_letter = formData.cover_letter
       }
 
       onSave(candidateData)
     } catch (error) {
-      console.error('Error saving candidate:', error)
-      setErrors(prev => ({ ...prev, general: 'Failed to save candidate. Please try again.' }))
+      console.error("Error saving candidate:", error)
+      setErrors(prev => ({ ...prev, general: "Failed to save candidate. Please try again." }))
     } finally {
       setIsUploading(false)
     }
@@ -313,13 +332,20 @@ export function CandidateForm({ candidate, onSave, onCancel, isLoading = false }
 
             <div className="space-y-2">
               <Label htmlFor="department">Department *</Label>
-              <Select value={formData.department} onValueChange={(value) => handleInputChange("department", value)}>
+              <Label htmlFor="department">Department *</Label>
+              <Select
+                key={formData.department || "no-dept"} // 👈 forces re-render if department changes
+                value={formData.department || ""}
+                onValueChange={(value) => handleInputChange("department", value)}
+              >
                 <SelectTrigger className={errors.department ? "border-red-500" : ""}>
                   <SelectValue placeholder="Select department" />
                 </SelectTrigger>
                 <SelectContent>
                   {departmentOptions.map((dept) => (
-                    <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                    <SelectItem key={dept} value={dept}>
+                      {dept}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -511,6 +537,27 @@ export function CandidateForm({ candidate, onSave, onCancel, isLoading = false }
               {errors.resume && <p className="text-sm text-red-500">{errors.resume}</p>}
             </div>
 
+            {!resumeFile && formData.resume && (
+              <div className="flex items-center justify-between text-sm text-gray-700 mt-2">
+                <a
+                  href={formData.resume}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:underline"
+                >
+                  View existing resume
+                </a>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setFormData(prev => ({ ...prev, resume: "" }))}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label>Cover Letter</Label>
               <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
@@ -559,6 +606,27 @@ export function CandidateForm({ candidate, onSave, onCancel, isLoading = false }
               </div>
               {errors.coverLetter && <p className="text-sm text-red-500">{errors.coverLetter}</p>}
             </div>
+
+            {!coverLetterFile && formData.cover_letter && (
+              <div className="flex items-center justify-between text-sm text-gray-700 mt-2">
+                <a
+                  href={formData.cover_letter}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:underline"
+                >
+                  View existing cover letter
+                </a>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setFormData(prev => ({ ...prev, cover_letter: "" }))}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
+            )}
           </div>
 
           {/* Notes */}

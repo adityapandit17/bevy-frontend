@@ -147,8 +147,12 @@ export default function ATSPage() {
   })
   const [interviews, setInterviews] = useState<Interview[]>([])
   
-  // Document preview functionality
-  const { previewState, openPreview, closePreview } = useDocumentPreview()
+  const [previewState, setPreviewState, closePreview] = useState({
+      open: false,
+      documentUrl: '',
+      documentName: '',
+      documentType: ''
+    })
 
   useEffect(() => {
     fetchCandidates()
@@ -407,16 +411,8 @@ export default function ATSPage() {
   }
 
 
-  // Handle document preview
-  const handleDocumentPreview = (documentPath: string, documentName: string) => {
-    const url = getDocumentUrl(documentPath)
-    const fileType = getFileType(documentPath)
-    const displayName = getDisplayName(documentPath, documentName)
-    
-    
-    if (url) {
-      openPreview(url, displayName, fileType)
-    }
+  const handleDocumentPreview = (url: string, name: string, type?: string) => {
+    setPreviewState({ open: true, documentUrl: url, documentName: name, documentType: type })
   }
 
   return (
@@ -708,8 +704,7 @@ export default function ATSPage() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => handleDocumentPreview(selectedCandidate.resume, 'Resume')}
-                                className="h-8 px-2 text-blue-600 hover:text-blue-800"
+                                onClick={() => handleDocumentPreview(getDocumentUrl(selectedCandidate.resume, false), 'Resume')}
                               >
                                 <Eye className="w-4 h-4" />
                               </Button>
@@ -744,7 +739,7 @@ export default function ATSPage() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => handleDocumentPreview(selectedCandidate.cover_letter, 'Cover Letter')}
+                                onClick={() => handleDocumentPreview(getDocumentUrl(selectedCandidate.cover_letter, false), 'Cover Letter')}
                                 className="h-8 px-2 text-blue-600 hover:text-blue-800"
                               >
                                 <Eye className="w-4 h-4" />
