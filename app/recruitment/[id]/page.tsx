@@ -88,8 +88,13 @@ export default function JobShowPage() {
                 <Badge>{job.job_type}</Badge>
                 <Badge>{job.status}</Badge>
                 <span className="flex items-center gap-1 text-sm text-muted-foreground"><MapPin className="w-4 h-4" />{job.location}</span>
-                <span className="flex items-center gap-1 text-sm text-muted-foreground"><Users className="w-4 h-4" />Vacancies: {job.vacancies}</span>
-                <span className="flex items-center gap-1 text-sm text-muted-foreground"><Layers className="w-4 h-4" />Department: {job.department_id}</span>
+                <span className="flex items-center gap-1 text-sm text-muted-foreground">
+                  <Users className="w-4 h-4" />
+                  <strong>Vacancies:</strong> {job.vacancies}
+                </span>
+                <span className="flex items-center gap-1 text-sm text-muted-foreground"><Layers className="w-4 h-4" />
+                  <strong>Department:</strong> {job.department_name}
+                </span>
               </div>
               <div>
                 <strong>Description:</strong>
