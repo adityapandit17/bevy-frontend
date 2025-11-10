@@ -89,7 +89,6 @@ export default function RecruitmentPage() {
 
       const res = await fetch(url)
       const data = await res.json()
-      debugger
 
       setJobOpenings(data)
     } catch (err) {
