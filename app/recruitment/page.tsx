@@ -89,6 +89,8 @@ export default function RecruitmentPage() {
 
       const res = await fetch(url)
       const data = await res.json()
+      debugger
+
       setJobOpenings(data)
     } catch (err) {
       console.error("Error fetching jobs:", err)
@@ -151,9 +153,22 @@ export default function RecruitmentPage() {
     })
   }
 
-  const getDepartmentName = (idOrName) => {
-    const dept = departments.find(d => String(d.id) === String(idOrName))
-    return dept ? dept.name : idOrName
+  const getDepartmentName = (idOrNameOrObject: any) => {
+    // Handle department object from serializer
+    if (idOrNameOrObject && typeof idOrNameOrObject === 'object' && idOrNameOrObject.name) {
+      return idOrNameOrObject.name
+    }
+    // Handle department_id number or string
+    if (typeof idOrNameOrObject === 'number' || (typeof idOrNameOrObject === 'string' && !isNaN(Number(idOrNameOrObject)))) {
+      const dept = (departments as any[]).find((d: any) => String(d.id) === String(idOrNameOrObject))
+      return dept ? dept.name : 'Unknown'
+    }
+    // Handle department name string directly
+    if (typeof idOrNameOrObject === 'string') {
+      return idOrNameOrObject
+    }
+    // Fallback
+    return 'Unknown'
   }
 
   const handleAddJob = async (formData) => {
@@ -452,7 +467,11 @@ export default function RecruitmentPage() {
                           {job.title}
                         </TableCell>
                         <TableCell>
-                          <span className="text-sm text-gray-600">{getDepartmentName(job.department)}</span>
+                          <span className="text-sm text-gray-600">
+                            {(job as any).department_name || 
+                             ((job as any).department?.name) || 
+                             getDepartmentName((job as any).department_id || (job as any).department)}
+                          </span>
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2 text-sm text-gray-600">
