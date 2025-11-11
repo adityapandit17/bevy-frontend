@@ -1,0 +1,474 @@
+"use client"
+
+import { useState } from "react"
+import { useAuthContext } from "@/lib/auth"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
+import { Separator } from "@/components/ui/separator"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { 
+  User, 
+  Bell, 
+  Lock, 
+  Globe, 
+  Palette,
+  Mail,
+  Smartphone,
+  Shield,
+  Save,
+  Eye,
+  EyeOff
+} from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
+
+export default function UserSettingsPage() {
+  const { user } = useAuthContext()
+  const { toast } = useToast()
+  
+  // Account Settings
+  const [name, setName] = useState(user?.name || "")
+  const [email, setEmail] = useState(user?.email || "")
+  const [phone, setPhone] = useState("")
+  
+  // Password Settings
+  const [currentPassword, setCurrentPassword] = useState("")
+  const [newPassword, setNewPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false)
+  const [showNewPassword, setShowNewPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  
+  // Notification Settings
+  const [emailNotifications, setEmailNotifications] = useState(true)
+  const [pushNotifications, setPushNotifications] = useState(true)
+  const [leaveNotifications, setLeaveNotifications] = useState(true)
+  const [attendanceNotifications, setAttendanceNotifications] = useState(true)
+  const [payrollNotifications, setPayrollNotifications] = useState(false)
+  const [systemNotifications, setSystemNotifications] = useState(true)
+  
+  // Preferences
+  const [language, setLanguage] = useState("en")
+  const [timezone, setTimezone] = useState("UTC")
+  const [dateFormat, setDateFormat] = useState("MM/DD/YYYY")
+  const [theme, setTheme] = useState("light")
+
+  const handleSaveAccount = () => {
+    // TODO: Implement API call to update account
+    toast({
+      title: "Account updated",
+      description: "Your account information has been saved successfully.",
+    })
+  }
+
+  const handleChangePassword = () => {
+    if (newPassword !== confirmPassword) {
+      toast({
+        title: "Error",
+        description: "New passwords do not match.",
+        variant: "destructive",
+      })
+      return
+    }
+    if (newPassword.length < 8) {
+      toast({
+        title: "Error",
+        description: "Password must be at least 8 characters long.",
+        variant: "destructive",
+      })
+      return
+    }
+    // TODO: Implement API call to change password
+    toast({
+      title: "Password changed",
+      description: "Your password has been updated successfully.",
+    })
+    setCurrentPassword("")
+    setNewPassword("")
+    setConfirmPassword("")
+  }
+
+  const handleSaveNotifications = () => {
+    // TODO: Implement API call to save notification preferences
+    toast({
+      title: "Preferences saved",
+      description: "Your notification preferences have been saved.",
+    })
+  }
+
+  const handleSavePreferences = () => {
+    // TODO: Implement API call to save preferences
+    toast({
+      title: "Preferences saved",
+      description: "Your preferences have been saved.",
+    })
+  }
+
+  return (
+    <div className="container mx-auto px-4 py-8 max-w-5xl">
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
+        <p className="text-gray-600 mt-1">Manage your account settings and preferences</p>
+      </div>
+
+      <Tabs defaultValue="account" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="account" className="flex items-center gap-2">
+            <User className="w-4 h-4" />
+            Account
+          </TabsTrigger>
+          <TabsTrigger value="security" className="flex items-center gap-2">
+            <Lock className="w-4 h-4" />
+            Security
+          </TabsTrigger>
+          <TabsTrigger value="notifications" className="flex items-center gap-2">
+            <Bell className="w-4 h-4" />
+            Notifications
+          </TabsTrigger>
+          <TabsTrigger value="preferences" className="flex items-center gap-2">
+            <Palette className="w-4 h-4" />
+            Preferences
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Account Tab */}
+        <TabsContent value="account">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <User className="w-5 h-5" />
+                Account Information
+              </CardTitle>
+              <CardDescription>
+                Update your account information and contact details
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-2">
+                <Label htmlFor="name">Full Name</Label>
+                <Input
+                  id="name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Enter your full name"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="email">Email Address</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Enter your email"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="phone">Phone Number</Label>
+                <Input
+                  id="phone"
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="Enter your phone number"
+                />
+              </div>
+              <Separator />
+              <Button onClick={handleSaveAccount} className="w-full sm:w-auto">
+                <Save className="w-4 h-4 mr-2" />
+                Save Changes
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Security Tab */}
+        <TabsContent value="security">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Lock className="w-5 h-5" />
+                Change Password
+              </CardTitle>
+              <CardDescription>
+                Update your password to keep your account secure
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-2">
+                <Label htmlFor="current-password">Current Password</Label>
+                <div className="relative">
+                  <Input
+                    id="current-password"
+                    type={showCurrentPassword ? "text" : "password"}
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    placeholder="Enter current password"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                    onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                  >
+                    {showCurrentPassword ? (
+                      <EyeOff className="h-4 w-4 text-gray-500" />
+                    ) : (
+                      <Eye className="h-4 w-4 text-gray-500" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="new-password">New Password</Label>
+                <div className="relative">
+                  <Input
+                    id="new-password"
+                    type={showNewPassword ? "text" : "password"}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Enter new password"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                    onClick={() => setShowNewPassword(!showNewPassword)}
+                  >
+                    {showNewPassword ? (
+                      <EyeOff className="h-4 w-4 text-gray-500" />
+                    ) : (
+                      <Eye className="h-4 w-4 text-gray-500" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirm-password">Confirm New Password</Label>
+                <div className="relative">
+                  <Input
+                    id="confirm-password"
+                    type={showConfirmPassword ? "text" : "password"}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Confirm new password"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  >
+                    {showConfirmPassword ? (
+                      <EyeOff className="h-4 w-4 text-gray-500" />
+                    ) : (
+                      <Eye className="h-4 w-4 text-gray-500" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+              <Separator />
+              <Button onClick={handleChangePassword} className="w-full sm:w-auto">
+                <Lock className="w-4 h-4 mr-2" />
+                Change Password
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Notifications Tab */}
+        <TabsContent value="notifications">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Bell className="w-5 h-5" />
+                Notification Preferences
+              </CardTitle>
+              <CardDescription>
+                Choose how you want to be notified about updates and activities
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="email-notifications">Email Notifications</Label>
+                  <p className="text-sm text-gray-500">
+                    Receive notifications via email
+                  </p>
+                </div>
+                <Switch
+                  id="email-notifications"
+                  checked={emailNotifications}
+                  onCheckedChange={setEmailNotifications}
+                />
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="push-notifications">Push Notifications</Label>
+                  <p className="text-sm text-gray-500">
+                    Receive push notifications in your browser
+                  </p>
+                </div>
+                <Switch
+                  id="push-notifications"
+                  checked={pushNotifications}
+                  onCheckedChange={setPushNotifications}
+                />
+              </div>
+              <Separator />
+              <div className="space-y-4">
+                <h4 className="font-medium text-sm">Notification Types</h4>
+                <div className="space-y-4 pl-4">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="leave-notifications">Leave Requests</Label>
+                      <p className="text-sm text-gray-500">
+                        Notifications about leave applications and approvals
+                      </p>
+                    </div>
+                    <Switch
+                      id="leave-notifications"
+                      checked={leaveNotifications}
+                      onCheckedChange={setLeaveNotifications}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="attendance-notifications">Attendance</Label>
+                      <p className="text-sm text-gray-500">
+                        Notifications about attendance records
+                      </p>
+                    </div>
+                    <Switch
+                      id="attendance-notifications"
+                      checked={attendanceNotifications}
+                      onCheckedChange={setAttendanceNotifications}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="payroll-notifications">Payroll</Label>
+                      <p className="text-sm text-gray-500">
+                        Notifications about payroll and salary updates
+                      </p>
+                    </div>
+                    <Switch
+                      id="payroll-notifications"
+                      checked={payrollNotifications}
+                      onCheckedChange={setPayrollNotifications}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="system-notifications">System Updates</Label>
+                      <p className="text-sm text-gray-500">
+                        Important system announcements and updates
+                      </p>
+                    </div>
+                    <Switch
+                      id="system-notifications"
+                      checked={systemNotifications}
+                      onCheckedChange={setSystemNotifications}
+                    />
+                  </div>
+                </div>
+              </div>
+              <Separator />
+              <Button onClick={handleSaveNotifications} className="w-full sm:w-auto">
+                <Save className="w-4 h-4 mr-2" />
+                Save Preferences
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Preferences Tab */}
+        <TabsContent value="preferences">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Palette className="w-5 h-5" />
+                User Preferences
+              </CardTitle>
+              <CardDescription>
+                Customize your application experience
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-2">
+                <Label htmlFor="language">Language</Label>
+                <select
+                  id="language"
+                  value={language}
+                  onChange={(e) => setLanguage(e.target.value)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <option value="en">English</option>
+                  <option value="es">Spanish</option>
+                  <option value="fr">French</option>
+                  <option value="de">German</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="timezone">Timezone</Label>
+                <select
+                  id="timezone"
+                  value={timezone}
+                  onChange={(e) => setTimezone(e.target.value)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <option value="UTC">UTC</option>
+                  <option value="America/New_York">Eastern Time (ET)</option>
+                  <option value="America/Chicago">Central Time (CT)</option>
+                  <option value="America/Denver">Mountain Time (MT)</option>
+                  <option value="America/Los_Angeles">Pacific Time (PT)</option>
+                  <option value="Europe/London">London (GMT)</option>
+                  <option value="Asia/Kolkata">India (IST)</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="date-format">Date Format</Label>
+                <select
+                  id="date-format"
+                  value={dateFormat}
+                  onChange={(e) => setDateFormat(e.target.value)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <option value="MM/DD/YYYY">MM/DD/YYYY</option>
+                  <option value="DD/MM/YYYY">DD/MM/YYYY</option>
+                  <option value="YYYY-MM-DD">YYYY-MM-DD</option>
+                  <option value="DD MMM YYYY">DD MMM YYYY</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="theme">Theme</Label>
+                <select
+                  id="theme"
+                  value={theme}
+                  onChange={(e) => setTheme(e.target.value)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <option value="light">Light</option>
+                  <option value="dark">Dark</option>
+                  <option value="system">System</option>
+                </select>
+              </div>
+              <Separator />
+              <Button onClick={handleSavePreferences} className="w-full sm:w-auto">
+                <Save className="w-4 h-4 mr-2" />
+                Save Preferences
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
+  )
+}
+

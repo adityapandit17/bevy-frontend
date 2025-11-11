@@ -144,6 +144,13 @@ export default function AttendancePage() {
              permName?.includes("leave") && (permName?.includes("create") || permName?.includes("approve") || permName?.includes("index"))
     })
   
+  // Check for leave_management module permission
+  const hasLeaveManagementPermission = checkPermission("leave_management.index") ||
+    permissions?.some((p: any) => {
+      const permName = typeof p === 'string' ? p : p.name
+      return permName === "leave_management.index"
+    })
+  
   // Attendance is self-service only per plan → never allow selecting other employees here
   const canSelectEmployee = false
   
@@ -173,11 +180,14 @@ export default function AttendancePage() {
   // Data
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([])
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([])
+  const [pendingApprovals, setPendingApprovals] = useState<LeaveRequest[]>([])
   const [employees, setEmployees] = useState<any[]>([])
   const [departments, setDepartments] = useState<any[]>([])
   const [attendanceStats, setAttendanceStats] = useState<AttendanceStats | null>(null)
   const [leaveBalance, setLeaveBalance] = useState<LeaveBalance[]>([])
   const [todayAttendance, setTodayAttendance] = useState<AttendanceRecord | null>(null)
+  const [selectedEmployeeForManagement, setSelectedEmployeeForManagement] = useState<number | null>(null)
+  const [showManagementLeaveForm, setShowManagementLeaveForm] = useState(false)
   
   // UI State
   const [loading, setLoading] = useState(false)
@@ -209,6 +219,23 @@ export default function AttendancePage() {
     }
   }, [canSelectEmployee, user?.employee?.id])
 
+  // Fetch data on mount
+  useEffect(() => {
+    fetchDepartments()
+    fetchAttendanceRecords()
+    fetchLeaveRequests()
+    fetchEmployees()
+    fetchAttendanceStats()
+    fetchTodayAttendance()
+  }, [])
+
+  // Fetch pending approvals when user has permission
+  useEffect(() => {
+    if (hasLeaveManagementPermission && user?.employee?.id) {
+      fetchPendingApprovals()
+    }
+  }, [hasLeaveManagementPermission, user?.employee?.id])
+
   // Fetch functions
   const fetchAttendanceRecords = async () => {
     setLoading(true)
@@ -239,6 +266,19 @@ export default function AttendancePage() {
       }
     } catch (error) {
       console.error('Error fetching leave requests:', error)
+    }
+  }
+
+  const fetchPendingApprovals = async () => {
+    try {
+      const url = `${getEndpointUrl('LEAVE_REQUESTS')}?manager_pending=true`
+      const response = await fetch(url)
+      if (response.ok) {
+        const data = await response.json()
+        setPendingApprovals(data)
+      }
+    } catch (error) {
+      console.error('Error fetching pending approvals:', error)
     }
   }
 
@@ -609,11 +649,14 @@ export default function AttendancePage() {
 
       {/* Main Content Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full max-w-2xl grid-cols-4">
+        <TabsList className={`grid w-full max-w-2xl ${hasLeaveManagementPermission ? 'grid-cols-5' : 'grid-cols-4'}`}>
           <TabsTrigger value="attendance">Attendance</TabsTrigger>
           <TabsTrigger value="leave-requests">Leave Requests</TabsTrigger>
           <TabsTrigger value="leave-balance">Leave Balance</TabsTrigger>
           <TabsTrigger value="calendar">Calendar</TabsTrigger>
+          {hasLeaveManagementPermission && (
+            <TabsTrigger value="leave-management">Leave Management</TabsTrigger>
+          )}
         </TabsList>
 
         {/* Attendance Tab */}
@@ -864,9 +907,136 @@ export default function AttendancePage() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* Leave Management Tab */}
+        {hasLeaveManagementPermission && (
+          <TabsContent value="leave-management" className="space-y-6">
+            {/* Apply Leave for Others Section */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Apply Leave for Others</CardTitle>
+                    <CardDescription>Apply leave on behalf of employees</CardDescription>
+                  </div>
+                  <Button onClick={() => setShowManagementLeaveForm(true)}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Apply Leave
+                  </Button>
+                </div>
+              </CardHeader>
+            </Card>
+
+            {/* Pending Approvals Section (for Managers) */}
+            {pendingApprovals.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <AlertCircle className="w-5 h-5 text-yellow-600" />
+                    Pending Approvals ({pendingApprovals.length})
+                  </CardTitle>
+                  <CardDescription>Leave requests from your direct reports awaiting your approval</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {pendingApprovals.map((request) => (
+                      <div key={request.id} className="border rounded-lg p-4 flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3">
+                            <div>
+                              <p className="font-medium">{request.employee_name}</p>
+                              <p className="text-sm text-gray-600">{request.employee_department}</p>
+                            </div>
+                            <Badge className={getStatusColor(request.status)}>
+                              {request.leave_type_label}
+                            </Badge>
+                            <div className="text-sm text-gray-600">
+                              {request.formatted_start_date} - {request.formatted_end_date}
+                            </div>
+                            <div className="text-sm text-gray-600">
+                              {request.days} day{request.days !== 1 ? 's' : ''}
+                            </div>
+                          </div>
+                          <p className="text-sm text-gray-500 mt-2">{request.reason}</p>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-green-600 border-green-600 hover:bg-green-50"
+                            onClick={async () => {
+                              try {
+                                const response = await fetch(getApiUrl(`/leave_requests/${request.id}/approve`), {
+                                  method: 'PATCH',
+                                  headers: { 'Content-Type': 'application/json' }
+                                })
+                                if (response.ok) {
+                                  await fetchPendingApprovals()
+                                  await fetchLeaveRequests()
+                                }
+                              } catch (error) {
+                                console.error('Error approving leave:', error)
+                              }
+                            }}
+                          >
+                            <CheckCircle className="w-4 h-4 mr-1" />
+                            Approve
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-red-600 border-red-600 hover:bg-red-50"
+                            onClick={async () => {
+                              try {
+                                const response = await fetch(getApiUrl(`/leave_requests/${request.id}/reject`), {
+                                  method: 'PATCH',
+                                  headers: { 'Content-Type': 'application/json' }
+                                })
+                                if (response.ok) {
+                                  await fetchPendingApprovals()
+                                  await fetchLeaveRequests()
+                                }
+                              } catch (error) {
+                                console.error('Error rejecting leave:', error)
+                              }
+                            }}
+                          >
+                            <XCircle className="w-4 h-4 mr-1" />
+                            Reject
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* All Leave Requests Section */}
+            <Card>
+              <CardHeader>
+                <CardTitle>All Leave Requests</CardTitle>
+                <CardDescription>View and manage all employee leave requests</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <LeaveRequestManagement
+                  onRefresh={() => {
+                    fetchLeaveRequests()
+                    fetchPendingApprovals()
+                  }}
+                  onError={(error) => setLeaveError(error)}
+                  onViewDetails={(request) => {
+                    setSelectedLeaveRequest(request)
+                    setShowLeaveDetails(true)
+                  }}
+                />
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
       </Tabs>
 
-      {/* Leave Request Form Modal */}
+      {/* Leave Request Form Modal (Self) */}
       {showLeaveForm && (
         <LeaveRequestForm
           onClose={() => setShowLeaveForm(false)}
@@ -874,6 +1044,57 @@ export default function AttendancePage() {
           employeeId={user?.employee?.id || undefined}
           canSelectEmployee={false}
           mode="self"
+          employees={employees}
+        />
+      )}
+
+      {/* Leave Request Form Modal (Management - for others) */}
+      {showManagementLeaveForm && hasLeaveManagementPermission && (
+        <LeaveRequestForm
+          onClose={() => {
+            setShowManagementLeaveForm(false)
+            setSelectedEmployeeForManagement(null)
+          }}
+          onSubmit={async (formData) => {
+            const employeeId = selectedEmployeeForManagement || formData.employee_id
+            if (!employeeId) {
+              setLeaveError("Please select an employee")
+              return
+            }
+            const requestData = mapLeaveRequestToBackend({
+              ...formData,
+              employee_id: employeeId
+            })
+            
+            try {
+              const response = await fetch(getEndpointUrl('LEAVE_REQUESTS'), {
+                method: 'POST',
+                headers: { 
+                  'Content-Type': 'application/json',
+                  'Accept': 'application/json'
+                },
+                body: JSON.stringify(requestData)
+              })
+              
+              if (response.ok) {
+                setShowManagementLeaveForm(false)
+                setSelectedEmployeeForManagement(null)
+                setLeaveError(null)
+                await fetchLeaveRequests()
+                await fetchPendingApprovals()
+              } else {
+                const errorData = await response.json()
+                const errorMessage = errorData.errors?.join(', ') || 'Failed to create leave request'
+                setLeaveError(errorMessage)
+              }
+            } catch (error) {
+              console.error('Error submitting leave request:', error)
+              setLeaveError(`Network error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+            }
+          }}
+          employeeId={selectedEmployeeForManagement || undefined}
+          canSelectEmployee={true}
+          mode="manager"
           employees={employees}
         />
       )}

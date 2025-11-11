@@ -34,11 +34,19 @@ import { useAuthContext } from "@/lib/auth"
 
 // Backend-driven; UI will fetch roles and permissions
 
-const permissionModules = [
+interface PermissionModule {
+  name: string
+  label: string
+  icon: string
+  singlePermission?: boolean
+}
+
+const permissionModules: PermissionModule[] = [
   { name: "employees", label: "Employee Management", icon: "👥" },
   { name: "payrolls", label: "Payroll", icon: "💰" },
   { name: "attendance_records", label: "Attendance", icon: "⏰" },
-  { name: "leave_requests", label: "Leave Management", icon: "🏖️" },
+  { name: "leave_requests", label: "Leave Requests", icon: "🏖️" },
+  { name: "leave_management", label: "Leave Management", icon: "📋", singlePermission: true },
   { name: "candidates", label: "Recruitment", icon: "🎯" },
   { name: "interviews", label: "Interviews", icon: "💼" },
   { name: "performance_reviews", label: "Performance", icon: "📊" },
@@ -150,6 +158,19 @@ export default function RolePermissionsEditor() {
   }
 
   const getDefaultPermissionsForModule = (module: string): Permission[] => {
+    const moduleInfo = permissionModules.find(m => m.name === module)
+    // If it's a single permission module, only return index action
+    if (moduleInfo?.singlePermission) {
+      return [{
+        id: getNextPermissionId(),
+        name: `${module}.index`,
+        resource: module,
+        action: "index",
+        description: `Access ${moduleInfo.label || module}`,
+        granted: false,
+      }]
+    }
+    // Otherwise, return CRUD actions
     const actions = ["index", "create", "update", "destroy"] as const
     return actions.map((action, idx) => ({
       id: getNextPermissionId() + idx,
@@ -507,58 +528,124 @@ export default function RolePermissionsEditor() {
 
                         return modulesToShow.map((module) => {
                           const moduleInfo = permissionModules.find(m => m.name === module)
-                          const permissions = mergedForRole.filter(p => p.resource === module)
+                          const isSinglePermission = moduleInfo?.singlePermission || false
+                          // For single permission modules, only show the index permission (or first one if no index)
+                          let permissions = mergedForRole.filter(p => p.resource === module)
+                          if (isSinglePermission) {
+                            // Filter to only show index permission, or first permission if no index exists
+                            const indexPermission = permissions.find(p => p.action === "index")
+                            permissions = indexPermission ? [indexPermission] : (permissions.length > 0 ? [permissions[0]] : [])
+                          }
+                          
                           return (
                             <div key={module} className="border rounded-lg p-4">
                               <div className="flex items-center gap-2 mb-3">
                                 <span className="text-lg">{moduleInfo?.icon}</span>
                                 <h4 className="font-medium text-gray-900">{moduleInfo?.label || module}</h4>
-                                <Badge variant="outline" className="text-xs">
-                                  {permissions.filter(p => p.granted).length}/{permissions.length} granted
-                                </Badge>
+                                {!isSinglePermission && (
+                                  <Badge variant="outline" className="text-xs">
+                                    {permissions.filter(p => p.granted).length}/{permissions.length} granted
+                                  </Badge>
+                                )}
                               </div>
                               {permissions.length > 0 ? (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                  {permissions.map((permission) => (
-                                    <div
-                                      key={permission.name}
-                                      className={`flex items-center justify-between p-3 border rounded-lg ${
-                                        permission.granted ? "border-green-200 bg-green-50" : "border-gray-200"
-                                      }`}
-                                    >
-                                      <div className="flex-1">
-                                        <div className="flex items-center gap-2">
-                                          <h5 className="font-medium text-sm text-gray-900">
-                                            {permission.action.charAt(0).toUpperCase() + permission.action.slice(1)}
-                                          </h5>
-                                          {permission.granted ? (
-                                            <CheckCircle className="w-4 h-4 text-green-500" />
-                                          ) : (
-                                            <XCircle className="w-4 h-4 text-gray-400" />
+                                isSinglePermission ? (
+                                  // Single permission display - full width, more prominent (no module header, no action name)
+                                  <div className="space-y-3">
+                                    {permissions.map((permission) => {
+                                      // Clean description - remove any "index" references
+                                      const cleanDescription = permission.description
+                                        ?.replace(/^\s*index\s*/i, '')
+                                        ?.replace(/\s*index\s*$/i, '')
+                                        ?.replace(/\s*\(index\)\s*/i, '')
+                                        ?.trim() || `Access to ${moduleInfo?.label || module} module`
+                                      
+                                      return (
+                                        <div
+                                          key={permission.name}
+                                          className={`flex items-center justify-between p-4 border-2 rounded-lg transition-colors ${
+                                            permission.granted 
+                                              ? "border-green-300 bg-green-50 shadow-sm" 
+                                              : "border-gray-200 bg-white"
+                                          }`}
+                                        >
+                                          <div className="flex-1">
+                                            <div className="flex items-center gap-3">
+                                              {permission.granted ? (
+                                                <CheckCircle className="w-5 h-5 text-green-600" />
+                                              ) : (
+                                                <XCircle className="w-5 h-5 text-gray-400" />
+                                              )}
+                                              <div>
+                                                <h5 className="font-semibold text-base text-gray-900">
+                                                  {moduleInfo?.label || module}
+                                                </h5>
+                                                <p className="text-sm text-gray-600 mt-1">
+                                                  {cleanDescription}
+                                                </p>
+                                              </div>
+                                            </div>
+                                          </div>
+                                          {isEditing && (
+                                            <Switch
+                                              checked={permission.granted}
+                                              onCheckedChange={() => handlePermissionToggle(selectedRole.id, permission.name, permission.id)}
+                                              className="ml-4"
+                                            />
                                           )}
                                         </div>
-                                        <p className="text-xs text-gray-500 mt-1">{permission.description}</p>
+                                      )
+                                    })}
+                                  </div>
+                                ) : (
+                                  // CRUD permissions display - grid layout
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    {permissions.map((permission) => (
+                                      <div
+                                        key={permission.name}
+                                        className={`flex items-center justify-between p-3 border rounded-lg ${
+                                          permission.granted ? "border-green-200 bg-green-50" : "border-gray-200"
+                                        }`}
+                                      >
+                                        <div className="flex-1">
+                                          <div className="flex items-center gap-2">
+                                            <h5 className="font-medium text-sm text-gray-900">
+                                              {permission.action.charAt(0).toUpperCase() + permission.action.slice(1)}
+                                            </h5>
+                                            {permission.granted ? (
+                                              <CheckCircle className="w-4 h-4 text-green-500" />
+                                            ) : (
+                                              <XCircle className="w-4 h-4 text-gray-400" />
+                                            )}
+                                          </div>
+                                          <p className="text-xs text-gray-500 mt-1">{permission.description}</p>
+                                        </div>
+                                        {isEditing && (
+                                          <Switch
+                                            checked={permission.granted}
+                                            onCheckedChange={() => handlePermissionToggle(selectedRole.id, permission.name, permission.id)}
+                                          />
+                                        )}
                                       </div>
-                                      {isEditing && (
-                                        <Switch
-                                          checked={permission.granted}
-                                          onCheckedChange={() => handlePermissionToggle(selectedRole.id, permission.name, permission.id)}
-                                        />
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
+                                    ))}
+                                  </div>
+                                )
                               ) : (
                                 <div className="p-4 rounded-lg border border-dashed text-sm text-gray-700 space-y-3">
-                                  <div className="text-gray-600">No permissions defined for this module yet.</div>
+                                  <div className="text-gray-600">
+                                    {isSinglePermission 
+                                      ? `No permission defined for ${moduleInfo?.label || module} yet.` 
+                                      : "No permissions defined for this module yet."}
+                                  </div>
                                   <div className="flex flex-wrap gap-2">
                                     <Button variant="outline" size="sm" onClick={() => addDefaultPermissionsForModule(module)}>
-                                      Add default permissions
+                                      {isSinglePermission ? "Add permission" : "Add default permissions"}
                                     </Button>
-                                    <Dialog open={addPermissionForModule === module} onOpenChange={(open) => setAddPermissionForModule(open ? module : null)}>
-                                      <DialogTrigger asChild>
-                                        <Button variant="outline" size="sm">Add custom permission</Button>
-                                      </DialogTrigger>
+                                    {!isSinglePermission && (
+                                      <Dialog open={addPermissionForModule === module} onOpenChange={(open) => setAddPermissionForModule(open ? module : null)}>
+                                        <DialogTrigger asChild>
+                                          <Button variant="outline" size="sm">Add custom permission</Button>
+                                        </DialogTrigger>
                                       <DialogContent>
                                         <DialogHeader>
                                           <DialogTitle>Add Permission</DialogTitle>
@@ -596,6 +683,7 @@ export default function RolePermissionsEditor() {
                                         </div>
                                       </DialogContent>
                                     </Dialog>
+                                    )}
                                   </div>
                                 </div>
                               )}

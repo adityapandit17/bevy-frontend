@@ -31,6 +31,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { useAuthContext } from "@/lib/auth"
+import { NotificationsDropdown } from "@/components/notifications-dropdown"
 
 type NavItem = {
   title: string
@@ -214,12 +215,14 @@ export function TopNav() {
             </div>
 
             {/* Notifications */}
-            <Button variant="ghost" size="sm" className="relative" aria-label="Notifications">
-              <Bell className="w-5 h-5 text-gray-600" />
-              <Badge className="absolute -top-1 -right-1 w-5 h-5 p-0 flex items-center justify-center text-xs bg-red-500">
-                3
-              </Badge>
-            </Button>
+            <NotificationsDropdown>
+              <Button variant="ghost" size="sm" className="relative" aria-label="Notifications">
+                <Bell className="w-5 h-5 text-gray-600" />
+                <Badge className="absolute -top-1 -right-1 w-5 h-5 p-0 flex items-center justify-center text-xs bg-red-500">
+                  3
+                </Badge>
+              </Button>
+            </NotificationsDropdown>
 
             {/* User Menu */}
             <DropdownMenu>
@@ -234,9 +237,15 @@ export function TopNav() {
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>My Account</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem>Profile</DropdownMenuItem>
-                <DropdownMenuItem>Settings</DropdownMenuItem>
-                <DropdownMenuItem>Help & Support</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => router.push('/profile')}>
+                  Profile
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => router.push('/user-settings')}>
+                  Settings
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => router.push('/helpdesk')}>
+                  Help & Support
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem className="text-red-600" onClick={handleLogout}>Sign out</DropdownMenuItem>
               </DropdownMenuContent>

@@ -112,10 +112,10 @@ const navItems: NavItem[] = [
   },
   {
     title: "Leave Management",
-    href: "/leave-management",
+    href: "/attendance?tab=leave-management",
     icon: CalendarCheck,
     segment: "leave-management",
-    resourceKeys: ["leave_requests"],
+    resourceKeys: ["leave_management"],
   },
   {
     title: "Learning & Development",
