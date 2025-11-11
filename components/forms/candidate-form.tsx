@@ -134,7 +134,9 @@ export function CandidateForm({ candidate, onSave, onCancel, isLoading = false }
             : departmentOptions.find(
                 d => d.toLowerCase() === (candidate.department || "").toLowerCase()
               ) || prev.department,
-        status: candidate.status || prev.status,
+        status: candidate.status && statusOptions.find(s => s.value === candidate.status)
+          ? candidate.status
+          : prev.status,
       }))
     }
   }, [candidate])
@@ -250,6 +252,10 @@ export function CandidateForm({ candidate, onSave, onCancel, isLoading = false }
     setIsUploading(true)
     try {
       const candidateData = { ...formData }
+
+      if (Array.isArray(candidateData.skills)) {
+        candidateData.skills = candidateData.skills.join(", ")
+      }
 
       // Upload files if they exist
       if (resumeFile) {
@@ -387,7 +393,11 @@ export function CandidateForm({ candidate, onSave, onCancel, isLoading = false }
 
             <div className="space-y-2">
               <Label htmlFor="status">Status *</Label>
-              <Select value={formData.status} onValueChange={(value) => handleInputChange("status", value)}>
+              <Select
+                key={formData.status || "no-status"}
+                value={formData.status || ""}
+                onValueChange={(value) => handleInputChange("status", value)}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select status" />
                 </SelectTrigger>
