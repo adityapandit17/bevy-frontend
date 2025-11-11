@@ -8,8 +8,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { X, Plus, Save, UserPlus, Upload, FileText, Trash2 } from "lucide-react"
-import { getApiUrl, getEndpointUrl } from "@/lib/api"
+import { X, Plus, Save, UserPlus, Upload, FileText, Trash2, Eye } from "lucide-react"
+import { getApiUrl, getEndpointUrl, getDocumentUrl, getFileType } from "@/lib/api"
+import { DocumentPreview } from "@/components/ui/document-preview"
 
 interface Candidate {
   id?: string
@@ -93,6 +94,26 @@ export function CandidateForm({ candidate, onSave, onCancel, isLoading = false }
   const [isUploading, setIsUploading] = useState(false)
   const resumeInputRef = useRef<HTMLInputElement>(null)
   const coverLetterInputRef = useRef<HTMLInputElement>(null)
+  
+  const [previewState, setPreviewState] = useState({
+    open: false,
+    documentUrl: '',
+    documentName: '',
+    documentType: 'pdf'
+  })
+
+  const handleDocumentPreview = (url: string, name: string, type?: string) => {
+    setPreviewState({
+      open: true,
+      documentUrl: url,
+      documentName: name,
+      documentType: type || getFileType(url) || 'pdf'
+    })
+  }
+
+  const handleClosePreview = (open: boolean) => {
+    setPreviewState(prev => ({ ...prev, open }))
+  }
 
   useEffect(() => {
     if (candidate) {
@@ -539,14 +560,16 @@ export function CandidateForm({ candidate, onSave, onCancel, isLoading = false }
 
             {!resumeFile && formData.resume && (
               <div className="flex items-center justify-between text-sm text-gray-700 mt-2">
-                <a
-                  href={formData.resume}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-600 hover:underline"
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleDocumentPreview(getDocumentUrl(formData.resume, false), 'Resume', getFileType(formData.resume))}
+                  className="text-blue-600 hover:text-blue-700 hover:underline p-0 h-auto"
                 >
+                  <Eye className="w-4 h-4 mr-1" />
                   View existing resume
-                </a>
+                </Button>
                 <Button
                   type="button"
                   variant="ghost"
@@ -609,14 +632,16 @@ export function CandidateForm({ candidate, onSave, onCancel, isLoading = false }
 
             {!coverLetterFile && formData.cover_letter && (
               <div className="flex items-center justify-between text-sm text-gray-700 mt-2">
-                <a
-                  href={formData.cover_letter}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-600 hover:underline"
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleDocumentPreview(getDocumentUrl(formData.cover_letter || '', false), 'Cover Letter', getFileType(formData.cover_letter || ''))}
+                  className="text-blue-600 hover:text-blue-700 hover:underline p-0 h-auto"
                 >
+                  <Eye className="w-4 h-4 mr-1" />
                   View existing cover letter
-                </a>
+                </Button>
                 <Button
                   type="button"
                   variant="ghost"
@@ -669,6 +694,15 @@ export function CandidateForm({ candidate, onSave, onCancel, isLoading = false }
           )}
         </Button>
       </div>
+
+      {/* Document Preview Dialog */}
+      <DocumentPreview
+        open={previewState.open}
+        onOpenChange={handleClosePreview}
+        documentUrl={previewState.documentUrl}
+        documentName={previewState.documentName}
+        documentType={previewState.documentType}
+      />
     </form>
   )
 }
