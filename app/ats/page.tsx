@@ -56,7 +56,7 @@ import {
 } from "lucide-react"
 import { InterviewForm } from "@/components/forms/interview-form"
 import { CandidateForm } from "@/components/forms/candidate-form"
-import { DocumentPreview, useDocumentPreview } from "@/components/ui/document-preview"
+import { DocumentPreview } from "@/components/ui/document-preview"
 
 interface Candidate {
   id: string
@@ -147,12 +147,16 @@ export default function ATSPage() {
   })
   const [interviews, setInterviews] = useState<Interview[]>([])
   
-  const [previewState, setPreviewState, closePreview] = useState({
+  const [previewState, setPreviewState] = useState({
       open: false,
       documentUrl: '',
       documentName: '',
       documentType: ''
     })
+
+  const handleClosePreview = (open: boolean) => {
+    setPreviewState(prev => ({ ...prev, open }))
+  }
 
   useEffect(() => {
     fetchCandidates()
@@ -1042,7 +1046,7 @@ export default function ATSPage() {
       {/* Document Preview Dialog */}
       <DocumentPreview
         open={previewState.open}
-        onOpenChange={closePreview}
+        onOpenChange={handleClosePreview}
         documentUrl={previewState.documentUrl}
         documentName={previewState.documentName}
         documentType={previewState.documentType}
