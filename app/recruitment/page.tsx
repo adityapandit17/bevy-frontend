@@ -39,6 +39,7 @@ export default function RecruitmentPage() {
   const [jobOpenings, setJobOpenings] = useState([])
   const [allJobOpenings, setAllJobOpenings] = useState([]) // For stats calculation
   const [candidates, setCandidates] = useState([])
+  const [candidateSearchTerm, setCandidateSearchTerm] = useState("")
   const [interviews, setInterviews] = useState([])
   const [stats, setStats] = useState({
     activeJobOpenings: 0,
@@ -99,6 +100,15 @@ export default function RecruitmentPage() {
     }
   }
 
+  const filteredCandidates = candidates.filter((candidate) => {
+    const term = candidateSearchTerm.toLowerCase();
+    return (
+      candidate.name?.toLowerCase().includes(term) ||
+      candidate.email?.toLowerCase().includes(term) ||
+      candidate.position?.toLowerCase().includes(term)
+    );
+  });
+  
   const fetchJobOpenings = async (query = "") => {
     try {
       const url = query
@@ -568,7 +578,12 @@ export default function RecruitmentPage() {
               <div className="flex flex-col sm:flex-row gap-4 mb-6">
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                  <Input placeholder="Search candidates..." className="pl-10" />
+                  <Input
+                    placeholder="Search candidates..."
+                    value={candidateSearchTerm}
+                    onChange={(e) => setCandidateSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
                 </div>
               </div>
 
@@ -593,7 +608,7 @@ export default function RecruitmentPage() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      candidates.map((candidate) => (
+                        filteredCandidates.map((candidate) => (
                         <TableRow key={candidate.id}>
                           <TableCell>
                             <div>
