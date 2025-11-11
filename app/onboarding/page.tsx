@@ -138,11 +138,11 @@ export default function OnboardingPage() {
   useEffect(() => {
     if (selectedEmployee && allOnboardingEmployees.length > 0) {
       const updatedEmployee = allOnboardingEmployees.find(emp => emp.id === selectedEmployee.id)
-      if (updatedEmployee && updatedEmployee.progress !== selectedEmployee.progress) {
+      if (updatedEmployee) {
         setSelectedEmployee(updatedEmployee)
       }
     }
-  }, [allOnboardingEmployees, selectedEmployee])
+  }, [allOnboardingEmployees])
 
   const fetchOnboardingEmployees = async () => {
     setLoading(true)
