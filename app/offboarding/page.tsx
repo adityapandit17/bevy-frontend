@@ -153,6 +153,7 @@ export default function OffboardingPage() {
   const [stats, setStats] = useState<OffboardingStats | null>(null)
   const [selectedEmployee, setSelectedEmployee] = useState<OffboardingEmployee | null>(null)
   const [showAddDialog, setShowAddDialog] = useState(false)
+  const [editEmployee, setEditEmployee] = useState<OffboardingEmployee | null>(null)
   const [loading, setLoading] = useState(false)
   const [employees, setEmployees] = useState<Employee[]>([])
   const [formData, setFormData] = useState<OffboardingFormData>({
@@ -271,21 +272,21 @@ export default function OffboardingPage() {
   const validateForm = (): boolean => {
     const errors: Partial<OffboardingFormData> = {}
     
-    if (!formData.employeeId) {
+    if (!editEmployee && !formData.employeeId) {
       errors.employeeId = "Employee is required"
     }
     if (!formData.lastWorkingDay) {
       errors.lastWorkingDay = "Last working day is required"
     }
-    if (!formData.reason) {
+    if (!editEmployee && !formData.reason) {
       errors.reason = "Reason is required"
     }
     if (!formData.assignedTo) {
       errors.assignedTo = "Assigned to is required"
     }
     
-    // Validate last working day is in the future
-    if (formData.lastWorkingDay && new Date(formData.lastWorkingDay) <= new Date()) {
+    // Validate last working day is in the future (only for new entries, allow past dates for edits)
+    if (!editEmployee && formData.lastWorkingDay && new Date(formData.lastWorkingDay) <= new Date()) {
       errors.lastWorkingDay = "Last working day must be in the future"
     }
     
@@ -386,6 +387,7 @@ export default function OffboardingPage() {
     })
     setFormErrors({})
     setSubmitError(null)
+    setEditEmployee(null)
     setShowAddDialog(false)
   }
 
@@ -559,6 +561,84 @@ export default function OffboardingPage() {
     await fetchOffboardingTasks()
   }
 
+  const handleEdit = (employee: OffboardingEmployee) => {
+    setEditEmployee(employee)
+    setFormData({
+      employeeId: employee.employeeId.toString(),
+      lastWorkingDay: employee.lastWorkingDay.split('T')[0], // Format date for input
+      reason: "",
+      assignedTo: employee.assignedTo || "",
+      notes: employee.notes || ""
+    })
+    setFormErrors({})
+    setSubmitError(null)
+    setShowAddDialog(true)
+  }
+
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (!editEmployee) return
+    
+    if (!validateForm()) {
+      return
+    }
+    
+    setIsSubmitting(true)
+    setSubmitError(null)
+    
+    try {
+      const response = await fetch(`${getEndpointUrl('OFFBOARDING_EMPLOYEES')}/${editEmployee.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          offboarding_employee: {
+            last_working_day: formData.lastWorkingDay,
+            assigned_to: formData.assignedTo,
+            notes: formData.notes
+          }
+        })
+      })
+      
+      if (response.ok) {
+        // Reset form and close dialog
+        setFormData({
+          employeeId: "",
+          lastWorkingDay: "",
+          reason: "",
+          assignedTo: "",
+          notes: ""
+        })
+        setFormErrors({})
+        setEditEmployee(null)
+        setShowAddDialog(false)
+        
+        // Refresh data
+        await fetchOffboardingEmployees()
+        await fetchOffboardingTasks()
+        await fetchStats()
+      } else {
+        const errorData = await response.json()
+        console.error('Error updating offboarding employee:', errorData)
+        
+        if (errorData.errors && Array.isArray(errorData.errors)) {
+          setSubmitError(errorData.errors.join(', '))
+        } else if (errorData.error) {
+          setSubmitError(errorData.error)
+        } else {
+          setSubmitError('Failed to update offboarding employee. Please try again.')
+        }
+      }
+    } catch (error) {
+      console.error('Error updating form:', error)
+      setSubmitError('Network error. Please check your connection and try again.')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   return (
     <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6">
       {/* Header */}
@@ -572,18 +652,35 @@ export default function OffboardingPage() {
             <Download className="w-4 h-4 mr-2" />
             Export
           </Button>
-          <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+          <Dialog open={showAddDialog} onOpenChange={(open) => {
+            setShowAddDialog(open)
+            if (!open) {
+              setEditEmployee(null)
+              setFormData({
+                employeeId: "",
+                lastWorkingDay: "",
+                reason: "",
+                assignedTo: "",
+                notes: ""
+              })
+              setFormErrors({})
+              setSubmitError(null)
+            }
+          }}>
             <DialogTrigger asChild>
-              <Button size="sm" onClick={() => setShowAddDialog(true)}>
+              <Button size="sm" onClick={() => {
+                setEditEmployee(null)
+                setShowAddDialog(true)
+              }}>
                 <Plus className="w-4 h-4 mr-2" />
                 Start Offboarding
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[500px]">
               <DialogHeader>
-                <DialogTitle>Start Employee Offboarding</DialogTitle>
+                <DialogTitle>{editEmployee ? 'Edit Offboarding Employee' : 'Start Employee Offboarding'}</DialogTitle>
                 <DialogDescription>
-                  Initiate the offboarding process for an employee.
+                  {editEmployee ? 'Update the offboarding details for this employee.' : 'Initiate the offboarding process for an employee.'}
                 </DialogDescription>
               </DialogHeader>
               
@@ -601,7 +698,7 @@ export default function OffboardingPage() {
                 </div>
               )}
               
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={editEmployee ? handleUpdate : handleSubmit} className="space-y-4">
                 <div className="grid gap-4 py-4">
                   <div className="grid grid-cols-4 items-center gap-4">
                     <label htmlFor="employee" className="text-right text-sm font-medium">
@@ -611,6 +708,7 @@ export default function OffboardingPage() {
                       <Select
                         value={formData.employeeId}
                         onValueChange={(value) => handleInputChange('employeeId', value)}
+                        disabled={!!editEmployee}
                       >
                         <SelectTrigger className={formErrors.employeeId ? 'border-red-500' : ''}>
                           <SelectValue placeholder="Select employee" />
@@ -654,31 +752,33 @@ export default function OffboardingPage() {
                     </div>
                   </div>
                   
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <label htmlFor="reason" className="text-right text-sm font-medium">
-                      Reason *
-                    </label>
-                    <div className="col-span-3">
-                      <Select
-                        value={formData.reason}
-                        onValueChange={(value) => handleInputChange('reason', value)}
-                      >
-                        <SelectTrigger className={formErrors.reason ? 'border-red-500' : ''}>
-                          <SelectValue placeholder="Select reason" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="resignation">Resignation</SelectItem>
-                          <SelectItem value="termination">Termination</SelectItem>
-                          <SelectItem value="retirement">Retirement</SelectItem>
-                          <SelectItem value="contract-end">Contract End</SelectItem>
-                          <SelectItem value="personal">Personal Reasons</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      {formErrors.reason && (
-                        <p className="text-red-500 text-xs mt-1">{formErrors.reason}</p>
-                      )}
+                  {!editEmployee && (
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <label htmlFor="reason" className="text-right text-sm font-medium">
+                        Reason *
+                      </label>
+                      <div className="col-span-3">
+                        <Select
+                          value={formData.reason}
+                          onValueChange={(value) => handleInputChange('reason', value)}
+                        >
+                          <SelectTrigger className={formErrors.reason ? 'border-red-500' : ''}>
+                            <SelectValue placeholder="Select reason" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="resignation">Resignation</SelectItem>
+                            <SelectItem value="termination">Termination</SelectItem>
+                            <SelectItem value="retirement">Retirement</SelectItem>
+                            <SelectItem value="contract-end">Contract End</SelectItem>
+                            <SelectItem value="personal">Personal Reasons</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {formErrors.reason && (
+                          <p className="text-red-500 text-xs mt-1">{formErrors.reason}</p>
+                        )}
+                      </div>
                     </div>
-                  </div>
+                  )}
                   
                   <div className="grid grid-cols-4 items-center gap-4">
                     <label htmlFor="assigned-to" className="text-right text-sm font-medium">
@@ -733,7 +833,9 @@ export default function OffboardingPage() {
                     type="submit" 
                     disabled={isSubmitting}
                   >
-                    {isSubmitting ? 'Starting...' : 'Start Offboarding'}
+                    {isSubmitting 
+                      ? (editEmployee ? 'Updating...' : 'Starting...') 
+                      : (editEmployee ? 'Update Offboarding' : 'Start Offboarding')}
                   </Button>
                 </div>
               </form>
@@ -986,7 +1088,7 @@ export default function OffboardingPage() {
                               <Eye className="w-4 h-4 mr-2" />
                               View Details
                             </DropdownMenuItem>
-                            <DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleEdit(employee)}>
                               <Edit className="w-4 h-4 mr-2" />
                               Edit
                             </DropdownMenuItem>
