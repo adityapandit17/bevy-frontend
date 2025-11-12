@@ -342,8 +342,20 @@ export default function ATSPage() {
       })
       
       if (response.ok) {
-        // Refresh the data
-        await fetchCandidates()
+        const updatedCandidate = await response.json()
+        
+        // Update the selected candidate immediately if it's the one being updated
+        if (selectedCandidate && selectedCandidate.id === candidateId) {
+          setSelectedCandidate(updatedCandidate)
+        }
+        
+        // Update the candidates list
+        setCandidates(prevCandidates => 
+          prevCandidates.map(candidate => 
+            candidate.id === candidateId ? updatedCandidate : candidate
+          )
+        )
+        // Refresh stats
         await fetchStats()
       }
     } catch (error) {
