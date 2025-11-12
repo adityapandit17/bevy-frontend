@@ -666,14 +666,17 @@ export default function OnboardingPage() {
                               className="mt-1 h-4 w-4 text-blue-600 bg-white border-2 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 cursor-pointer checked:bg-blue-600 checked:border-blue-600 appearance-none"
                             />
                             {task.is_completed === true && (
-                              <div className="absolute top-1 left-0.5 text-white text-xs font-bold">
+                              <div className="absolute top-1 left-0.5 text-white text-xs font-bold pointer-events-none">
                                 ✓
                               </div>
                             )}
                           </div>
                           <div className="flex-1">
                             <div className="flex items-center justify-between mb-2">
-                              <h4 className={`font-medium ${task.is_completed === true ? "line-through text-gray-500" : "text-gray-900"}`}>
+                              <h4 
+                                className={`font-medium cursor-pointer ${task.is_completed === true ? "line-through text-gray-500" : "text-gray-900"}`}
+                                onClick={() => handleTaskToggle(selectedEmployee.id, task.id)}
+                              >
                                 {task.title}
                               </h4>
                               <div className="flex items-center gap-2">
