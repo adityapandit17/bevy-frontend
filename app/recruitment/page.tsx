@@ -649,7 +649,7 @@ export default function RecruitmentPage() {
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                <DropdownMenuItem>View Profile</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => router.push(`/candidates/${candidate.id}`)}>View Profile</DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => handleScheduleInterview(candidate)}>Schedule Interview</DropdownMenuItem>
                                 <DropdownMenuItem>Send Message</DropdownMenuItem>
                                 <DropdownMenuSeparator />

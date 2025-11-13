@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { getApiUrl, getEndpointUrl } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -90,19 +91,56 @@ export function InterviewFormUI({
     e.preventDefault()
     setLoading(true)
 
-    // Simulate API call delay
-    setTimeout(() => {
-      toast({
-        title: editInterview ? "Interview Updated" : "Interview Scheduled",
-        description: editInterview 
-          ? "Interview has been updated successfully."
-          : "Interview has been scheduled successfully."
+    try {
+      const url = editInterview 
+        ? getApiUrl(`interviews/${editInterview.id}`)
+        : getEndpointUrl('INTERVIEWS')
+      
+      const method = editInterview ? "PATCH" : "POST"
+      
+      const response = await fetch(url, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        body: JSON.stringify({
+          interview: {
+            ...formData,
+            candidate_id: formData.candidate_id ? parseInt(formData.candidate_id) : null,
+            status: "scheduled"
+          }
+        })
       })
-      onSuccess?.()
-      onOpenChange(false)
-      resetForm()
+
+      if (response.ok) {
+        toast({
+          title: editInterview ? "Interview Updated" : "Interview Scheduled",
+          description: editInterview 
+            ? "Interview has been updated successfully."
+            : "Interview has been scheduled successfully."
+        })
+        onSuccess?.()
+        onOpenChange(false)
+        resetForm()
+      } else {
+        const errorData = await response.json()
+        toast({
+          title: "Error",
+          description: errorData.errors?.join(", ") || "Failed to schedule interview",
+          variant: "destructive"
+        })
+      }
+    } catch (error) {
+      console.error("Error scheduling interview:", error)
+      toast({
+        title: "Error",
+        description: "Failed to schedule interview. Please try again.",
+        variant: "destructive"
+      })
+    } finally {
       setLoading(false)
-    }, 1000)
+    }
   }
 
   const resetForm = () => {
