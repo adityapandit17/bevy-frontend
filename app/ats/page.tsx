@@ -546,7 +546,7 @@ export default function ATSPage() {
               </div>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="max-h-[calc(100vh-300px)] overflow-y-auto">
             <div className="space-y-3">
               {filteredCandidates.map((candidate) => (
                 <div
