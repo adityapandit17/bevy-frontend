@@ -343,7 +343,7 @@ export default function EmployeesPage() {
                           <DropdownMenuLabel>Actions</DropdownMenuLabel>
                           <DropdownMenuItem onClick={() => handleEditEmployee(employee)}>Edit Details</DropdownMenuItem>
                           <DropdownMenuItem onClick={() => router.push(`/employees/${employee.id}`)}>View Profile</DropdownMenuItem>
-                          <DropdownMenuItem>View Payroll</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => router.push(`/employees/${employee.id}/payroll`)}>View Payroll</DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
                             onClick={() => handleToggleEmployeeStatus(employee)}
