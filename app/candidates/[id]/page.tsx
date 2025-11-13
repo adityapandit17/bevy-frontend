@@ -31,6 +31,15 @@ import {
   CalendarDays,
 } from "lucide-react"
 import { DocumentPreview } from "@/components/ui/document-preview"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { CandidateForm } from "@/components/forms/candidate-form"
+import { toast } from "@/hooks/use-toast"
 
 interface Candidate {
   id: string
@@ -78,6 +87,8 @@ export default function CandidateProfilePage() {
 
   const [candidate, setCandidate] = useState<Candidate | null>(null)
   const [loading, setLoading] = useState(true)
+  const [showEditCandidate, setShowEditCandidate] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
 
   useEffect(() => {
     const fetchCandidateData = async () => {
@@ -96,6 +107,58 @@ export default function CandidateProfilePage() {
       fetchCandidateData()
     }
   }, [candidateId])
+
+  const handleEditCandidate = () => {
+    setShowEditCandidate(true)
+  }
+
+  const handleSaveCandidate = async (candidateData: any) => {
+    setIsSaving(true)
+    try {
+      const url = getApiUrl(`candidates/${candidateId}`)
+      
+      const response = await fetch(url, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({ candidate: candidateData }),
+      })
+
+      if (response.ok) {
+        const savedCandidate = await response.json()
+        setCandidate(savedCandidate)
+        
+        toast({
+          title: "Candidate Updated",
+          description: "Candidate information has been updated successfully.",
+        })
+        
+        setShowEditCandidate(false)
+      } else {
+        const errorData = await response.json()
+        toast({
+          title: "Error",
+          description: errorData.errors?.join(", ") || "Failed to update candidate",
+          variant: "destructive"
+        })
+      }
+    } catch (error) {
+      console.error('Error saving candidate:', error)
+      toast({
+        title: "Error",
+        description: "Failed to update candidate. Please try again.",
+        variant: "destructive"
+      })
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleCancelForm = () => {
+    setShowEditCandidate(false)
+  }
 
   const getInitials = (name: string) => {
     return name
@@ -217,7 +280,7 @@ export default function CandidateProfilePage() {
         </div>
         <div className="flex items-center gap-2">
           <Badge className={getStatusColor(candidate.status)}>{candidate.status}</Badge>
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={handleEditCandidate}>
             <Edit className="w-4 h-4 mr-2" />
             Edit
           </Button>
@@ -533,6 +596,24 @@ export default function CandidateProfilePage() {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Edit Candidate Dialog */}
+      <Dialog open={showEditCandidate} onOpenChange={setShowEditCandidate}>
+        <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Candidate</DialogTitle>
+            <DialogDescription>
+              Update candidate information
+            </DialogDescription>
+          </DialogHeader>
+          <CandidateForm
+            candidate={candidate}
+            onSave={handleSaveCandidate}
+            onCancel={handleCancelForm}
+            isLoading={isSaving}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
