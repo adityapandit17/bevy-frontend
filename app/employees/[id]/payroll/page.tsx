@@ -42,6 +42,7 @@ export default function EmployeePayrollPage() {
   const [departments, setDepartments] = useState<Department[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedSlip, setSelectedSlip] = useState<{ month: string; year: string; amount: string; status: string; date: string } | null>(null)
+  const [selectedYear, setSelectedYear] = useState<string>("2024")
 
   useEffect(() => {
     fetchEmployee()
@@ -700,7 +701,7 @@ export default function EmployeePayrollPage() {
               <h3 className="text-lg font-semibold">Salary Slips</h3>
               <p className="text-sm text-gray-600">Download or view past salary slips</p>
             </div>
-            <Select defaultValue="2024">
+            <Select value={selectedYear} onValueChange={setSelectedYear}>
               <SelectTrigger className="w-40">
                 <SelectValue placeholder="Select Year" />
               </SelectTrigger>
@@ -708,25 +709,73 @@ export default function EmployeePayrollPage() {
                 <SelectItem value="2024">2024</SelectItem>
                 <SelectItem value="2023">2023</SelectItem>
                 <SelectItem value="2022">2022</SelectItem>
+                <SelectItem value="2021">2021</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           <div className="space-y-3">
-            {[
-              { month: 'December', year: '2024', amount: '₹75,000', status: 'Paid', date: '2024-12-01' },
-              { month: 'November', year: '2024', amount: '₹75,000', status: 'Paid', date: '2024-11-01' },
-              { month: 'October', year: '2024', amount: '₹75,000', status: 'Paid', date: '2024-10-01' },
-              { month: 'September', year: '2024', amount: '₹75,000', status: 'Paid', date: '2024-09-01' },
-              { month: 'August', year: '2024', amount: '₹75,000', status: 'Paid', date: '2024-08-01' },
-              { month: 'July', year: '2024', amount: '₹75,000', status: 'Paid', date: '2024-07-01' },
-              { month: 'June', year: '2024', amount: '₹75,000', status: 'Paid', date: '2024-06-01' },
-              { month: 'May', year: '2024', amount: '₹75,000', status: 'Paid', date: '2024-05-01' },
-              { month: 'April', year: '2024', amount: '₹75,000', status: 'Paid', date: '2024-04-01' },
-              { month: 'March', year: '2024', amount: '₹75,000', status: 'Paid', date: '2024-03-01' },
-              { month: 'February', year: '2024', amount: '₹75,000', status: 'Paid', date: '2024-02-01' },
-              { month: 'January', year: '2024', amount: '₹75,000', status: 'Paid', date: '2024-01-01' },
-            ].map((slip, index) => (
+            {(() => {
+              const allSalarySlips = [
+                // 2024 salary slips
+                { month: 'December', year: '2024', amount: '₹75,000', status: 'Paid', date: '2024-12-01' },
+                { month: 'November', year: '2024', amount: '₹75,000', status: 'Paid', date: '2024-11-01' },
+                { month: 'October', year: '2024', amount: '₹75,000', status: 'Paid', date: '2024-10-01' },
+                { month: 'September', year: '2024', amount: '₹75,000', status: 'Paid', date: '2024-09-01' },
+                { month: 'August', year: '2024', amount: '₹75,000', status: 'Paid', date: '2024-08-01' },
+                { month: 'July', year: '2024', amount: '₹75,000', status: 'Paid', date: '2024-07-01' },
+                { month: 'June', year: '2024', amount: '₹75,000', status: 'Paid', date: '2024-06-01' },
+                { month: 'May', year: '2024', amount: '₹75,000', status: 'Paid', date: '2024-05-01' },
+                { month: 'April', year: '2024', amount: '₹75,000', status: 'Paid', date: '2024-04-01' },
+                { month: 'March', year: '2024', amount: '₹75,000', status: 'Paid', date: '2024-03-01' },
+                { month: 'February', year: '2024', amount: '₹75,000', status: 'Paid', date: '2024-02-01' },
+                { month: 'January', year: '2024', amount: '₹75,000', status: 'Paid', date: '2024-01-01' },
+                // 2023 salary slips
+                { month: 'December', year: '2023', amount: '₹70,000', status: 'Paid', date: '2023-12-01' },
+                { month: 'November', year: '2023', amount: '₹70,000', status: 'Paid', date: '2023-11-01' },
+                { month: 'October', year: '2023', amount: '₹70,000', status: 'Paid', date: '2023-10-01' },
+                { month: 'September', year: '2023', amount: '₹70,000', status: 'Paid', date: '2023-09-01' },
+                { month: 'August', year: '2023', amount: '₹70,000', status: 'Paid', date: '2023-08-01' },
+                { month: 'July', year: '2023', amount: '₹70,000', status: 'Paid', date: '2023-07-01' },
+                { month: 'June', year: '2023', amount: '₹70,000', status: 'Paid', date: '2023-06-01' },
+                { month: 'May', year: '2023', amount: '₹70,000', status: 'Paid', date: '2023-05-01' },
+                { month: 'April', year: '2023', amount: '₹70,000', status: 'Paid', date: '2023-04-01' },
+                { month: 'March', year: '2023', amount: '₹70,000', status: 'Paid', date: '2023-03-01' },
+                { month: 'February', year: '2023', amount: '₹70,000', status: 'Paid', date: '2023-02-01' },
+                { month: 'January', year: '2023', amount: '₹70,000', status: 'Paid', date: '2023-01-01' },
+                // 2022 salary slips
+                { month: 'December', year: '2022', amount: '₹65,000', status: 'Paid', date: '2022-12-01' },
+                { month: 'November', year: '2022', amount: '₹65,000', status: 'Paid', date: '2022-11-01' },
+                { month: 'October', year: '2022', amount: '₹65,000', status: 'Paid', date: '2022-10-01' },
+                { month: 'September', year: '2022', amount: '₹65,000', status: 'Paid', date: '2022-09-01' },
+                { month: 'August', year: '2022', amount: '₹65,000', status: 'Paid', date: '2022-08-01' },
+                { month: 'July', year: '2022', amount: '₹65,000', status: 'Paid', date: '2022-07-01' },
+                { month: 'June', year: '2022', amount: '₹65,000', status: 'Paid', date: '2022-06-01' },
+                { month: 'May', year: '2022', amount: '₹65,000', status: 'Paid', date: '2022-05-01' },
+                { month: 'April', year: '2022', amount: '₹65,000', status: 'Paid', date: '2022-04-01' },
+                { month: 'March', year: '2022', amount: '₹65,000', status: 'Paid', date: '2022-03-01' },
+                { month: 'February', year: '2022', amount: '₹65,000', status: 'Paid', date: '2022-02-01' },
+                { month: 'January', year: '2022', amount: '₹65,000', status: 'Paid', date: '2022-01-01' },
+              ]
+              
+              const filteredSlips = allSalarySlips.filter(slip => slip.year === selectedYear)
+              
+              if (filteredSlips.length === 0) {
+                return (
+                  <div className="text-center py-12">
+                    <Receipt className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-600 font-medium">No salary slips found for {selectedYear}</p>
+                    <p className="text-sm text-gray-500 mt-1">Try selecting a different year</p>
+                  </div>
+                )
+              }
+              
+              return (
+                <>
+                  <p className="text-sm text-gray-600 mb-2">
+                    Showing {filteredSlips.length} salary slip{filteredSlips.length !== 1 ? 's' : ''} for {selectedYear}
+                  </p>
+                  {filteredSlips.map((slip, index) => (
               <Card key={index} className="hover:shadow-md transition-shadow">
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
@@ -762,7 +811,10 @@ export default function EmployeePayrollPage() {
                   </div>
                 </CardContent>
               </Card>
-            ))}
+                  ))}
+                </>
+              )
+            })()}
           </div>
         </TabsContent>
 
