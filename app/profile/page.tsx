@@ -39,6 +39,9 @@ interface Employee {
     name: string
   }
   hire_date?: string
+  designation?: string
+  department_name?: string
+  manager_name?: string
 }
 
 export default function ProfilePage() {
@@ -47,7 +50,7 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (user?.employee?.id) {
+    if (user?.employee_id) {
       fetchEmployeeData()
     } else {
       setLoading(false)
@@ -57,7 +60,7 @@ export default function ProfilePage() {
   const fetchEmployeeData = async () => {
     try {
       const data = await apiRequest<Employee>(
-        getApiUrl(`employees/${user?.employee?.id}`)
+        getApiUrl(`employees/${user?.employee_id}`)
       )
       setEmployee(data)
     } catch (error) {
@@ -118,13 +121,8 @@ export default function ProfilePage() {
               </div>
               <CardTitle className="text-xl">{user?.name || "User"}</CardTitle>
               <CardDescription className="mt-2">
-                {employee?.position || "Employee"}
+                {employee?.designation || "N/A"}
               </CardDescription>
-              {employee?.department && (
-                <Badge variant="outline" className="mt-2">
-                  {employee.department.name}
-                </Badge>
-              )}
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
@@ -165,7 +163,7 @@ export default function ProfilePage() {
               <div className="space-y-3">
                 {user?.roles && user.roles.length > 0 ? (
                   user.roles.map((role) => (
-                    <Badge key={role.id} variant="secondary" className="mr-2">
+                    <Badge key={`${role.id}-${role.name}`} variant="secondary" className="mr-2">
                       {role.display_name || role.name}
                     </Badge>
                   ))
@@ -225,12 +223,12 @@ export default function ProfilePage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="text-sm font-medium text-gray-500">Position</label>
-                  <p className="text-gray-900 mt-1">{employee?.position || "N/A"}</p>
+                  <p className="text-gray-900 mt-1">{employee?.designation || "N/A"}</p>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-500">Department</label>
                   <p className="text-gray-900 mt-1">
-                    {employee?.department?.name || "N/A"}
+                    {employee?.department_name || "N/A"}
                   </p>
                 </div>
                 <div>
@@ -240,7 +238,7 @@ export default function ProfilePage() {
                 <div>
                   <label className="text-sm font-medium text-gray-500">Manager</label>
                   <p className="text-gray-900 mt-1">
-                    {employee?.manager?.name || "N/A"}
+                    {employee?.manager_name || "N/A"}
                   </p>
                 </div>
               </div>

@@ -9,6 +9,7 @@ export interface User {
   name: string;
   roles: Role[];
   permissions: Permission[];
+  employee_id: number;
 }
 
 export interface Role {
