@@ -23,9 +23,10 @@ import {
   EyeOff
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { apiRequest, getApiUrl } from "@/lib/api"
 
 export default function UserSettingsPage() {
-  const { user } = useAuthContext()
+  const { user, token } = useAuthContext()
   const { toast } = useToast()
   
   // Account Settings
@@ -40,6 +41,7 @@ export default function UserSettingsPage() {
   const [showCurrentPassword, setShowCurrentPassword] = useState(false)
   const [showNewPassword, setShowNewPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [isChangingPassword, setIsChangingPassword] = useState(false)
   
   // Notification Settings
   const [emailNotifications, setEmailNotifications] = useState(true)
@@ -63,7 +65,28 @@ export default function UserSettingsPage() {
     })
   }
 
-  const handleChangePassword = () => {
+  const handleChangePassword = async () => {
+    // Validate current password is provided
+    if (!currentPassword) {
+      toast({
+        title: "Error",
+        description: "Current password is required.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // Validate new password is provided
+    if (!newPassword) {
+      toast({
+        title: "Error",
+        description: "New password is required.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // Validate passwords match
     if (newPassword !== confirmPassword) {
       toast({
         title: "Error",
@@ -72,6 +95,8 @@ export default function UserSettingsPage() {
       })
       return
     }
+
+    // Validate password length
     if (newPassword.length < 8) {
       toast({
         title: "Error",
@@ -80,14 +105,95 @@ export default function UserSettingsPage() {
       })
       return
     }
-    // TODO: Implement API call to change password
-    toast({
-      title: "Password changed",
-      description: "Your password has been updated successfully.",
-    })
-    setCurrentPassword("")
-    setNewPassword("")
-    setConfirmPassword("")
+
+    setIsChangingPassword(true)
+
+    try {
+      const url = getApiUrl("api/v1/auth/change_password")
+      const requestBody = {
+        current_password: currentPassword,
+        new_password: newPassword,
+        confirm_password: confirmPassword,
+      }
+      
+      console.log("Changing password - URL:", url)
+      console.log("Changing password - Request body:", { ...requestBody, current_password: "***", new_password: "***", confirm_password: "***" })
+      
+      // Use fetch directly for better error handling
+      if (!token) {
+        toast({
+          title: "Error",
+          description: "Authentication token not found. Please login again.",
+          variant: "destructive",
+        })
+        setIsChangingPassword(false)
+        return
+      }
+      
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(requestBody),
+      })
+
+      console.log("Change password response status:", response.status)
+      
+      const responseData = await response.json()
+      console.log("Change password response data:", responseData)
+
+      if (response.ok && responseData.success) {
+        toast({
+          title: "Password changed",
+          description: responseData.data?.message || "Your password has been updated successfully.",
+        })
+        // Clear form fields on success
+        setCurrentPassword("")
+        setNewPassword("")
+        setConfirmPassword("")
+      } else {
+        // Handle error response
+        const errorMessage = responseData.error || responseData.message || "Failed to change password. Please try again."
+        toast({
+          title: "Error",
+          description: errorMessage,
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("Error changing password:", error)
+      let errorMessage = "Failed to change password. Please try again."
+      
+      if (error instanceof Error) {
+        errorMessage = error.message
+        
+        // Try to parse JSON error response if present
+        try {
+          const jsonMatch = error.message.match(/\{[\s\S]*\}/)
+          if (jsonMatch) {
+            const errorData = JSON.parse(jsonMatch[0])
+            if (errorData.error) {
+              errorMessage = errorData.error
+            } else if (errorData.message) {
+              errorMessage = errorData.message
+            }
+          }
+        } catch (parseError) {
+          console.error("Error parsing error response:", parseError)
+        }
+      }
+      
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      })
+    } finally {
+      setIsChangingPassword(false)
+    }
   }
 
   const handleSaveNotifications = () => {
@@ -273,9 +379,22 @@ export default function UserSettingsPage() {
                 </div>
               </div>
               <Separator />
-              <Button onClick={handleChangePassword} className="w-full sm:w-auto">
-                <Lock className="w-4 h-4 mr-2" />
-                Change Password
+              <Button 
+                onClick={handleChangePassword} 
+                className="w-full sm:w-auto"
+                disabled={isChangingPassword}
+              >
+                {isChangingPassword ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                    Changing Password...
+                  </>
+                ) : (
+                  <>
+                    <Lock className="w-4 h-4 mr-2" />
+                    Change Password
+                  </>
+                )}
               </Button>
             </CardContent>
           </Card>
