@@ -19,6 +19,8 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { ChevronDown } from "lucide-react"
 import {
   CalendarCheck,
   Search,
@@ -38,6 +40,8 @@ import { format } from "date-fns"
 export default function AttendanceLeavePage() {
   const { user, isAuthenticated } = useAuth()
   const [date, setDate] = useState<Date | undefined>(new Date())
+  const [month, setMonth] = useState<number>(new Date().getMonth())
+  const [year, setYear] = useState<number>(new Date().getFullYear())
   const [searchTerm, setSearchTerm] = useState("")
   const [attendanceStats, setAttendanceStats] = useState([])
   const [todayAttendance, setTodayAttendance] = useState([])
@@ -114,12 +118,13 @@ export default function AttendanceLeavePage() {
   }
 
   const getAttendanceStatusColor = (status: string) => {
-    switch (status) {
-      case "Present":
+    const statusLower = status?.toLowerCase() || ""
+    switch (statusLower) {
+      case "present":
         return "bg-green-100 text-green-800"
-      case "Late":
+      case "late":
         return "bg-yellow-100 text-yellow-800"
-      case "Absent":
+      case "absent":
         return "bg-red-100 text-red-800"
       default:
         return "bg-gray-100 text-gray-800"
@@ -179,23 +184,80 @@ export default function AttendanceLeavePage() {
     fetchAttendance()
   }
 
-  // Filter attendance by selected date
-  const filteredAttendance = date
+  // Filter attendance by selected date and search term
+  const filteredAttendance = (date
     ? todayAttendance.filter((record) => {
         // Assume record.date is in ISO format (YYYY-MM-DD)
         if (!record.date) return false;
         return format(new Date(record.date), "yyyy-MM-dd") === format(date, "yyyy-MM-dd")
       })
-    : todayAttendance;
-
-  // Get all dates with attendance for modifiers
-  const attendanceDates = todayAttendance
-    .map((record) => record.date)
-    .filter(Boolean)
-    .map((d) => new Date(d));
+    : todayAttendance
+  ).filter((record) => {
+    if (!searchTerm) return true;
+    const employeeName = getEmployeeName(record.employee_id).toLowerCase();
+    return employeeName.includes(searchTerm.toLowerCase());
+  });
 
   // Calendar styling is now handled through CSS
   const calendarClassNames = {};
+
+  // Generate month options
+  const months = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
+  ];
+
+  // Generate year options (current year ± 10 years)
+  const currentYear = new Date().getFullYear();
+  const years = Array.from({ length: 21 }, (_, i) => currentYear - 10 + i);
+
+  const [isMonthYearPickerOpen, setIsMonthYearPickerOpen] = useState(false);
+
+  // Handle month selection
+  const handleMonthSelect = (monthIndex: number) => {
+    setMonth(monthIndex);
+    const newDate = new Date(year, monthIndex, date?.getDate() || 1);
+    setDate(newDate);
+    setIsMonthYearPickerOpen(false);
+  };
+
+  // Handle year selection
+  const handleYearSelect = (selectedYear: number) => {
+    setYear(selectedYear);
+    const newDate = new Date(selectedYear, month, date?.getDate() || 1);
+    setDate(newDate);
+  };
+
+  // Handle clear date
+  const handleClearDate = () => {
+    setDate(undefined);
+  };
+
+  // Handle today button
+  const handleToday = () => {
+    const today = new Date();
+    setDate(today);
+    setMonth(today.getMonth());
+    setYear(today.getFullYear());
+  };
+
+  // Handle quick date input
+  const handleQuickDateChange = (dateString: string) => {
+    if (dateString) {
+      const newDate = new Date(dateString);
+      setDate(newDate);
+      setMonth(newDate.getMonth());
+      setYear(newDate.getFullYear());
+    }
+  };
+
+  // Update month/year when date changes
+  useEffect(() => {
+    if (date) {
+      setMonth(date.getMonth());
+      setYear(date.getFullYear());
+    }
+  }, [date]);
 
   return (
     <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6">
@@ -239,24 +301,95 @@ export default function AttendanceLeavePage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Calendar */}
-        <Card className="lg:col-span-1 h-fit">
-          <CardHeader className="pb-4">
+        <Card className="lg:col-span-1 h-fit shadow-sm">
+          <CardHeader className="pb-3">
             <CardTitle className="text-lg font-semibold">Calendar</CardTitle>
             <CardDescription className="text-sm text-gray-600">Select date to view attendance</CardDescription>
           </CardHeader>
-          <CardContent className="p-6 pt-0">
+          <CardContent className="p-4 pt-0 space-y-4">
+            {/* Month-Year Picker */}
+            <Popover open={isMonthYearPickerOpen} onOpenChange={setIsMonthYearPickerOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="w-full justify-between h-10 font-medium bg-white hover:bg-gray-50 border-gray-200"
+                >
+                  <span>{months[month]} {year}</span>
+                  <ChevronDown className="h-4 w-4 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <div className="flex">
+                  {/* Year List */}
+                  <div className="w-24 border-r border-gray-200 overflow-y-auto max-h-[300px]">
+                    {years.map((yr) => (
+                      <button
+                        key={yr}
+                        onClick={() => handleYearSelect(yr)}
+                        className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-100 transition-colors ${
+                          yr === year ? "bg-gray-100 font-medium" : ""
+                        }`}
+                      >
+                        {yr}
+                      </button>
+                    ))}
+                  </div>
+                  {/* Month Grid */}
+                  <div className="p-2">
+                    <div className="grid grid-cols-4 gap-1">
+                      {months.map((monthName, index) => (
+                        <button
+                          key={index}
+                          onClick={() => handleMonthSelect(index)}
+                          className={`w-14 h-9 text-xs font-medium rounded hover:bg-gray-100 transition-colors ${
+                            index === month
+                              ? "bg-blue-600 text-white hover:bg-blue-700"
+                              : "text-gray-700"
+                          }`}
+                        >
+                          {monthName.substring(0, 3)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
+
+            {/* Calendar */}
             <div className="w-full flex justify-center">
-              <div className="p-2">
-                <Calendar
-                  mode="single"
-                  selected={date}
-                  onSelect={setDate}
-                  className="rounded-md border shadow-sm bg-white"
-                  classNames={calendarClassNames}
-                  modifiers={{ hasAttendance: attendanceDates }}
-                  modifiersClassNames={{ hasAttendance: "relative after:content-[''] after:absolute after:bottom-0.5 after:left-1/2 after:transform after:-translate-x-1/2 after:w-1.5 after:h-1.5 after:rounded-full after:bg-green-500" }}
-                />
-              </div>
+              <Calendar
+                mode="single"
+                selected={date}
+                onSelect={setDate}
+                month={new Date(year, month, 1)}
+                onMonthChange={(newMonth) => {
+                  setMonth(newMonth.getMonth());
+                  setYear(newMonth.getFullYear());
+                }}
+                className="rounded-lg border border-gray-200 shadow-sm bg-white"
+                classNames={calendarClassNames}
+              />
+            </div>
+
+            {/* Clear and Today Buttons */}
+            <div className="flex justify-between items-center pt-2 border-t border-gray-200">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleClearDate}
+                className="text-sm text-gray-600 hover:text-gray-900"
+              >
+                Clear
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleToday}
+                className="text-sm text-gray-600 hover:text-gray-900"
+              >
+                Today
+              </Button>
             </div>
           </CardContent>
         </Card>
