@@ -63,7 +63,7 @@ export default function AttendanceLeavePage() {
   const fetchAttendance = async () => {
     setLoading(true)
     try {
-      const res = await apiRequest('ATTENDANCE_RECORDS')
+      const res = await apiRequest(getEndpointUrl('ATTENDANCE_RECORDS'))
       setTodayAttendance(res as any)
     } catch (error) {
       console.error('Error fetching attendance:', error)
@@ -76,7 +76,7 @@ export default function AttendanceLeavePage() {
   const fetchLeaveRequests = async () => {
     setLoading(true)
     try {
-      const res = await apiRequest('LEAVE_REQUESTS')
+      const res = await apiRequest(getEndpointUrl('LEAVE_REQUESTS'))
       setLeaveRequests(res as any)
     } catch (error) {
       console.error('Error fetching leave requests:', error)
@@ -88,7 +88,7 @@ export default function AttendanceLeavePage() {
 
   const fetchEmployees = async () => {
     try {
-      const res = await apiRequest('EMPLOYEES')
+      const res = await apiRequest(getEndpointUrl('EMPLOYEES'))
       setEmployees(res as any)
     } catch (error) {
       console.error('Error fetching employees:', error)
@@ -98,7 +98,7 @@ export default function AttendanceLeavePage() {
 
   const fetchDepartments = async () => {
     try {
-      const res = await apiRequest('DEPARTMENTS')
+      const res = await apiRequest(getEndpointUrl('DEPARTMENTS'))
       setDepartments(res as any)
     } catch (error) {
       console.error('Error fetching departments:', error)
