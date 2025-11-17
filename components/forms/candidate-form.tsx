@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { X, Plus, Save, UserPlus, Upload, FileText, Trash2, Eye } from "lucide-react"
 import { getApiUrl, getEndpointUrl, getDocumentUrl, getFileType } from "@/lib/api"
 import { DocumentPreview } from "@/components/ui/document-preview"
+import { AUTH_CONFIG } from "@/config/auth.config"
 
 interface Candidate {
   id?: string
@@ -225,9 +226,19 @@ export function CandidateForm({ candidate, onSave, onCancel, isLoading = false }
     const formData = new FormData()
     formData.append('file', file)
     
+    // Get authorization token
+    const token = typeof window !== 'undefined' ? localStorage.getItem(AUTH_CONFIG.tokenKey) : null
+    
+    // Prepare headers - don't set Content-Type for FormData (browser will set it with boundary)
+    const headers: HeadersInit = {}
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+    }
+    
     try {
       const response = await fetch(getEndpointUrl('UPLOAD'), {
         method: 'POST',
+        headers,
         body: formData,
       })
       

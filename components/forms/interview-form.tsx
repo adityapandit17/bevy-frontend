@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { getApiUrl, getEndpointUrl } from "@/lib/api"
+import { getApiUrl, getEndpointUrl, apiRequest } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -44,7 +44,7 @@ interface InterviewFormProps {
 }
 
 interface Employee {
-  id: string
+  id: number
   first_name: string
   last_name: string
   email: string
@@ -75,26 +75,31 @@ export function InterviewForm({
       if (candidate) {
         setFormData(prev => ({ ...prev, candidate_id: candidate.id }))
       }
-      if (editInterview) {
-        setFormData({
-          candidate_id: candidate?.id || "",
-          interview_type: editInterview.interview_type,
-          scheduled_date: editInterview.scheduled_date,
-          scheduled_time: editInterview.scheduled_time,
-          interviewer: editInterview.interviewer,
-          notes: editInterview.notes || ""
-        })
-      }
     }
-  }, [open, candidate, editInterview])
+  }, [open, candidate])
+
+  // Handle editInterview separately after employees are loaded
+  useEffect(() => {
+    if (open && editInterview && employees.length > 0) {
+      // When editing, find the employee ID by name
+      const employee = employees.find(
+        emp => `${emp.first_name} ${emp.last_name}` === editInterview.interviewer
+      )
+      setFormData(prev => ({
+        ...prev,
+        interview_type: editInterview.interview_type,
+        scheduled_date: editInterview.scheduled_date,
+        scheduled_time: editInterview.scheduled_time,
+        interviewer: employee ? String(employee.id) : "",
+        notes: editInterview.notes || ""
+      }))
+    }
+  }, [open, editInterview, employees])
 
   const fetchEmployees = async () => {
     try {
-      const response = await fetch(getEndpointUrl('EMPLOYEES'))
-      if (response.ok) {
-        const data = await response.json()
-        setEmployees(data)
-      }
+      const data = await apiRequest<Employee[]>(getEndpointUrl('EMPLOYEES'))
+      setEmployees(data)
     } catch (error) {
       console.error("Error fetching employees:", error)
     }
@@ -111,44 +116,35 @@ export function InterviewForm({
       
       const method = editInterview ? "PATCH" : "POST"
       
-      const response = await fetch(url, {
+      // Find employee by ID and get their name for the backend
+      const employee = employees.find(emp => String(emp.id) === formData.interviewer)
+      const interviewerName = employee 
+        ? `${employee.first_name} ${employee.last_name}`
+        : formData.interviewer // Fallback to stored value if not found
+      
+      await apiRequest(url, {
         method,
-        headers: {
-          "Content-Type": "application/json",
-          "Accept": "application/json"
-        },
         body: JSON.stringify({
           interview: {
             ...formData,
+            interviewer: interviewerName,
             status: "scheduled"
           }
         })
       })
 
-      if (response.ok) {
-        toast({
-          title: editInterview ? "Interview Updated" : "Interview Scheduled",
-          description: editInterview 
-            ? "Interview has been updated successfully."
-            : "Interview has been scheduled successfully."
-        })
-        onSuccess?.()
-        onOpenChange(false)
-        resetForm()
-      } else {
-        const errorData = await response.json()
-        toast({
-          title: "Error",
-          description: errorData.errors?.join(", ") || "Failed to schedule interview",
-          variant: "destructive"
-        })
-      }
-    } catch (error) {
       toast({
-        title: "Error",
-        description: "Failed to schedule interview",
-        variant: "destructive"
+        title: editInterview ? "Interview Updated" : "Interview Scheduled",
+        description: editInterview 
+          ? "Interview has been updated successfully."
+          : "Interview has been scheduled successfully."
       })
+      onSuccess?.()
+      onOpenChange(false)
+      resetForm()
+    } catch (error) {
+      // Error handling is done by apiRequest (toast notifications)
+      console.error("Error scheduling interview:", error)
     } finally {
       setLoading(false)
     }
@@ -299,7 +295,7 @@ export function InterviewForm({
               </SelectTrigger>
               <SelectContent>
                 {employees.map((employee) => (
-                  <SelectItem key={employee.id} value={employee.first_name + " " + employee.last_name}>
+                  <SelectItem key={employee.id} value={String(employee.id)}>
                     <div className="flex items-center gap-2">
                       <User className="h-4 w-4" />
                       {employee.first_name} {employee.last_name} - {employee.designation}
@@ -339,12 +335,15 @@ export function InterviewForm({
                   <Clock className="h-4 w-4" />
                   <span>{formData.scheduled_time}</span>
                 </div>
-                {formData.interviewer && (
-                  <div className="flex items-center gap-2">
-                    <User className="h-4 w-4" />
-                    <span>{formData.interviewer}</span>
-                  </div>
-                )}
+                {formData.interviewer && (() => {
+                  const employee = employees.find(emp => String(emp.id) === formData.interviewer)
+                  return employee ? (
+                    <div className="flex items-center gap-2">
+                      <User className="h-4 w-4" />
+                      <span>{employee.first_name} {employee.last_name}</span>
+                    </div>
+                  ) : null
+                })()}
               </div>
             </div>
           )}
