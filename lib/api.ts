@@ -48,12 +48,8 @@ export const apiRequest = async <T>(
       // Handle 401 Unauthorized - token might be expired
       if (response.status === 401) {
         // Clear invalid token
-        localStorage.removeItem('auth_token');
-        localStorage.removeItem('auth_user');
-        // Redirect to login
-        if (typeof window !== 'undefined') {
-          window.location.href = '/login';
-        }
+        localStorage.removeItem(AUTH_CONFIG.tokenKey);
+        localStorage.removeItem(AUTH_CONFIG.userKey);
         throw new Error('Authentication failed. Please login again.');
       }
 
