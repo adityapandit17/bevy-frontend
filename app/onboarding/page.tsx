@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { getApiUrl, getEndpointUrl, API_ENDPOINTS } from "@/lib/api"
+import { getApiUrl, getEndpointUrl, API_ENDPOINTS, apiRequest } from "@/lib/api"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -136,7 +136,7 @@ export default function OnboardingPage() {
 
   // Update selected employee when allOnboardingEmployees changes
   useEffect(() => {
-    if (selectedEmployee && allOnboardingEmployees.length > 0) {
+    if (selectedEmployee && Array.isArray(allOnboardingEmployees) && allOnboardingEmployees.length > 0) {
       const updatedEmployee = allOnboardingEmployees.find(emp => emp.id === selectedEmployee.id)
       if (updatedEmployee) {
         setSelectedEmployee(updatedEmployee)
@@ -147,15 +147,17 @@ export default function OnboardingPage() {
   const fetchOnboardingEmployees = async () => {
     setLoading(true)
     try {
-      const response = await fetch(getEndpointUrl('ONBOARDING_EMPLOYEES'))
-      const data = await response.json()
+      const data = await apiRequest<OnboardingEmployee[]>(getEndpointUrl('ONBOARDING_EMPLOYEES'))
+      const employeesArray = Array.isArray(data) ? data : []
       // Store all onboarding employees for duplicate checking
-      setAllOnboardingEmployees(data)
+      setAllOnboardingEmployees(employeesArray)
       // Filter out completed employees by default for display
-      const filteredData = showCompleted ? data : data.filter((emp: OnboardingEmployee) => emp.status !== 'completed')
+      const filteredData = showCompleted ? employeesArray : employeesArray.filter((emp: OnboardingEmployee) => emp.status !== 'completed')
       setEmployees(filteredData)
     } catch (error) {
       console.error('Error fetching onboarding employees:', error)
+      setAllOnboardingEmployees([])
+      setEmployees([])
     } finally {
       setLoading(false)
     }
@@ -163,8 +165,7 @@ export default function OnboardingPage() {
 
   const fetchStats = async () => {
     try {
-      const response = await fetch(getEndpointUrl('ONBOARDING_EMPLOYEES_STATS'))
-      const data = await response.json()
+      const data = await apiRequest<OnboardingStats>(getEndpointUrl('ONBOARDING_EMPLOYEES_STATS'))
       setStats(data)
     } catch (error) {
       console.error('Error fetching stats:', error)
@@ -173,21 +174,21 @@ export default function OnboardingPage() {
 
   const fetchDepartments = async () => {
     try {
-      const response = await fetch(getEndpointUrl('DEPARTMENTS'))
-      const data = await response.json()
-      setDepartments(data)
+      const data = await apiRequest<Department[]>(getEndpointUrl('DEPARTMENTS'))
+      setDepartments(Array.isArray(data) ? data : [])
     } catch (error) {
       console.error('Error fetching departments:', error)
+      setDepartments([])
     }
   }
 
   const fetchAllEmployees = async () => {
     try {
-      const response = await fetch(getEndpointUrl('EMPLOYEES'))
-      const data = await response.json()
-      setAllEmployees(data)
+      const data = await apiRequest<any[]>(getEndpointUrl('EMPLOYEES'))
+      setAllEmployees(Array.isArray(data) ? data : [])
     } catch (error) {
       console.error('Error fetching all employees:', error)
+      setAllEmployees([])
     }
   }
 
@@ -229,7 +230,7 @@ export default function OnboardingPage() {
     // Fallback stats when data is not loaded yet
     {
       title: "Active Onboarding",
-      value: allOnboardingEmployees.filter(emp => emp.status !== 'completed').length.toString(),
+      value: Array.isArray(allOnboardingEmployees) ? allOnboardingEmployees.filter(emp => emp.status !== 'completed').length.toString() : "0",
       change: "Currently in progress",
       icon: Users,
       color: "text-blue-600",
@@ -237,7 +238,7 @@ export default function OnboardingPage() {
     },
     {
       title: "Completed",
-      value: allOnboardingEmployees.filter(emp => emp.status === 'completed').length.toString(),
+      value: Array.isArray(allOnboardingEmployees) ? allOnboardingEmployees.filter(emp => emp.status === 'completed').length.toString() : "0",
       change: "Successfully onboarded",
       icon: CheckCircle,
       color: "text-green-600",
@@ -245,7 +246,7 @@ export default function OnboardingPage() {
     },
     {
       title: "Total Onboarding",
-      value: allOnboardingEmployees.length.toString(),
+      value: Array.isArray(allOnboardingEmployees) ? allOnboardingEmployees.length.toString() : "0",
       change: "All time records",
       icon: Users,
       color: "text-purple-600",
@@ -253,7 +254,7 @@ export default function OnboardingPage() {
     },
     {
       title: "Pending Status",
-      value: allOnboardingEmployees.filter(emp => emp.status === 'pending').length.toString(),
+      value: Array.isArray(allOnboardingEmployees) ? allOnboardingEmployees.filter(emp => emp.status === 'pending').length.toString() : "0",
       change: "Awaiting start",
       icon: Clock,
       color: "text-orange-600",
@@ -289,18 +290,13 @@ export default function OnboardingPage() {
 
   const handleTaskToggle = async (employeeId: number, taskId: number) => {
     try {
-      const response = await fetch(getApiUrl(`/onboarding_tasks/${taskId}/toggle`), {
+      await apiRequest(getApiUrl(`/onboarding_tasks/${taskId}/toggle`), {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
       })
       
-      if (response.ok) {
-        // Refresh the data
-        await fetchOnboardingEmployees()
-        await fetchStats()
-      }
+      // Refresh the data
+      await fetchOnboardingEmployees()
+      await fetchStats()
     } catch (error) {
       console.error('Error toggling task:', error)
     }
@@ -313,11 +309,8 @@ export default function OnboardingPage() {
     }
 
     try {
-      const response = await fetch(getEndpointUrl('ONBOARDING_EMPLOYEES'), {
+      await apiRequest(getEndpointUrl('ONBOARDING_EMPLOYEES'), {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({
           onboarding_employee: {
             employee_id: parseInt(formData.employeeId),
@@ -328,30 +321,25 @@ export default function OnboardingPage() {
         })
       })
 
-      if (response.ok) {
-        // Reset form
-        setFormData({
-          employeeId: "",
-          startDate: ""
-        })
-        setShowAddEmployee(false)
-        // Refresh data
-        fetchOnboardingEmployees()
-        fetchStats()
-        alert('Employee added to onboarding successfully!')
-      } else {
-        const errorData = await response.json()
-        const errorMessage = errorData.errors ? errorData.errors.join(', ') : 'Unknown error'
-        
-        if (errorMessage.includes('already in active onboarding process')) {
-          alert('This employee is already in the onboarding process. Please select a different employee.')
-        } else {
-          alert(`Error adding employee: ${errorMessage}`)
-        }
-      }
-    } catch (error) {
+      // Reset form
+      setFormData({
+        employeeId: "",
+        startDate: ""
+      })
+      setShowAddEmployee(false)
+      // Refresh data
+      fetchOnboardingEmployees()
+      fetchStats()
+      alert('Employee added to onboarding successfully!')
+    } catch (error: any) {
       console.error('Error adding employee:', error)
-      alert('Error adding employee. Please try again.')
+      const errorMessage = error?.message || 'Unknown error'
+      
+      if (errorMessage.includes('already in active onboarding process')) {
+        alert('This employee is already in the onboarding process. Please select a different employee.')
+      } else {
+        alert(`Error adding employee: ${errorMessage}`)
+      }
     }
   }
 
@@ -363,11 +351,8 @@ export default function OnboardingPage() {
     if (!selectedEmployee) return
     
     try {
-      const response = await fetch(getEndpointUrl('ONBOARDING_TASKS'), {
+      await apiRequest(getEndpointUrl('ONBOARDING_TASKS'), {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({
           title: taskFormData.title,
           description: taskFormData.description,
@@ -379,21 +364,17 @@ export default function OnboardingPage() {
         })
       })
       
-      if (response.ok) {
-        await fetchOnboardingEmployees()
-        await fetchStats()
-        setAddTaskDialogOpen(false)
-        setTaskFormData({
-          title: '',
-          description: '',
-          category: 'HR',
-          priority: 'medium',
-          due_date: '',
-          assigned_to: 'HR Team'
-        })
-      } else {
-        console.error('Failed to add task:', await response.text())
-      }
+      await fetchOnboardingEmployees()
+      await fetchStats()
+      setAddTaskDialogOpen(false)
+      setTaskFormData({
+        title: '',
+        description: '',
+        category: 'HR',
+        priority: 'medium',
+        due_date: '',
+        assigned_to: 'HR Team'
+      })
     } catch (error) {
       console.error('Error adding task:', error)
     }
@@ -417,23 +398,18 @@ export default function OnboardingPage() {
     if (!selectedEmployee) return
 
     try {
-      const response = await fetch(getApiUrl(`/onboarding_employees/${selectedEmployee.id}/send_welcome_email`), {
+      const data = await apiRequest<any>(getApiUrl(`/onboarding_employees/${selectedEmployee.id}/send_welcome_email`), {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
       })
-
-      const data = await response.json()
 
       if (data.success) {
         alert('Welcome email has been queued and will be sent shortly!')
       } else {
-        alert(`Failed to send welcome email: ${data.message}`)
+        alert(`Failed to send welcome email: ${data.message || 'Unknown error'}`)
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error sending welcome email:', error)
-      alert('Error sending welcome email. Please try again.')
+      alert(`Error sending welcome email: ${error?.message || 'Please try again.'}`)
     }
   }
 
@@ -442,11 +418,11 @@ export default function OnboardingPage() {
     alert(`Upload document for task: ${task.title}`)
   }
 
-  const filteredEmployees = employees.filter(emp =>
+  const filteredEmployees = Array.isArray(employees) ? employees.filter(emp =>
     emp.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     emp.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
     emp.position.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  ) : []
 
   return (
     <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6">
@@ -806,16 +782,16 @@ export default function OnboardingPage() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">Select an employee to add to onboarding</option>
-                {allEmployees
+                {Array.isArray(allEmployees) && allEmployees
                   .filter(emp => {
                     // Filter out employees who have ever been in onboarding (any status)
-                    const hasBeenOnboarded = allOnboardingEmployees.some(oe => 
+                    const hasBeenOnboarded = Array.isArray(allOnboardingEmployees) && allOnboardingEmployees.some(oe => 
                       oe.employee_id === emp.id
                     )
                     return !hasBeenOnboarded
                   })
                   .map((emp) => {
-                    const department = departments.find(dept => dept.id === emp.department_id)
+                    const department = Array.isArray(departments) ? departments.find(dept => dept.id === emp.department_id) : null
                     return (
                       <option key={emp.id} value={emp.id}>
                         {emp.first_name} {emp.last_name} - {emp.designation} ({department?.name || 'Unknown Department'})

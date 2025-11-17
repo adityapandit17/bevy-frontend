@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { apiRequest, getApiUrl, getEndpointUrl } from "@/lib/api"
-import { mapLeaveRequestToBackend } from "@/lib/leave-request-mapper"
+import { mapLeaveRequestToBackend, mapLeaveRequestFromBackend } from "@/lib/leave-request-mapper"
 import { useAuth } from "@/lib/auth/auth.hooks"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -37,17 +37,73 @@ import { LeaveRequestForm } from "@/components/forms/leave-request-form"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { format } from "date-fns"
 
+interface LeaveRequest {
+  id: number
+  employee_id: number
+  employeeId: number
+  leaveType?: string
+  leaveTypeLabel?: string
+  leave_type?: string
+  leave_type_label?: string
+  startDate?: string
+  endDate?: string
+  start_date?: string
+  end_date?: string
+  formattedStartDate?: string
+  formattedEndDate?: string
+  formatted_start_date?: string
+  formatted_end_date?: string
+  days?: number
+  reason?: string
+  status?: string
+  statusLabel?: string
+  status_label?: string
+  department_id?: number
+}
+
+interface Employee {
+  id: number
+  first_name: string
+  last_name: string
+}
+
+interface Department {
+  id: number
+  name: string
+}
+
+interface AttendanceRecord {
+  id: number
+  employee_id: number
+  department_id?: number
+  date?: string
+  checkIn?: string
+  checkOut?: string
+  workHours?: string
+  location?: string
+  status?: string
+}
+
+interface AttendanceStat {
+  title: string
+  value: string
+  change: string
+  icon: any
+  color: string
+  bgColor: string
+}
+
 export default function AttendanceLeavePage() {
   const { user, isAuthenticated } = useAuth()
   const [date, setDate] = useState<Date | undefined>(new Date())
   const [month, setMonth] = useState<number>(new Date().getMonth())
   const [year, setYear] = useState<number>(new Date().getFullYear())
   const [searchTerm, setSearchTerm] = useState("")
-  const [attendanceStats, setAttendanceStats] = useState([])
-  const [todayAttendance, setTodayAttendance] = useState([])
-  const [leaveRequests, setLeaveRequests] = useState([])
-  const [employees, setEmployees] = useState([])
-  const [departments, setDepartments] = useState([])
+  const [attendanceStats, setAttendanceStats] = useState<AttendanceStat[]>([])
+  const [todayAttendance, setTodayAttendance] = useState<AttendanceRecord[]>([])
+  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([])
+  const [employees, setEmployees] = useState<Employee[]>([])
+  const [departments, setDepartments] = useState<Department[]>([])
   const [loading, setLoading] = useState(false)
   const [showLeaveForm, setShowLeaveForm] = useState(false)
   const [showAttendanceModal, setShowAttendanceModal] = useState(false)
@@ -63,11 +119,11 @@ export default function AttendanceLeavePage() {
   const fetchAttendance = async () => {
     setLoading(true)
     try {
-      const res = await apiRequest(getEndpointUrl('ATTENDANCE_RECORDS'))
-      setTodayAttendance(res as any)
+      const res = await apiRequest<AttendanceRecord[]>(getEndpointUrl('ATTENDANCE_RECORDS'))
+      setTodayAttendance(Array.isArray(res) ? res : [])
     } catch (error) {
       console.error('Error fetching attendance:', error)
-      // handle error
+      setTodayAttendance([])
     } finally {
       setLoading(false)
     }
@@ -76,11 +132,29 @@ export default function AttendanceLeavePage() {
   const fetchLeaveRequests = async () => {
     setLoading(true)
     try {
-      const res = await apiRequest(getEndpointUrl('LEAVE_REQUESTS'))
-      setLeaveRequests(res as any)
+      const res = await apiRequest<any[]>(getEndpointUrl('LEAVE_REQUESTS'))
+      // Map backend response to frontend format, preserving both formats for compatibility
+      const mappedRequests = Array.isArray(res) ? res.map((item) => {
+        const mapped = mapLeaveRequestFromBackend(item)
+        // Preserve original snake_case fields as fallback
+        return {
+          ...mapped,
+          // Keep original fields as fallback
+          employee_id: mapped.employeeId || item.employee_id,
+          leave_type: mapped.leaveType || item.leave_type,
+          leave_type_label: mapped.leaveTypeLabel || item.leave_type_label,
+          start_date: mapped.startDate || item.start_date,
+          end_date: mapped.endDate || item.end_date,
+          formatted_start_date: mapped.formattedStartDate || item.formatted_start_date,
+          formatted_end_date: mapped.formattedEndDate || item.formatted_end_date,
+          status: mapped.status || item.status,
+          status_label: mapped.statusLabel || item.status_label,
+        }
+      }) : []
+      setLeaveRequests(mappedRequests)
     } catch (error) {
       console.error('Error fetching leave requests:', error)
-      // handle error
+      setLeaveRequests([])
     } finally {
       setLoading(false)
     }
@@ -88,35 +162,36 @@ export default function AttendanceLeavePage() {
 
   const fetchEmployees = async () => {
     try {
-      const res = await apiRequest(getEndpointUrl('EMPLOYEES'))
-      setEmployees(res as any)
+      const res = await apiRequest<Employee[]>(getEndpointUrl('EMPLOYEES'))
+      setEmployees(Array.isArray(res) ? res : [])
     } catch (error) {
       console.error('Error fetching employees:', error)
-      // handle error
+      setEmployees([])
     }
   }
 
   const fetchDepartments = async () => {
     try {
-      const res = await apiRequest(getEndpointUrl('DEPARTMENTS'))
-      setDepartments(res as any)
+      const res = await apiRequest<Department[]>(getEndpointUrl('DEPARTMENTS'))
+      setDepartments(Array.isArray(res) ? res : [])
     } catch (error) {
       console.error('Error fetching departments:', error)
-      // handle error
+      setDepartments([])
     }
   }
 
-  const getEmployeeName = (id: string) => {
+  const getEmployeeName = (id: string | number) => {
     const emp = employees.find(e => String(e.id) === String(id))
-    return emp ? `${emp.first_name} ${emp.last_name}` : id
+    return emp ? `${emp.first_name} ${emp.last_name}` : String(id)
   }
 
-  const getDepartmentName = (id: string) => {
+  const getDepartmentName = (id: string | number | undefined) => {
+    if (!id) return 'N/A'
     const dept = departments.find(d => String(d.id) === String(id))
-    return dept ? dept.name : id
+    return dept ? dept.name : String(id)
   }
 
-  const getAttendanceStatusColor = (status: string) => {
+  const getAttendanceStatusColor = (status: string | undefined) => {
     const statusLower = status?.toLowerCase() || ""
     switch (statusLower) {
       case "present":
@@ -130,23 +205,24 @@ export default function AttendanceLeavePage() {
     }
   }
 
-  const getLeaveStatusColor = (status: string) => {
-    switch (status) {
-      case "Approved":
+  const getLeaveStatusColor = (status: string | undefined) => {
+    const statusLower = status?.toLowerCase() || ""
+    switch (statusLower) {
+      case "approved":
         return "bg-green-100 text-green-800"
-      case "Pending":
+      case "pending":
         return "bg-yellow-100 text-yellow-800"
-      case "Rejected":
+      case "rejected":
         return "bg-red-100 text-red-800"
       default:
         return "bg-gray-100 text-gray-800"
     }
   }
 
-  const handleApplyLeave = async (formData) => {
+  const handleApplyLeave = async (formData: any, selectedEmployeeId: number) => {
     try {
-      // Get current user's employee ID
-      const employeeId = user?.employee_id
+      // Use the selectedEmployeeId from the form (which should be the current user's ID for self-application)
+      const employeeId = selectedEmployeeId || user?.employee_id
       if (!employeeId) {
         alert("Employee information not found. Please contact HR.")
         return
@@ -162,7 +238,8 @@ export default function AttendanceLeavePage() {
       fetchLeaveRequests()
       setShowLeaveForm(false)
     } catch (err) {
-      // handle error
+      console.error('Error applying leave:', err)
+      alert(err instanceof Error ? err.message : 'Failed to submit leave request')
     }
   }
 
@@ -622,12 +699,32 @@ export default function AttendanceLeavePage() {
                               </div>
                             </TableCell>
                             <TableCell>
-                              <span className="text-sm text-gray-600">{request.leaveType}</span>
+                              <span className="text-sm text-gray-600">
+                                {request.leaveTypeLabel || request.leave_type_label || request.leaveType || request.leave_type || 'N/A'}
+                              </span>
                             </TableCell>
                             <TableCell>
                               <div className="text-sm text-gray-600">
-                                <p>{new Date(request.startDate).toLocaleDateString()}</p>
-                                <p>to {new Date(request.endDate).toLocaleDateString()}</p>
+                                {(() => {
+                                  const startDateStr = request.startDate || request.start_date
+                                  const endDateStr = request.endDate || request.end_date
+                                  const formattedStart = request.formattedStartDate || request.formatted_start_date
+                                  const formattedEnd = request.formattedEndDate || request.formatted_end_date
+                                  
+                                  if (startDateStr && endDateStr) {
+                                    return (
+                                      <>
+                                        <p>
+                                          {formattedStart || (startDateStr ? format(new Date(startDateStr), 'MMM dd, yyyy') : 'N/A')}
+                                        </p>
+                                        <p className="text-gray-500">
+                                          to {formattedEnd || (endDateStr ? format(new Date(endDateStr), 'MMM dd, yyyy') : 'N/A')}
+                                        </p>
+                                      </>
+                                    )
+                                  }
+                                  return <span className="text-gray-400">Date not available</span>
+                                })()}
                               </div>
                             </TableCell>
                             <TableCell>
@@ -637,7 +734,9 @@ export default function AttendanceLeavePage() {
                               <span className="text-sm text-gray-600 max-w-32 truncate">{request.reason}</span>
                             </TableCell>
                             <TableCell>
-                              <Badge className={getLeaveStatusColor(request.status)}>{request.status}</Badge>
+                              <Badge className={getLeaveStatusColor(request.status)}>
+                                {request.statusLabel || request.status || 'Unknown'}
+                              </Badge>
                             </TableCell>
                             <TableCell>
                               <DropdownMenu>
@@ -649,7 +748,7 @@ export default function AttendanceLeavePage() {
                                 <DropdownMenuContent align="end">
                                   <DropdownMenuLabel>Actions</DropdownMenuLabel>
                                   <DropdownMenuItem>View Details</DropdownMenuItem>
-                                  {request.status === "Pending" && (
+                                  {(request.status?.toLowerCase() === "pending" || request.statusLabel?.toLowerCase() === "pending") && (
                                     <>
                                       <DropdownMenuItem className="text-green-600">Approve</DropdownMenuItem>
                                       <DropdownMenuItem className="text-red-600">Reject</DropdownMenuItem>
@@ -670,7 +769,13 @@ export default function AttendanceLeavePage() {
         </div>
       </div>
       {showLeaveForm && (
-        <LeaveRequestForm onClose={() => setShowLeaveForm(false)} onSubmit={handleApplyLeave} />
+        <LeaveRequestForm 
+          onClose={() => setShowLeaveForm(false)} 
+          onSubmit={handleApplyLeave}
+          employeeId={user?.employee_id ? Number(user.employee_id) : undefined}
+          canSelectEmployee={false}
+          mode="self"
+        />
       )}
       <Dialog open={showAttendanceModal} onOpenChange={setShowAttendanceModal}>
         <DialogContent>
@@ -684,8 +789,10 @@ export default function AttendanceLeavePage() {
                 type="date"
                 value={date ? format(date, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd")}
                 onChange={(e) => {
-                  const newDate = e.target.value ? new Date(e.target.value) : new Date()
-                  setDate(newDate)
+                  if (e.target.value) {
+                    const newDate = new Date(e.target.value)
+                    setDate(newDate)
+                  }
                 }}
                 required
                 className="w-full"

@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
-import { getApiUrl, getEndpointUrl, API_ENDPOINTS } from "@/lib/api"
+import { getApiUrl, getEndpointUrl, API_ENDPOINTS, apiRequest } from "@/lib/api"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -177,7 +177,7 @@ export default function OffboardingPage() {
 
   // Update selected employee when allOffboardingEmployees changes
   useEffect(() => {
-    if (selectedEmployee && allOffboardingEmployees.length > 0) {
+    if (selectedEmployee && Array.isArray(allOffboardingEmployees) && allOffboardingEmployees.length > 0) {
       const updatedEmployee = allOffboardingEmployees.find(emp => emp.id === selectedEmployee.id)
       if (updatedEmployee && updatedEmployee.progress !== selectedEmployee.progress) {
         setSelectedEmployee(updatedEmployee)
@@ -188,12 +188,14 @@ export default function OffboardingPage() {
   const fetchOffboardingEmployees = async () => {
     setLoading(true)
     try {
-      const response = await fetch(getEndpointUrl('OFFBOARDING_EMPLOYEES'))
-      const data = await response.json()
-      setAllOffboardingEmployees(data)
-      setOffboardingEmployees(data)
+      const data = await apiRequest<any[]>(getEndpointUrl('OFFBOARDING_EMPLOYEES'))
+      const employeesArray = Array.isArray(data) ? data : []
+      setAllOffboardingEmployees(employeesArray)
+      setOffboardingEmployees(employeesArray)
     } catch (error) {
       console.error('Error fetching offboarding employees:', error)
+      setAllOffboardingEmployees([])
+      setOffboardingEmployees([])
     } finally {
       setLoading(false)
     }
@@ -201,28 +203,27 @@ export default function OffboardingPage() {
 
   const fetchOffboardingTasks = async () => {
     try {
-      const response = await fetch(getEndpointUrl('OFFBOARDING_TASKS'))
-      const data = await response.json()
-      setOffboardingTasks(data)
+      const data = await apiRequest<any[]>(getEndpointUrl('OFFBOARDING_TASKS'))
+      setOffboardingTasks(Array.isArray(data) ? data : [])
     } catch (error) {
       console.error('Error fetching offboarding tasks:', error)
+      setOffboardingTasks([])
     }
   }
 
   const fetchDepartments = async () => {
     try {
-      const response = await fetch(getEndpointUrl('DEPARTMENTS'))
-      const data = await response.json()
-      setDepartments(data)
+      const data = await apiRequest<any[]>(getEndpointUrl('DEPARTMENTS'))
+      setDepartments(Array.isArray(data) ? data : [])
     } catch (error) {
       console.error('Error fetching departments:', error)
+      setDepartments([])
     }
   }
 
   const fetchStats = async () => {
     try {
-      const response = await fetch(getEndpointUrl('OFFBOARDING_EMPLOYEES_STATS'))
-      const data = await response.json()
+      const data = await apiRequest<OffboardingStats>(getEndpointUrl('OFFBOARDING_EMPLOYEES_STATS'))
       setStats(data)
     } catch (error) {
       console.error('Error fetching stats:', error)
@@ -231,38 +232,30 @@ export default function OffboardingPage() {
 
   const fetchEmployees = async () => {
     try {
-      const response = await fetch(getEndpointUrl('EMPLOYEES'))
-      if (response.ok) {
-        const data = await response.json()
-        // Filter out employees who are already in offboarding
-        const offboardingEmployeeIds = offboardingEmployees.map(oe => oe.employeeId)
-        const availableEmployees = data.filter((employee: Employee) => 
-          !offboardingEmployeeIds.includes(employee.id)
-        )
-        setEmployees(availableEmployees)
-      } else {
-        console.error('Failed to fetch employees:', response.statusText)
-      }
+      const data = await apiRequest<Employee[]>(getEndpointUrl('EMPLOYEES'))
+      const employeesArray = Array.isArray(data) ? data : []
+      // Filter out employees who are already in offboarding
+      const offboardingEmployeeIds = Array.isArray(offboardingEmployees) ? offboardingEmployees.map(oe => oe.employeeId) : []
+      const availableEmployees = employeesArray.filter((employee: Employee) => 
+        !offboardingEmployeeIds.includes(employee.id)
+      )
+      setEmployees(availableEmployees)
     } catch (error) {
       console.error('Error fetching employees:', error)
+      setEmployees([])
     }
   }
 
   const handleTaskToggle = async (employeeId: number, taskId: number) => {
     try {
-      const response = await fetch(getApiUrl(`/offboarding_tasks/${taskId}/toggle`), {
+      await apiRequest(getApiUrl(`/offboarding_tasks/${taskId}/toggle`), {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
       })
       
-      if (response.ok) {
-        // Refresh the data
-        await fetchOffboardingEmployees()
-        await fetchOffboardingTasks()
-        await fetchStats()
-      }
+      // Refresh the data
+      await fetchOffboardingEmployees()
+      await fetchOffboardingTasks()
+      await fetchStats()
     } catch (error) {
       console.error('Error toggling task:', error)
     }
@@ -313,11 +306,8 @@ export default function OffboardingPage() {
     setSubmitError(null) // Clear any previous errors
     
     try {
-      const response = await fetch(getEndpointUrl('OFFBOARDING_EMPLOYEES'), {
+      const newOffboardingEmployee = await apiRequest(getEndpointUrl('OFFBOARDING_EMPLOYEES'), {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({
           offboarding_employee: {
             employee_id: parseInt(formData.employeeId),
@@ -329,49 +319,38 @@ export default function OffboardingPage() {
         })
       })
       
-      if (response.ok) {
-        const newOffboardingEmployee = await response.json()
-        
-        // Reset form
-        setFormData({
-          employeeId: "",
-          lastWorkingDay: "",
-          reason: "",
-          assignedTo: "",
-          notes: ""
-        })
-        setFormErrors({})
-        setShowAddDialog(false)
-        
-        // Refresh data to get updated lists
-        await fetchOffboardingEmployees()
+      // Reset form
+      setFormData({
+        employeeId: "",
+        lastWorkingDay: "",
+        reason: "",
+        assignedTo: "",
+        notes: ""
+      })
+      setFormErrors({})
+      setShowAddDialog(false)
+      
+      // Refresh data to get updated lists
+      await fetchOffboardingEmployees()
+      await fetchOffboardingTasks()
+      await fetchStats()
+      await fetchEmployees() // Refresh available employees list
+      
+      // Small delay to ensure backend has processed task creation
+      setTimeout(async () => {
         await fetchOffboardingTasks()
-        await fetchStats()
-        await fetchEmployees() // Refresh available employees list
-        
-        // Small delay to ensure backend has processed task creation
-        setTimeout(async () => {
-          await fetchOffboardingTasks()
-        }, 500)
-        
-        // Show success message (you could add a toast notification here)
-        console.log('Offboarding process started successfully', newOffboardingEmployee)
-      } else {
-        const errorData = await response.json()
-        console.error('Error creating offboarding employee:', errorData)
-        
-        // Display user-friendly error messages
-        if (errorData.errors && Array.isArray(errorData.errors)) {
-          setSubmitError(errorData.errors.join(', '))
-        } else if (errorData.error) {
-          setSubmitError(errorData.error)
-        } else {
-          setSubmitError('Failed to create offboarding employee. Please try again.')
-        }
-      }
-    } catch (error) {
+      }, 500)
+      
+      // Show success message (you could add a toast notification here)
+      console.log('Offboarding process started successfully', newOffboardingEmployee)
+    } catch (error: any) {
       console.error('Error submitting form:', error)
-      setSubmitError('Network error. Please check your connection and try again.')
+      // Display user-friendly error messages
+      if (error?.message) {
+        setSubmitError(error.message)
+      } else {
+        setSubmitError('Network error. Please check your connection and try again.')
+      }
     } finally {
       setIsSubmitting(false)
     }
@@ -429,7 +408,7 @@ export default function OffboardingPage() {
     // Fallback stats when data is not loaded yet
     {
       title: "Active Offboarding",
-      value: allOffboardingEmployees.filter(emp => emp.status !== 'completed').length.toString(),
+      value: Array.isArray(allOffboardingEmployees) ? allOffboardingEmployees.filter(emp => emp.status !== 'completed').length.toString() : "0",
       change: "Currently in progress",
       icon: UserMinus,
       color: "text-orange-600",
@@ -437,7 +416,7 @@ export default function OffboardingPage() {
     },
     {
       title: "Completed",
-      value: allOffboardingEmployees.filter(emp => emp.status === 'completed').length.toString(),
+      value: Array.isArray(allOffboardingEmployees) ? allOffboardingEmployees.filter(emp => emp.status === 'completed').length.toString() : "0",
       change: "Successfully offboarded",
       icon: CheckCircle,
       color: "text-green-600",
@@ -445,7 +424,7 @@ export default function OffboardingPage() {
     },
     {
       title: "Pending",
-      value: allOffboardingEmployees.filter(emp => emp.status === 'pending').length.toString(),
+      value: Array.isArray(allOffboardingEmployees) ? allOffboardingEmployees.filter(emp => emp.status === 'pending').length.toString() : "0",
       change: "Awaiting start",
       icon: Clock,
       color: "text-yellow-600",
@@ -453,7 +432,7 @@ export default function OffboardingPage() {
     },
     {
       title: "Total Offboarding",
-      value: allOffboardingEmployees.length.toString(),
+      value: Array.isArray(allOffboardingEmployees) ? allOffboardingEmployees.length.toString() : "0",
       change: "All time records",
       icon: CalendarDays,
       color: "text-blue-600",
@@ -462,7 +441,7 @@ export default function OffboardingPage() {
   ]
 
   // Generate dynamic task categories from real data
-  const taskCategories = offboardingTasks.length > 0 ? [
+  const taskCategories = Array.isArray(offboardingTasks) && offboardingTasks.length > 0 ? [
     {
       category: "Equipment",
       icon: Laptop,
@@ -543,16 +522,16 @@ export default function OffboardingPage() {
     }
   }
 
-  const filteredEmployees = offboardingEmployees.filter((employee) => {
+  const filteredEmployees = Array.isArray(offboardingEmployees) ? offboardingEmployees.filter((employee) => {
     const matchesSearch = employee.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          employee.email.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesStatus = filterStatus === "all" || employee.status === filterStatus
     const matchesDepartment = filterDepartment === "all" || employee.department === filterDepartment
     return matchesSearch && matchesStatus && matchesDepartment
-  })
+  }) : []
 
   const getEmployeeTasks = (employeeId: number) => {
-    return offboardingTasks.filter(task => task.offboardingEmployeeId === employeeId)
+    return Array.isArray(offboardingTasks) ? offboardingTasks.filter(task => task.offboardingEmployeeId === employeeId) : []
   }
 
   const handleViewDetails = async (employee: OffboardingEmployee) => {
@@ -588,11 +567,8 @@ export default function OffboardingPage() {
     setSubmitError(null)
     
     try {
-      const response = await fetch(`${getEndpointUrl('OFFBOARDING_EMPLOYEES')}/${editEmployee.id}`, {
+      await apiRequest(`${getEndpointUrl('OFFBOARDING_EMPLOYEES')}/${editEmployee.id}`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({
           offboarding_employee: {
             last_working_day: formData.lastWorkingDay,
@@ -602,38 +578,29 @@ export default function OffboardingPage() {
         })
       })
       
-      if (response.ok) {
-        // Reset form and close dialog
-        setFormData({
-          employeeId: "",
-          lastWorkingDay: "",
-          reason: "",
-          assignedTo: "",
-          notes: ""
-        })
-        setFormErrors({})
-        setEditEmployee(null)
-        setShowAddDialog(false)
-        
-        // Refresh data
-        await fetchOffboardingEmployees()
-        await fetchOffboardingTasks()
-        await fetchStats()
-      } else {
-        const errorData = await response.json()
-        console.error('Error updating offboarding employee:', errorData)
-        
-        if (errorData.errors && Array.isArray(errorData.errors)) {
-          setSubmitError(errorData.errors.join(', '))
-        } else if (errorData.error) {
-          setSubmitError(errorData.error)
-        } else {
-          setSubmitError('Failed to update offboarding employee. Please try again.')
-        }
-      }
-    } catch (error) {
+      // Reset form and close dialog
+      setFormData({
+        employeeId: "",
+        lastWorkingDay: "",
+        reason: "",
+        assignedTo: "",
+        notes: ""
+      })
+      setFormErrors({})
+      setEditEmployee(null)
+      setShowAddDialog(false)
+      
+      // Refresh data
+      await fetchOffboardingEmployees()
+      await fetchOffboardingTasks()
+      await fetchStats()
+    } catch (error: any) {
       console.error('Error updating form:', error)
-      setSubmitError('Network error. Please check your connection and try again.')
+      if (error?.message) {
+        setSubmitError(error.message)
+      } else {
+        setSubmitError('Network error. Please check your connection and try again.')
+      }
     } finally {
       setIsSubmitting(false)
     }
@@ -960,7 +927,7 @@ export default function OffboardingPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Departments</SelectItem>
-                {departments.map((dept) => (
+                {Array.isArray(departments) && departments.map((dept) => (
                   <SelectItem key={dept.id} value={dept.name}>
                     {dept.name}
                   </SelectItem>

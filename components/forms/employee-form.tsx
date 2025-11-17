@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { useEffect, useState } from "react"
-import { getEndpointUrl } from "@/lib/api"
+import { getEndpointUrl, apiRequest } from "@/lib/api"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -59,13 +59,11 @@ export function EmployeeForm({ onClose, onSubmit, initialData }: EmployeeFormPro
 
   const fetchDepartments = async () => {
     try {
-      const res = await fetch(getEndpointUrl('DEPARTMENTS'), {
-        headers: { "Accept": "application/json" }
-      })
-      const data = await res.json()
-      setDepartments(data)
+      const data = await apiRequest<any[]>(getEndpointUrl('DEPARTMENTS'))
+      setDepartments(Array.isArray(data) ? data : [])
     } catch (err) {
       console.error('Error fetching departments:', err)
+      setDepartments([])
     }
   }
 
@@ -149,7 +147,7 @@ export function EmployeeForm({ onClose, onSubmit, initialData }: EmployeeFormPro
                       <SelectValue placeholder="Select department" />
                     </SelectTrigger>
                     <SelectContent>
-                      {departments.map((dept) => (
+                      {Array.isArray(departments) && departments.map((dept) => (
                         <SelectItem key={dept.id} value={String(dept.id)}>{dept.name}</SelectItem>
                       ))}
                     </SelectContent>
