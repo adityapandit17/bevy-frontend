@@ -51,7 +51,7 @@ export default function AttendanceLeavePage() {
   const [loading, setLoading] = useState(false)
   const [showLeaveForm, setShowLeaveForm] = useState(false)
   const [showAttendanceModal, setShowAttendanceModal] = useState(false)
-  const [attendanceForm, setAttendanceForm] = useState({ employee_id: "", status: "Present", check_in: "", check_out: "" })
+  const [attendanceForm, setAttendanceForm] = useState({ employee_id: "", status: "present", check_in: "", check_out: "" })
 
   useEffect(() => {
     fetchAttendance()
@@ -166,15 +166,78 @@ export default function AttendanceLeavePage() {
     }
   }
 
-  const handleMarkAttendance = async (e) => {
+  const handleMarkAttendance = async (e: React.FormEvent) => {
     e.preventDefault()
-    await apiRequest<any>(getEndpointUrl('ATTENDANCE_RECORDS'), {
-      method: "POST",
-      body: JSON.stringify({ attendance_record: attendanceForm })
-    })
-    setShowAttendanceModal(false)
-    setAttendanceForm({ employee_id: "", status: "Present", check_in: "", check_out: "" })
-    fetchAttendance()
+    
+    // Get the date - use selected date from calendar or default to today
+    const attendanceDate = date ? format(date, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd")
+    const employeeId = parseInt(attendanceForm.employee_id)
+    
+    // Format check_in and check_out as datetime strings if provided
+    const checkInDateTime = attendanceForm.check_in ? `${attendanceDate}T${attendanceForm.check_in}:00` : null
+    const checkOutDateTime = attendanceForm.check_out ? `${attendanceDate}T${attendanceForm.check_out}:00` : null
+    
+    const requestData = {
+      attendance_record: {
+        employee_id: employeeId,
+        date: attendanceDate,
+        status: attendanceForm.status.toLowerCase(),
+        check_in: checkInDateTime,
+        check_out: checkOutDateTime
+      }
+    }
+    
+    try {
+      // Check if a record already exists for this employee and date
+      // Query API with filters to find existing record
+      const existingRecords = await apiRequest<any[]>(
+        `${getEndpointUrl('ATTENDANCE_RECORDS')}?employee_id=${employeeId}&date=${attendanceDate}`
+      )
+      
+      const existingRecord = existingRecords && existingRecords.length > 0 ? existingRecords[0] : null
+      
+      if (existingRecord) {
+        // Update existing record
+        await apiRequest<any>(`${getEndpointUrl('ATTENDANCE_RECORDS')}/${existingRecord.id}`, {
+          method: "PUT",
+          body: JSON.stringify(requestData)
+        })
+      } else {
+        // Create new record
+        await apiRequest<any>(getEndpointUrl('ATTENDANCE_RECORDS'), {
+          method: "POST",
+          body: JSON.stringify(requestData)
+        })
+      }
+      
+      setShowAttendanceModal(false)
+      setAttendanceForm({ employee_id: "", status: "present", check_in: "", check_out: "" })
+      fetchAttendance()
+    } catch (error: any) {
+      // If error is about duplicate record, try to find and update it
+      if (error?.message?.includes("already has attendance record")) {
+        try {
+          // Fetch the existing record and update it
+          const existingRecords = await apiRequest<any[]>(
+            `${getEndpointUrl('ATTENDANCE_RECORDS')}?employee_id=${employeeId}&date=${attendanceDate}`
+          )
+          if (existingRecords && existingRecords.length > 0) {
+            await apiRequest<any>(`${getEndpointUrl('ATTENDANCE_RECORDS')}/${existingRecords[0].id}`, {
+              method: "PUT",
+              body: JSON.stringify(requestData)
+            })
+            setShowAttendanceModal(false)
+            setAttendanceForm({ employee_id: "", status: "present", check_in: "", check_out: "" })
+            fetchAttendance()
+            return
+          }
+        } catch (updateError) {
+          console.error('Error updating attendance:', updateError)
+        }
+      }
+      console.error('Error marking attendance:', error)
+      // Error will be handled by apiRequest
+    }
   }
 
   // Filter attendance by selected date and search term
@@ -616,6 +679,19 @@ export default function AttendanceLeavePage() {
           </DialogHeader>
           <form onSubmit={handleMarkAttendance} className="space-y-4">
             <div>
+              <label className="block mb-1 font-medium">Date</label>
+              <Input
+                type="date"
+                value={date ? format(date, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd")}
+                onChange={(e) => {
+                  const newDate = e.target.value ? new Date(e.target.value) : new Date()
+                  setDate(newDate)
+                }}
+                required
+                className="w-full"
+              />
+            </div>
+            <div>
               <label className="block mb-1 font-medium">Employee</label>
               <Select value={attendanceForm.employee_id} onValueChange={v => setAttendanceForm(f => ({ ...f, employee_id: v }))} required>
                 <SelectTrigger>
@@ -635,9 +711,9 @@ export default function AttendanceLeavePage() {
                   <SelectValue placeholder="Select status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Present">Present</SelectItem>
-                  <SelectItem value="Absent">Absent</SelectItem>
-                  <SelectItem value="Late">Late</SelectItem>
+                  <SelectItem value="present">Present</SelectItem>
+                  <SelectItem value="absent">Absent</SelectItem>
+                  <SelectItem value="late">Late</SelectItem>
                 </SelectContent>
               </Select>
             </div>
