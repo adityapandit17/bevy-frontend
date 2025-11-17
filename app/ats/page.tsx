@@ -182,11 +182,10 @@ export default function ATSPage() {
 
   const fetchCandidates = async () => {
     try {
-      const response = await fetch(getEndpointUrl('CANDIDATES'))
-      const data = await response.json()
-      setCandidates(data)
+      const res = await apiRequest<any[]>(getEndpointUrl('CANDIDATES'))
+      setCandidates(res as any)
       // Restore selected candidate from localStorage
-      restoreSelectedCandidate(data)
+      restoreSelectedCandidate(res as any)
     } catch (error) {
       console.error('Error fetching candidates:', error)
     }
@@ -195,8 +194,8 @@ export default function ATSPage() {
   const fetchStats = async () => {
     try {
       const url = getApiUrl('candidates/stats')
-      const data = await apiRequest<any>(url)
-      setStats(data)
+      const res = await apiRequest<any>(url)
+      setStats(res as any)
     } catch (error) {
       console.error('Error fetching stats:', error)
     }
@@ -204,13 +203,10 @@ export default function ATSPage() {
 
   const fetchInterviews = async () => {
     try {
-      const response = await fetch(getEndpointUrl('INTERVIEWS'))
-      if (response.ok) {
-        const data = await response.json()
-        setInterviews(data)
-      }
-    } catch (error) {
-      console.error('Error fetching interviews:', error)
+      const res = await apiRequest<any[]>(getEndpointUrl('INTERVIEWS'))
+      setInterviews(res as any)
+    } catch (err) {
+      console.error('Error fetching interviews:', err)
     }
   }
 

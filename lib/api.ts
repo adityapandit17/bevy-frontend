@@ -1,3 +1,4 @@
+import { AUTH_CONFIG } from '@/config/auth.config';
 /**
  * API Configuration Utility
  * Centralized configuration for API endpoints
@@ -10,7 +11,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3
  */
 const getToken = (): string | null => {
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem('auth_token');
+  return localStorage.getItem(AUTH_CONFIG.tokenKey);
 };
 
 /**

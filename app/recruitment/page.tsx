@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { getApiUrl, getEndpointUrl } from "@/lib/api"
+import { apiRequest, getApiUrl, getEndpointUrl } from "@/lib/api"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -80,21 +80,18 @@ export default function RecruitmentPage() {
 
   const fetchDepartments = async () => {
     try {
-      const res = await fetch(getEndpointUrl('DEPARTMENTS'))
-      const data = await res.json()
-      setDepartments(data)
+
+      const res = await apiRequest(getEndpointUrl('DEPARTMENTS'))
+      setDepartments(res as any)
     } catch (err) {
-      // handle error
+      console.error("Error fetching departments:", err)
     }
   }
 
   const fetchAllJobOpenings = async () => {
     try {
-      const res = await fetch(getEndpointUrl("JOB_OPENINGS"))
-      if (res.ok) {
-        const data = await res.json()
-        setAllJobOpenings(data) // Keep all job openings for stats
-      }
+      const res = await apiRequest<any[]>(getEndpointUrl('JOB_OPENINGS'))
+      setAllJobOpenings(res as any) // Keep all job openings for stats
     } catch (err) {
       console.error("Error fetching all jobs:", err)
     }
@@ -115,13 +112,11 @@ export default function RecruitmentPage() {
         ? `${getEndpointUrl("JOB_OPENINGS")}?search=${encodeURIComponent(query)}`
         : getEndpointUrl("JOB_OPENINGS")
 
-      const res = await fetch(url)
-      const data = await res.json()
-
-      setJobOpenings(data) // Filtered results for display
+      const res = await apiRequest<any[]>(url)
+      setJobOpenings(res as any) // Filtered results for display
       // Also update allJobOpenings if no search query (for stats)
       if (!query) {
-        setAllJobOpenings(data)
+        setAllJobOpenings(res as any)
       }
     } catch (err) {
       console.error("Error fetching jobs:", err)
@@ -132,11 +127,8 @@ export default function RecruitmentPage() {
 
   const fetchCandidates = async () => {
     try {
-      const res = await fetch(getEndpointUrl('CANDIDATES'))
-      if (res.ok) {
-        const data = await res.json()
-        setCandidates(data)
-      }
+      const res = await apiRequest<any[]>(getEndpointUrl('CANDIDATES'))
+      setCandidates(res as any)
     } catch (err) {
       console.error('Error fetching candidates:', err)
     }
@@ -144,11 +136,8 @@ export default function RecruitmentPage() {
 
   const fetchInterviews = async () => {
     try {
-      const res = await fetch(getEndpointUrl('INTERVIEWS'))
-      if (res.ok) {
-        const data = await res.json()
-        setInterviews(data)
-      }
+      const res = await apiRequest<any[]>(getEndpointUrl('INTERVIEWS'))
+      setInterviews(res as any)
     } catch (err) {
       console.error('Error fetching interviews:', err)
     }
@@ -308,11 +297,12 @@ export default function RecruitmentPage() {
     // For now, return placeholder text. Can be enhanced with historical data comparison
     switch (statType) {
       case "activeJobOpenings":
-        const drafts = allJobOpenings.filter((j: any) => {
-          const status = (j.status || "").toLowerCase()
-          return status === "draft"
-        }).length
-        return drafts > 0 ? `${drafts} drafts` : "All active"
+        // const drafts = allJobOpenings.filter((j: any) => {
+        //   const status = (j.status || "").toLowerCase()
+        //   return status === "draft"
+        // }).length
+        // return drafts > 0 ? `${drafts} drafts` : "All active"
+        "All active"
       case "totalApplications":
         const thisWeek = candidates.filter(c => {
           if (!c.applied_date) return false

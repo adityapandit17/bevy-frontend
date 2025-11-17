@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { getApiUrl, getEndpointUrl } from "@/lib/api"
+import { apiRequest, getApiUrl, getEndpointUrl } from "@/lib/api"
 import { mapLeaveRequestToBackend } from "@/lib/leave-request-mapper"
 import { useAuth } from "@/lib/auth/auth.hooks"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -63,11 +63,10 @@ export default function AttendanceLeavePage() {
   const fetchAttendance = async () => {
     setLoading(true)
     try {
-      const res = await fetch(getEndpointUrl('ATTENDANCE_RECORDS'))
-      const data = await res.json()
-      setTodayAttendance(data)
-      // Optionally, calculate stats from data
-    } catch (err) {
+      const res = await apiRequest('ATTENDANCE_RECORDS')
+      setTodayAttendance(res as any)
+    } catch (error) {
+      console.error('Error fetching attendance:', error)
       // handle error
     } finally {
       setLoading(false)
@@ -77,10 +76,10 @@ export default function AttendanceLeavePage() {
   const fetchLeaveRequests = async () => {
     setLoading(true)
     try {
-      const res = await fetch(getEndpointUrl('LEAVE_REQUESTS'))
-      const data = await res.json()
-      setLeaveRequests(data)
-    } catch (err) {
+      const res = await apiRequest('LEAVE_REQUESTS')
+      setLeaveRequests(res as any)
+    } catch (error) {
+      console.error('Error fetching leave requests:', error)
       // handle error
     } finally {
       setLoading(false)
@@ -89,20 +88,20 @@ export default function AttendanceLeavePage() {
 
   const fetchEmployees = async () => {
     try {
-      const res = await fetch(getEndpointUrl('EMPLOYEES'))
-      const data = await res.json()
-      setEmployees(data)
-    } catch (err) {
+      const res = await apiRequest('EMPLOYEES')
+      setEmployees(res as any)
+    } catch (error) {
+      console.error('Error fetching employees:', error)
       // handle error
     }
   }
 
   const fetchDepartments = async () => {
     try {
-      const res = await fetch(getEndpointUrl('DEPARTMENTS'))
-      const data = await res.json()
-      setDepartments(data)
-    } catch (err) {
+      const res = await apiRequest('DEPARTMENTS')
+      setDepartments(res as any)
+    } catch (error) {
+      console.error('Error fetching departments:', error)
       // handle error
     }
   }
@@ -147,7 +146,7 @@ export default function AttendanceLeavePage() {
   const handleApplyLeave = async (formData) => {
     try {
       // Get current user's employee ID
-      const employeeId = user?.employee?.id
+      const employeeId = user?.employee_id
       if (!employeeId) {
         alert("Employee information not found. Please contact HR.")
         return

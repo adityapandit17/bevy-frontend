@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
-import { getApiUrl, getEndpointUrl, API_ENDPOINTS } from "@/lib/api"
+import { getApiUrl, getEndpointUrl, API_ENDPOINTS, apiRequest } from "@/lib/api"
 import { mapLeaveRequestToBackend } from "@/lib/leave-request-mapper"
 import { useAuth } from "@/lib/auth/auth.hooks"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -214,10 +214,10 @@ export default function AttendancePage() {
   // Fetch leave balance after user data is loaded
   useEffect(() => {
     // Only fetch leave balance if user is not HR/Admin or has employee_id
-    if (!canSelectEmployee || user?.employee?.id) {
+    if (!canSelectEmployee || user?.employee_id) {
       fetchLeaveBalance()
     }
-  }, [canSelectEmployee, user?.employee?.id])
+  }, [canSelectEmployee, user?.employee_id])
 
   // Fetch data on mount
   useEffect(() => {
@@ -231,10 +231,10 @@ export default function AttendancePage() {
 
   // Fetch pending approvals when user has permission
   useEffect(() => {
-    if (hasLeaveManagementPermission && user?.employee?.id) {
+    if (hasLeaveManagementPermission && user?.employee_id) {
       fetchPendingApprovals()
     }
-  }, [hasLeaveManagementPermission, user?.employee?.id])
+  }, [hasLeaveManagementPermission, user?.employee_id])
 
   // Fetch functions
   const fetchAttendanceRecords = async () => {
@@ -255,9 +255,9 @@ export default function AttendancePage() {
   const fetchLeaveRequests = async () => {
     try {
       let url = getEndpointUrl('LEAVE_REQUESTS')
-      // For regular employees, filter by their employee_id
-      if (!canSelectEmployee && user?.employee?.id) {
-        url = `${url}?employee_id=${user.employee.id}`
+        // For regular employees, filter by their employee_id
+        if (!canSelectEmployee && user?.employee_id) {
+        url = `${url}?employee_id=${user.employee_id}`
       }
       const response = await fetch(url)
       if (response.ok) {
@@ -322,7 +322,7 @@ export default function AttendancePage() {
     try {
       let url = getApiUrl('/leave_requests/balance')
       // Use provided employeeId, or selected employee for balance, or current user's employee ID
-      const targetEmployeeId = employeeId || selectedEmployeeForBalance || (canSelectEmployee ? null : user?.employee?.id)
+      const targetEmployeeId = employeeId || selectedEmployeeForBalance || (canSelectEmployee ? null : user?.employee_id)
       
       // For HR/Admin, require explicit employee selection
       if (canSelectEmployee && !targetEmployeeId) {
@@ -422,7 +422,7 @@ export default function AttendancePage() {
       setLeaveError(null)
       
       // For HR/Admin, selectedEmployeeId is required. For regular employees, use their own employee ID
-      const employeeId = canSelectEmployee ? selectedEmployeeId : (selectedEmployeeId || user?.employee?.id)
+      const employeeId = canSelectEmployee ? selectedEmployeeId : (selectedEmployeeId || user?.employee_id)
       if (!employeeId) {
         if (canSelectEmployee) {
           setLeaveError("Please select an employee to apply leave for.")
@@ -437,8 +437,9 @@ export default function AttendancePage() {
       
       console.log('🚀 Submitting leave request:', requestData)
       console.log('🌐 API URL:', getEndpointUrl('LEAVE_REQUESTS'))
-      
-      const response = await fetch(getEndpointUrl('LEAVE_REQUESTS'), {
+
+      // Use apiRequest function from lib/api.ts
+      const response = await apiRequest('LEAVE_REQUESTS', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -446,25 +447,8 @@ export default function AttendancePage() {
         },
         body: JSON.stringify(requestData)
       })
-      
-      console.log('📡 Response status:', response.status)
-      console.log('📡 Response headers:', Object.fromEntries(response.headers.entries()))
-      
-      if (response.ok) {
-        const result = await response.json()
-        console.log('✅ Leave request created successfully:', result)
-        setShowLeaveForm(false)
-        setLeaveError(null) // Clear any previous errors
-        await fetchLeaveRequests()
-        await fetchLeaveBalance()
-      } else {
-        const errorData = await response.json()
-        console.error('❌ Error response:', errorData)
-        
-        // Set error message for display in UI
-        const errorMessage = errorData.errors?.join(', ') || 'Failed to create leave request'
-        setLeaveError(errorMessage)
-      }
+
+      console.log('📡 Response:', response)
     } catch (error) {
       console.error('❌ Network error submitting leave request:', error)
       setLeaveError(`Network error: ${error instanceof Error ? error.message : 'Unknown error'}`)
@@ -1041,7 +1025,7 @@ export default function AttendancePage() {
         <LeaveRequestForm
           onClose={() => setShowLeaveForm(false)}
           onSubmit={handleLeaveSubmit}
-          employeeId={user?.employee?.id || undefined}
+          employeeId={user?.employee_id || undefined}
           canSelectEmployee={false}
           mode="self"
           employees={employees}

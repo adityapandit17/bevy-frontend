@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Building2, Users, Shield, Bell, Database, Globe, Save, Download, Calendar } from "lucide-react"
 import { useEffect, useState } from "react"
-import { getEndpointUrl } from "@/lib/api"
+import { apiRequest, getEndpointUrl } from "@/lib/api"
 import { ResourceGuard } from "@/lib/auth/auth.guards"
 import { getApiUrl } from "@/lib/api"
 import { AUTH_CONFIG } from "@/config/auth.config"
@@ -299,27 +299,8 @@ export default function SettingsPage() {
   const fetchCompany = async () => {
     setLoading(true)
     try {
-      const res = await fetch(getEndpointUrl('COMPANY'))
-      if (res.ok) {
-        const data = await res.json()
-        console.log("Company data fetched:", data)
-        // Ensure we don't set null data, use default values if data is null/undefined
-        if (data && typeof data === 'object') {
-          setCompany({
-            name: data.name || "",
-            code: data.code || "",
-            industry: data.industry || "technology",
-            employee_count: data.employee_count || "201-500",
-            address: data.address || "",
-            timezone: data.timezone || "asia-kolkata",
-            currency: data.currency || "inr"
-          })
-        }
-      } else {
-        console.error("Failed to fetch company data - Status:", res.status, res.statusText)
-        const errorText = await res.text()
-        console.error("Error response:", errorText)
-      }
+      const res = await apiRequest<any>(getEndpointUrl('COMPANY'))
+      setCompany(res as any)
     } catch (err) {
       console.error("Error fetching company data:", err)
       // Keep the default state if fetch fails
