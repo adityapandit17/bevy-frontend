@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -30,16 +30,48 @@ export function DocumentPreview({
   const [isLoading, setIsLoading] = useState(true)
   const [hasError, setHasError] = useState(false)
   const [errorMessage, setErrorMessage] = useState("")
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  useEffect(() => {
+    if (open && documentUrl) {
+      setIsLoading(true)
+      setHasError(false)
+      setErrorMessage("")
+      
+      timeoutRef.current = setTimeout(() => {
+        setIsLoading(prev => {
+          if (prev) {
+            setHasError(true)
+            setErrorMessage("The document took too long to load. Please try downloading or opening in a new tab.")
+            return false
+          }
+          return prev
+        })
+      }, 10000)
+    }
+    
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+      }
+    }
+  }, [open, documentUrl])
 
   const handleLoad = () => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current)
+    }
     setIsLoading(false)
     setHasError(false)
   }
 
   const handleError = () => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current)
+    }
     setIsLoading(false)
     setHasError(true)
-    setErrorMessage("Failed to load the document. The link may be invalid or blocked by CORS.")
+    setErrorMessage("Failed to load the document. The link may be invalid or the server may be unreachable.")
   }
 
   const handleDownload = () => {

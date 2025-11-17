@@ -16,6 +16,8 @@ import {
 } from "@/components/ui/dialog"
 import { ArrowLeft, FileText, IndianRupee, Receipt, TrendingUp, Download, Printer, Building2, User, CreditCard } from "lucide-react"
 import { getApiUrl, getEndpointUrl, apiRequest } from "@/lib/api"
+import { jsPDF } from "jspdf"
+import html2canvas from "html2canvas"
 
 interface Employee {
   id: number
@@ -495,16 +497,51 @@ export default function EmployeePayrollPage() {
 </html>
     `
 
-    // Create a blob and download
-    const blob = new Blob([htmlContent], { type: 'text/html' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `Salary_Slip_${employee.first_name}_${employee.last_name}_${slip.month}_${slip.year}.html`
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
+    // Create a temporary div with the HTML content
+    const tempDiv = document.createElement('div')
+    tempDiv.innerHTML = htmlContent
+    tempDiv.style.position = 'absolute'
+    tempDiv.style.left = '-9999px'
+    tempDiv.style.width = '800px'
+    document.body.appendChild(tempDiv)
+
+    // Convert HTML to canvas then to PDF
+    html2canvas(tempDiv, {
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      backgroundColor: '#ffffff'
+    }).then((canvas) => {
+      const imgData = canvas.toDataURL('image/png')
+      const pdf = new jsPDF('p', 'mm', 'a4')
+      
+      const imgWidth = 210 // A4 width in mm
+      const pageHeight = 297 // A4 height in mm
+      const imgHeight = (canvas.height * imgWidth) / canvas.width
+      let heightLeft = imgHeight
+      let position = 0
+
+      // Add first page
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight)
+      heightLeft -= pageHeight
+
+      // Add additional pages if needed
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight
+        pdf.addPage()
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight)
+        heightLeft -= pageHeight
+      }
+
+      // Download the PDF
+      pdf.save(`Salary_Slip_${employee.first_name}_${employee.last_name}_${slip.month}_${slip.year}.pdf`)
+      
+      // Clean up
+      document.body.removeChild(tempDiv)
+    }).catch((error) => {
+      console.error('Error generating PDF:', error)
+      document.body.removeChild(tempDiv)
+    })
   }
 
   if (loading) {
