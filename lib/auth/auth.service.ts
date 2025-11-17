@@ -25,15 +25,19 @@ export class AuthService {
 
   private async makeRequest<T>(
     url: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    skipToken: boolean = false
   ): Promise<T> {
-    const defaultHeaders = {
+    const defaultHeaders: Record<string, string> = {
       'Content-Type': 'application/json',
     };
 
-    const token = this.getToken();
-    if (token) {
-      defaultHeaders['Authorization'] = `Bearer ${token}`;
+    // Only add token if skipToken is false (for login requests, skipToken should be true)
+    if (!skipToken) {
+      const token = this.getToken();
+      if (token) {
+        defaultHeaders['Authorization'] = `Bearer ${token}`;
+      }
     }
 
     const config: RequestInit = {
@@ -101,6 +105,7 @@ export class AuthService {
 
   public async login(credentials: LoginCredentials): Promise<AuthData> {
     try {
+      // Login request should NOT send token (skipToken = true)
       const response = await this.makeRequest<{
         success: boolean;
         data?: {
@@ -114,7 +119,7 @@ export class AuthService {
       }>(API_ENDPOINTS.LOGIN, {
         method: 'POST',
         body: JSON.stringify(credentials),
-      });
+      }, true); // skipToken = true for login
 
       if (!response.success) {
         // Handle specific error messages from backend

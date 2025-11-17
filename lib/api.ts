@@ -1,4 +1,5 @@
 import { AUTH_CONFIG } from '@/config/auth.config';
+import { toast } from '@/hooks/use-toast';
 /**
  * API Configuration Utility
  * Centralized configuration for API endpoints
@@ -17,6 +18,7 @@ const getToken = (): string | null => {
 /**
  * Make authenticated API request
  * Automatically includes JWT token in Authorization header
+ * NOTE: This function ALWAYS sends the token if available (except for login requests which use AuthService)
  */
 export const apiRequest = async <T>(
   url: string,
@@ -27,10 +29,13 @@ export const apiRequest = async <T>(
     'Accept': 'application/json',
   };
 
-  // Add JWT token if available
+  // ALWAYS add JWT token if available (this ensures all requests send token)
   const token = getToken();
   if (token) {
     defaultHeaders['Authorization'] = `Bearer ${token}`;
+  } else {
+    // Log warning if token is missing (except for login)
+    console.warn('API request made without authentication token:', url);
   }
 
   const config: RequestInit = {
@@ -45,16 +50,76 @@ export const apiRequest = async <T>(
     const response = await fetch(url, config);
 
     if (!response.ok) {
+      // Get content type to check if response is HTML (like Rails error pages)
+      const contentType = response.headers.get('content-type') || '';
+      const isHTML = contentType.includes('text/html');
+      
       // Handle 401 Unauthorized - token might be expired
       if (response.status === 401) {
         // Clear invalid token
         localStorage.removeItem(AUTH_CONFIG.tokenKey);
         localStorage.removeItem(AUTH_CONFIG.userKey);
+        
+        // Show toast notification for authorization failure
+        toast({
+          title: "Authentication Failed",
+          description: "Your session has expired. Please login again.",
+          variant: "destructive",
+        });
+        
+        // Redirect to login page after a short delay
+        if (typeof window !== 'undefined') {
+          setTimeout(() => {
+            window.location.href = '/login';
+          }, 2000);
+        }
+        
         throw new Error('Authentication failed. Please login again.');
       }
 
-      const errorText = await response.text();
-      throw new Error(`API request failed: ${response.status} ${response.statusText} - ${errorText}`);
+      // Try to parse error response
+      let errorMessage = `Request failed with status ${response.status}`;
+      
+      if (isHTML) {
+        // If response is HTML (like Rails error pages), extract meaningful message
+        const errorText = await response.text();
+        // Try to extract error message from HTML
+        const match = errorText.match(/<h2[^>]*>([^<]+)<\/h2>/i) || 
+                      errorText.match(/<title[^>]*>([^<]+)<\/title>/i);
+        if (match && match[1]) {
+          errorMessage = match[1].trim();
+        } else {
+          errorMessage = `Server error (${response.status}). The requested resource was not found.`;
+        }
+      } else {
+        try {
+          const errorText = await response.text();
+          if (errorText) {
+            try {
+              const errorJson = JSON.parse(errorText);
+              errorMessage = errorJson.message || errorJson.error || errorJson.errors?.join(', ') || errorMessage;
+            } catch {
+              // If not JSON, use the text directly (but truncate if too long)
+              errorMessage = errorText.length > 200 ? errorText.substring(0, 200) + '...' : errorText;
+            }
+          }
+        } catch {
+          // If we can't parse the error, use default message
+        }
+      }
+
+      // Show toast notification for errors
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+
+      // Create error and mark it as having shown toast (to prevent duplicate logging)
+      const error = new Error(errorMessage);
+      (error as any).toastShown = true;
+      (error as any).statusCode = response.status;
+      throw error;
     }
 
     // Handle empty responses
@@ -65,7 +130,41 @@ export const apiRequest = async <T>(
 
     return JSON.parse(text);
   } catch (error) {
-    console.error('API request error:', error);
+    // Only show toast for errors that weren't already handled above
+    // (Network errors, JSON parse errors, etc.)
+    if (error instanceof Error) {
+      // Skip if toast was already shown (401 or other HTTP errors)
+      if ((error as any).toastShown || error.message.includes('Authentication failed')) {
+        // Don't log to console if we've already shown a toast to the user
+        // The error is still thrown so calling code can handle it if needed
+        throw error;
+      }
+      
+      // Check if it's a network error
+      if (error.message.includes('fetch') || error.message.includes('Network') || error instanceof TypeError) {
+        toast({
+          title: "Network Error",
+          description: "Unable to connect to the server. Please check your internet connection.",
+          variant: "destructive",
+        });
+        (error as any).toastShown = true;
+      } else {
+        // Show generic error toast for unexpected errors
+        toast({
+          title: "Error",
+          description: error.message || "An unexpected error occurred. Please try again.",
+          variant: "destructive",
+        });
+        (error as any).toastShown = true;
+      }
+    }
+    
+    // Only log to console if we haven't shown a toast (for debugging purposes)
+    // Errors that have shown toasts are still thrown for calling code to handle
+    if (!(error instanceof Error) || !(error as any).toastShown) {
+      console.error('API request error:', error);
+    }
+    
     throw error;
   }
 };
