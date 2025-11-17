@@ -130,22 +130,14 @@ export default function UserSettingsPage() {
         return
       }
       
-      const response = await fetch(url, {
+      const responseData = await apiRequest<any>(url, {
         method: "POST",
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
         body: JSON.stringify(requestBody),
       })
 
-      console.log("Change password response status:", response.status)
-      
-      const responseData = await response.json()
       console.log("Change password response data:", responseData)
 
-      if (response.ok && responseData.success) {
+      if (responseData.success) {
         toast({
           title: "Password changed",
           description: responseData.data?.message || "Your password has been updated successfully.",

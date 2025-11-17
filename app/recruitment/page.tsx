@@ -195,21 +195,16 @@ export default function RecruitmentPage() {
 
   const handleAddJob = async (formData) => {
     try {
-      const res = await fetch(getEndpointUrl('JOB_OPENINGS'), {
+      await apiRequest<any>(getEndpointUrl('JOB_OPENINGS'), {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Accept": "application/json" },
         body: JSON.stringify({ job_opening: formData })
       })
-      if (res.ok) {
-        fetchJobOpenings()
-        fetchAllJobOpenings() // Refresh stats
-        setShowForm(false)
-        setEditJob(null)
-      } else {
-        // handle error
-      }
+      fetchJobOpenings()
+      fetchAllJobOpenings() // Refresh stats
+      setShowForm(false)
+      setEditJob(null)
     } catch (err) {
-      // handle error
+      console.error('Error adding job:', err)
     }
   }
 
@@ -220,36 +215,26 @@ export default function RecruitmentPage() {
 
   const handleUpdateJob = async (formData) => {
     try {
-      const res = await fetch(getApiUrl(`job_openings/${formData.id}`), {
+      await apiRequest<any>(getApiUrl(`job_openings/${formData.id}`), {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", "Accept": "application/json" },
         body: JSON.stringify({ job_opening: formData })
       })
-      if (res.ok) {
-        fetchJobOpenings()
-        fetchAllJobOpenings() // Refresh stats
-        setShowForm(false)
-        setEditJob(null)
-      } else {
-        // handle error
-      }
+      fetchJobOpenings()
+      fetchAllJobOpenings() // Refresh stats
+      setShowForm(false)
+      setEditJob(null)
     } catch (err) {
-      // handle error
+      console.error('Error updating job:', err)
     }
   }
 
   const handleDeactivateJob = async (job) => {
     try {
-      const res = await fetch(getApiUrl(`job_openings/${job.id}`), {
+      await apiRequest<any>(getApiUrl(`job_openings/${job.id}`), {
         method: "DELETE",
-        headers: { Accept: "application/json" },
       });
-      if (res.ok) {
-        fetchJobOpenings(); // refresh display
-        fetchAllJobOpenings(); // refresh stats
-      } else {
-        console.error("Failed to close job:", res.statusText);
-      }
+      fetchJobOpenings(); // refresh display
+      fetchAllJobOpenings(); // refresh stats
     } catch (err) {
       console.error("Error closing job:", err);
     }
@@ -258,22 +243,14 @@ export default function RecruitmentPage() {
 
  const handleActivateJob = async (job) => {
   try {
-    const res = await fetch(getApiUrl(`job_openings/${job.id}`), {
+    await apiRequest<any>(getApiUrl(`job_openings/${job.id}`), {
       method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
       body: JSON.stringify({
         job_opening: { status: "open" },
       }),
     });
-     if (res.ok) {
-       fetchJobOpenings(); // refresh display
-       fetchAllJobOpenings(); // refresh stats
-     } else {
-      console.error("Failed to open job:", res.statusText);
-    }
+    fetchJobOpenings(); // refresh display
+    fetchAllJobOpenings(); // refresh stats
   } catch (err) {
     console.error("Error opening job:", err);
   }

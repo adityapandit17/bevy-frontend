@@ -11,9 +11,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Building2, Users, Shield, Bell, Database, Globe, Save, Download, Calendar } from "lucide-react"
 import { useEffect, useState } from "react"
-import { apiRequest, getEndpointUrl } from "@/lib/api"
+import { apiRequest, getEndpointUrl, getApiUrl } from "@/lib/api"
 import { ResourceGuard } from "@/lib/auth/auth.guards"
-import { getApiUrl } from "@/lib/api"
 import { AUTH_CONFIG } from "@/config/auth.config"
 
 // Leave Policies Tab Component
@@ -42,11 +41,8 @@ function LeavePoliciesTab() {
 
   const fetchPolicies = async () => {
     try {
-      const res = await fetch(getApiUrl('/leave_policies'))
-      if (res.ok) {
-        const data = await res.json()
-        setPolicies(data)
-      }
+      const data = await apiRequest<any[]>(getApiUrl('/leave_policies'))
+      setPolicies(data)
     } catch (err) {
       console.error('Error fetching policies:', err)
     }
@@ -54,24 +50,21 @@ function LeavePoliciesTab() {
 
   const fetchCurrentPolicy = async () => {
     try {
-      const res = await fetch(getApiUrl('/leave_policies/current'))
-      if (res.ok) {
-        const data = await res.json()
-        setCurrentPolicy(data)
-        if (data) {
-          setFormData({
-            year: data.year || new Date().getFullYear(),
-            holidays_per_year: data.holidays_per_year || 10,
-            annual_leave: data.annual_leave || 21,
-            sick_leave: data.sick_leave || 12,
-            personal_leave: data.personal_leave || 5,
-            maternity_leave: data.maternity_leave || 90,
-            paternity_leave: data.paternity_leave || 15,
-            unpaid_leave: data.unpaid_leave || 30,
-            other_leave: data.other_leave || 5,
-            active: data.active !== false
-          })
-        }
+      const data = await apiRequest<any>(getApiUrl('/leave_policies/current'))
+      setCurrentPolicy(data)
+      if (data) {
+        setFormData({
+          year: data.year || new Date().getFullYear(),
+          holidays_per_year: data.holidays_per_year || 10,
+          annual_leave: data.annual_leave || 21,
+          sick_leave: data.sick_leave || 12,
+          personal_leave: data.personal_leave || 5,
+          maternity_leave: data.maternity_leave || 90,
+          paternity_leave: data.paternity_leave || 15,
+          unpaid_leave: data.unpaid_leave || 30,
+          other_leave: data.other_leave || 5,
+          active: data.active !== false
+        })
       }
     } catch (err) {
       console.error('Error fetching current policy:', err)
@@ -81,38 +74,27 @@ function LeavePoliciesTab() {
   const handleSave = async () => {
     setLoading(true)
     try {
-      const token = localStorage.getItem(AUTH_CONFIG.tokenKey) || localStorage.getItem('auth_token') || localStorage.getItem('token')
-      const headers: any = { "Content-Type": "application/json" }
-      if (token) headers['Authorization'] = `Bearer ${token}`
-
-      let res
       if (currentPolicy?.id) {
         // Update existing policy
-        res = await fetch(getApiUrl(`/leave_policies/${currentPolicy.id}`), {
+        await apiRequest<any>(getApiUrl(`/leave_policies/${currentPolicy.id}`), {
           method: 'PATCH',
-          headers,
           body: JSON.stringify({ leave_policy: formData })
         })
       } else {
         // Create new policy
-        res = await fetch(getApiUrl('/leave_policies'), {
+        await apiRequest<any>(getApiUrl('/leave_policies'), {
           method: 'POST',
-          headers,
           body: JSON.stringify({ leave_policy: formData })
         })
       }
 
-      if (res.ok) {
-        setEditing(false)
-        await fetchPolicies()
-        await fetchCurrentPolicy()
-      } else {
-        const error = await res.json()
-        alert(error.errors?.join(', ') || 'Failed to save policy')
-      }
+      setEditing(false)
+      await fetchPolicies()
+      await fetchCurrentPolicy()
     } catch (err) {
       console.error('Error saving policy:', err)
-      alert('Failed to save policy')
+      const errorMessage = err instanceof Error ? err.message : 'Failed to save policy'
+      alert(errorMessage)
     } finally {
       setLoading(false)
     }
@@ -317,28 +299,14 @@ export default function SettingsPage() {
     setLoading(true)
     try {
       // Get JWT token from localStorage
-      const token = localStorage.getItem(AUTH_CONFIG.tokenKey) || localStorage.getItem('auth_token') || localStorage.getItem('token')
-      const headers = { "Content-Type": "application/json" }
-
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`
-      }
-
-      const res = await fetch(getEndpointUrl('COMPANY'), {
+      await apiRequest<any>(getEndpointUrl('COMPANY'), {
         method: "PATCH",
-        headers,
         body: JSON.stringify({ company })
       })
 
-      if (res.ok) {
-        setEdit(false)
-        fetchCompany()
-        console.log("Company data saved successfully")
-      } else {
-        console.error("Failed to save company data - Status:", res.status, res.statusText)
-        const errorText = await res.text()
-        console.error("Error response:", errorText)
-      }
+      setEdit(false)
+      fetchCompany()
+      console.log("Company data saved successfully")
     } catch (err) {
       console.error("Error saving company data:", err)
     } finally {

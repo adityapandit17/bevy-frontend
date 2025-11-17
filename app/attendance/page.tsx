@@ -166,7 +166,7 @@ export default function AttendancePage() {
       console.log('🔍 canSelectEmployee:', canSelectEmployee)
       console.log('🔍 employees count:', employees.length)
     }
-  }, [user, roles, permissions, isHRManager, isHR, isSuperAdmin, hasLeavePermission, canSelectEmployee, employees.length])
+  }, [user, roles, permissions, isHRManager, isHR, isSuperAdmin, hasLeavePermission, canSelectEmployee])
   
   // State
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date())
@@ -240,11 +240,8 @@ export default function AttendancePage() {
   const fetchAttendanceRecords = async () => {
     setLoading(true)
     try {
-      const response = await fetch(getEndpointUrl('ATTENDANCE_RECORDS'))
-      if (response.ok) {
-        const data = await response.json()
-        setAttendanceRecords(data)
-      }
+      const data = await apiRequest<any[]>(getEndpointUrl('ATTENDANCE_RECORDS'))
+      setAttendanceRecords(data)
     } catch (error) {
       console.error('Error fetching attendance records:', error)
     } finally {
@@ -259,11 +256,8 @@ export default function AttendancePage() {
         if (!canSelectEmployee && user?.employee_id) {
         url = `${url}?employee_id=${user.employee_id}`
       }
-      const response = await fetch(url)
-      if (response.ok) {
-        const data = await response.json()
-        setLeaveRequests(data)
-      }
+      const data = await apiRequest<any[]>(url)
+      setLeaveRequests(data)
     } catch (error) {
       console.error('Error fetching leave requests:', error)
     }
@@ -272,11 +266,8 @@ export default function AttendancePage() {
   const fetchPendingApprovals = async () => {
     try {
       const url = `${getEndpointUrl('LEAVE_REQUESTS')}?manager_pending=true`
-      const response = await fetch(url)
-      if (response.ok) {
-        const data = await response.json()
-        setPendingApprovals(data)
-      }
+      const data = await apiRequest<any[]>(url)
+      setPendingApprovals(data)
     } catch (error) {
       console.error('Error fetching pending approvals:', error)
     }
@@ -284,11 +275,8 @@ export default function AttendancePage() {
 
   const fetchEmployees = async () => {
     try {
-      const response = await fetch(getEndpointUrl('EMPLOYEES'))
-      if (response.ok) {
-        const data = await response.json()
-        setEmployees(data)
-      }
+      const data = await apiRequest<any[]>(getEndpointUrl('EMPLOYEES'))
+      setEmployees(data)
     } catch (error) {
       console.error('Error fetching employees:', error)
     }
@@ -296,11 +284,8 @@ export default function AttendancePage() {
 
   const fetchDepartments = async () => {
     try {
-      const response = await fetch(getEndpointUrl('DEPARTMENTS'))
-      if (response.ok) {
-        const data = await response.json()
-        setDepartments(data)
-      }
+      const data = await apiRequest<any[]>(getEndpointUrl('DEPARTMENTS'))
+      setDepartments(data)
     } catch (error) {
       console.error('Error fetching departments:', error)
     }
@@ -308,11 +293,8 @@ export default function AttendancePage() {
 
   const fetchAttendanceStats = async () => {
     try {
-      const response = await fetch(getApiUrl('/attendance_records/stats'))
-      if (response.ok) {
-        const data = await response.json()
-        setAttendanceStats(data)
-      }
+      const data = await apiRequest<any>(getApiUrl('/attendance_records/stats'))
+      setAttendanceStats(data)
     } catch (error) {
       console.error('Error fetching attendance stats:', error)
     }
@@ -332,11 +314,8 @@ export default function AttendancePage() {
       
       if (targetEmployeeId) {
         url = `${url}?employee_id=${targetEmployeeId}`
-        const response = await fetch(url)
-        if (response.ok) {
-          const data = await response.json()
-          setLeaveBalance(data)
-        }
+        const data = await apiRequest<any[]>(url)
+        setLeaveBalance(data)
       } else {
         // No valid employee ID, set empty balance
         setLeaveBalance([])
@@ -349,11 +328,8 @@ export default function AttendancePage() {
 
   const fetchTodayAttendance = async () => {
     try {
-      const response = await fetch(getApiUrl('/attendance_records/today'))
-      if (response.ok) {
-        const data = await response.json()
-        setTodayAttendance(data)
-      }
+      const data = await apiRequest<any>(getApiUrl('/attendance_records/today'))
+      setTodayAttendance(data)
     } catch (error) {
       console.error('Error fetching today attendance:', error)
     }
@@ -366,24 +342,17 @@ export default function AttendancePage() {
     try {
       setAttendanceError(null) // Clear any previous errors
       
-      const response = await fetch(getApiUrl(`/attendance_records/${todayAttendance.id}/check_in`), {
+      await apiRequest<any>(getApiUrl(`/attendance_records/${todayAttendance.id}/check_in`), {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' }
       })
       
-      if (response.ok) {
-        setAttendanceError(null) // Clear any previous errors
-        await fetchTodayAttendance()
-        await fetchAttendanceRecords()
-        await fetchAttendanceStats()
-      } else {
-        const errorData = await response.json()
-        const errorMessage = errorData.errors?.join(', ') || errorData.message || 'Failed to check in'
-        setAttendanceError(errorMessage)
-        console.error('Error checking in:', errorMessage)
-      }
+      setAttendanceError(null) // Clear any previous errors
+      await fetchTodayAttendance()
+      await fetchAttendanceRecords()
+      await fetchAttendanceStats()
     } catch (error) {
-      setAttendanceError(`Network error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      const errorMessage = error instanceof Error ? error.message : 'Failed to check in'
+      setAttendanceError(errorMessage)
       console.error('Error checking in:', error)
     }
   }
@@ -394,24 +363,17 @@ export default function AttendancePage() {
     try {
       setAttendanceError(null) // Clear any previous errors
       
-      const response = await fetch(getApiUrl(`/attendance_records/${todayAttendance.id}/check_out`), {
+      await apiRequest<any>(getApiUrl(`/attendance_records/${todayAttendance.id}/check_out`), {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' }
       })
       
-      if (response.ok) {
-        setAttendanceError(null) // Clear any previous errors
-        await fetchTodayAttendance()
-        await fetchAttendanceRecords()
-        await fetchAttendanceStats()
-      } else {
-        const errorData = await response.json()
-        const errorMessage = errorData.errors?.join(', ') || errorData.message || 'Failed to check out'
-        setAttendanceError(errorMessage)
-        console.error('Error checking out:', errorMessage)
-      }
+      setAttendanceError(null) // Clear any previous errors
+      await fetchTodayAttendance()
+      await fetchAttendanceRecords()
+      await fetchAttendanceStats()
     } catch (error) {
-      setAttendanceError(`Network error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      const errorMessage = error instanceof Error ? error.message : 'Failed to check out'
+      setAttendanceError(errorMessage)
       console.error('Error checking out:', error)
     }
   }
@@ -439,16 +401,16 @@ export default function AttendancePage() {
       console.log('🌐 API URL:', getEndpointUrl('LEAVE_REQUESTS'))
 
       // Use apiRequest function from lib/api.ts
-      const response = await apiRequest('LEAVE_REQUESTS', {
+      await apiRequest<any>(getEndpointUrl('LEAVE_REQUESTS'), {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
         body: JSON.stringify(requestData)
       })
 
-      console.log('📡 Response:', response)
+      // Refresh data after successful submission
+      await fetchLeaveRequests()
+      await fetchPendingApprovals()
+      setShowLeaveForm(false)
+      setLeaveError(null)
     } catch (error) {
       console.error('❌ Network error submitting leave request:', error)
       setLeaveError(`Network error: ${error instanceof Error ? error.message : 'Unknown error'}`)
@@ -950,14 +912,11 @@ export default function AttendancePage() {
                             className="text-green-600 border-green-600 hover:bg-green-50"
                             onClick={async () => {
                               try {
-                                const response = await fetch(getApiUrl(`/leave_requests/${request.id}/approve`), {
+                                await apiRequest<any>(getApiUrl(`/leave_requests/${request.id}/approve`), {
                                   method: 'PATCH',
-                                  headers: { 'Content-Type': 'application/json' }
                                 })
-                                if (response.ok) {
-                                  await fetchPendingApprovals()
-                                  await fetchLeaveRequests()
-                                }
+                                await fetchPendingApprovals()
+                                await fetchLeaveRequests()
                               } catch (error) {
                                 console.error('Error approving leave:', error)
                               }
@@ -972,14 +931,11 @@ export default function AttendancePage() {
                             className="text-red-600 border-red-600 hover:bg-red-50"
                             onClick={async () => {
                               try {
-                                const response = await fetch(getApiUrl(`/leave_requests/${request.id}/reject`), {
+                                await apiRequest<any>(getApiUrl(`/leave_requests/${request.id}/reject`), {
                                   method: 'PATCH',
-                                  headers: { 'Content-Type': 'application/json' }
                                 })
-                                if (response.ok) {
-                                  await fetchPendingApprovals()
-                                  await fetchLeaveRequests()
-                                }
+                                await fetchPendingApprovals()
+                                await fetchLeaveRequests()
                               } catch (error) {
                                 console.error('Error rejecting leave:', error)
                               }
@@ -1045,35 +1001,27 @@ export default function AttendancePage() {
               setLeaveError("Please select an employee")
               return
             }
-            const requestData = mapLeaveRequestToBackend({
-              ...formData,
-              employee_id: employeeId
-            })
+            const requestData = mapLeaveRequestToBackend(
+              formData,
+              employeeId,
+              'pending'
+            )
             
             try {
-              const response = await fetch(getEndpointUrl('LEAVE_REQUESTS'), {
+              await apiRequest<any>(getEndpointUrl('LEAVE_REQUESTS'), {
                 method: 'POST',
-                headers: { 
-                  'Content-Type': 'application/json',
-                  'Accept': 'application/json'
-                },
                 body: JSON.stringify(requestData)
               })
               
-              if (response.ok) {
-                setShowManagementLeaveForm(false)
-                setSelectedEmployeeForManagement(null)
-                setLeaveError(null)
-                await fetchLeaveRequests()
-                await fetchPendingApprovals()
-              } else {
-                const errorData = await response.json()
-                const errorMessage = errorData.errors?.join(', ') || 'Failed to create leave request'
-                setLeaveError(errorMessage)
-              }
+              setShowManagementLeaveForm(false)
+              setSelectedEmployeeForManagement(null)
+              setLeaveError(null)
+              await fetchLeaveRequests()
+              await fetchPendingApprovals()
             } catch (error) {
               console.error('Error submitting leave request:', error)
-              setLeaveError(`Network error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+              const errorMessage = error instanceof Error ? error.message : 'Failed to create leave request'
+              setLeaveError(errorMessage)
             }
           }}
           employeeId={selectedEmployeeForManagement || undefined}

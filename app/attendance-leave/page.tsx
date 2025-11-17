@@ -155,17 +155,12 @@ export default function AttendanceLeavePage() {
       // Use utility function to map form data to backend format
       const requestData = mapLeaveRequestToBackend(formData, employeeId, 'pending')
       
-      const res = await fetch(getEndpointUrl('LEAVE_REQUESTS'), {
+      await apiRequest<any>(getEndpointUrl('LEAVE_REQUESTS'), {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Accept": "application/json" },
         body: JSON.stringify(requestData)
       })
-      if (res.ok) {
-        fetchLeaveRequests()
-        setShowLeaveForm(false)
-      } else {
-        // handle error
-      }
+      fetchLeaveRequests()
+      setShowLeaveForm(false)
     } catch (err) {
       // handle error
     }
@@ -173,9 +168,8 @@ export default function AttendanceLeavePage() {
 
   const handleMarkAttendance = async (e) => {
     e.preventDefault()
-    await fetch(getEndpointUrl('ATTENDANCE_RECORDS'), {
+    await apiRequest<any>(getEndpointUrl('ATTENDANCE_RECORDS'), {
       method: "POST",
-      headers: { "Content-Type": "application/json", "Accept": "application/json" },
       body: JSON.stringify({ attendance_record: attendanceForm })
     })
     setShowAttendanceModal(false)

@@ -105,18 +105,13 @@ export default function EmployeesPage() {
 
   const handleUpdateEmployee = async (formData: any) => {
     try {
-      const res = await fetch(`${getApiUrl('employees')}/${formData.id}`, {
+      await apiRequest<any>(`${getApiUrl('employees')}/${formData.id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", "Accept": "application/json" },
         body: JSON.stringify({ employee: formData })
       })
-      if (res.ok) {
-        fetchEmployees()
-        setShowForm(false)
-        setEditEmployee(null)
-      } else {
-        console.error('Error updating employee')
-      }
+      fetchEmployees()
+      setShowForm(false)
+      setEditEmployee(null)
     } catch (err) {
       console.error('Error updating employee:', err)
     }

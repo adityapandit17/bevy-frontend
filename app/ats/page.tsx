@@ -329,31 +329,24 @@ export default function ATSPage() {
 
   const handleStatusChange = async (candidateId: string, newStatus: string) => {
     try {
-      const response = await fetch(getApiUrl(`candidates/${candidateId}/update_status`), {
+      const updatedCandidate = await apiRequest<any>(getApiUrl(`candidates/${candidateId}/update_status`), {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({ status: newStatus }),
       })
       
-      if (response.ok) {
-        const updatedCandidate = await response.json()
-        
-        // Update the selected candidate immediately if it's the one being updated
-        if (selectedCandidate && selectedCandidate.id === candidateId) {
-          setSelectedCandidate(updatedCandidate)
-        }
-        
-        // Update the candidates list
-        setCandidates(prevCandidates => 
-          prevCandidates.map(candidate => 
-            candidate.id === candidateId ? updatedCandidate : candidate
-          )
-        )
-        // Refresh stats
-        await fetchStats()
+      // Update the selected candidate immediately if it's the one being updated
+      if (selectedCandidate && selectedCandidate.id === candidateId) {
+        setSelectedCandidate(updatedCandidate)
       }
+      
+      // Update the candidates list
+      setCandidates(prevCandidates => 
+        prevCandidates.map(candidate => 
+          candidate.id === candidateId ? updatedCandidate : candidate
+        )
+      )
+      // Refresh stats
+      await fetchStats()
     } catch (error) {
       console.error('Error updating candidate status:', error)
     }
@@ -369,39 +362,28 @@ export default function ATSPage() {
       
       const method = isEdit ? 'PATCH' : 'POST'
       
-      const response = await fetch(url, {
+      const savedCandidate = await apiRequest<any>(url, {
         method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({ candidate: candidateData }),
       })
-
-      if (response.ok) {
-        const savedCandidate = await response.json()
-        
-        if (isEdit) {
-          setCandidates(prev => 
-            prev.map(c => c.id === candidateData.id ? savedCandidate : c)
-          )
-          setSelectedCandidate(savedCandidate)
-          saveSelectedCandidate(savedCandidate)
-        } else {
-          setCandidates(prev => [...prev, savedCandidate])
-          setSelectedCandidate(savedCandidate)
-          saveSelectedCandidate(savedCandidate)
-        }
-        
-        // Refresh stats after saving
-        await fetchStats()
-        
-        setShowAddCandidate(false)
-        setShowEditCandidate(false)
+      
+      if (isEdit) {
+        setCandidates(prev => 
+          prev.map(c => c.id === candidateData.id ? savedCandidate : c)
+        )
+        setSelectedCandidate(savedCandidate)
+        saveSelectedCandidate(savedCandidate)
       } else {
-        const errorData = await response.json()
-        console.error('Error saving candidate:', errorData)
-        // You could add toast notifications here
+        setCandidates(prev => [...prev, savedCandidate])
+        setSelectedCandidate(savedCandidate)
+        saveSelectedCandidate(savedCandidate)
       }
+      
+      // Refresh stats after saving
+      await fetchStats()
+      
+      setShowAddCandidate(false)
+      setShowEditCandidate(false)
     } catch (error) {
       console.error('Error saving candidate:', error)
     } finally {
@@ -1038,12 +1020,9 @@ export default function ATSPage() {
           // Update the selected candidate with fresh data
           if (selectedCandidate) {
             try {
-              const response = await fetch(getApiUrl(`candidates/${selectedCandidate.id}`))
-              if (response.ok) {
-                const updatedCandidate = await response.json()
-                setSelectedCandidate(updatedCandidate)
-                saveSelectedCandidate(updatedCandidate)
-              }
+              const updatedCandidate = await apiRequest<any>(getApiUrl(`candidates/${selectedCandidate.id}`))
+              setSelectedCandidate(updatedCandidate)
+              saveSelectedCandidate(updatedCandidate)
             } catch (error) {
               console.error('Error refreshing selected candidate:', error)
             }

@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
-import { getEndpointUrl } from "@/lib/api"
+import { getEndpointUrl, apiRequest } from "@/lib/api"
 import { useAuth } from "@/lib/auth/auth.hooks"
 import { LeaveRequestForm } from "@/components/forms/leave-request-form"
 import { mapLeaveRequestToBackend } from "@/lib/leave-request-mapper"
@@ -133,13 +133,8 @@ export default function LeaveManagementPage() {
   const fetchLeaveRequests = async () => {
     try {
       setLoading(true)
-      const response = await fetch(getEndpointUrl('LEAVE_REQUESTS'))
-      if (response.ok) {
-        const data = await response.json()
-        setLeaveRequests(data)
-      } else {
-        setError("Failed to fetch leave requests")
-      }
+      const data = await apiRequest<any[]>(getEndpointUrl('LEAVE_REQUESTS'))
+      setLeaveRequests(data)
     } catch (error) {
       setError(`Network error: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
@@ -149,11 +144,8 @@ export default function LeaveManagementPage() {
 
   const fetchEmployees = async () => {
     try {
-      const response = await fetch(getEndpointUrl('EMPLOYEES'))
-      if (response.ok) {
-        const data = await response.json()
-        setEmployees(data)
-      }
+      const data = await apiRequest<any[]>(getEndpointUrl('EMPLOYEES'))
+      setEmployees(data)
     } catch (e) {
       // ignore
     }
@@ -162,11 +154,8 @@ export default function LeaveManagementPage() {
   // Fetch leave statistics
   const fetchLeaveStats = async () => {
     try {
-      const response = await fetch(getEndpointUrl('LEAVE_STATS'))
-      if (response.ok) {
-        const data = await response.json()
-        setStats(data)
-      }
+      const data = await apiRequest<any>(getEndpointUrl('LEAVE_STATS'))
+      setStats(data)
     } catch (error) {
       console.error("Error fetching leave stats:", error)
     }
@@ -181,27 +170,19 @@ export default function LeaveManagementPage() {
       const endpoint = action === 'approve' ? 'LEAVE_APPROVE' : 
                      action === 'reject' ? 'LEAVE_REJECT' : 'LEAVE_CANCEL'
       
-      const response = await fetch(
+      await apiRequest<any>(
         getEndpointUrl(endpoint).replace('{id}', requestId.toString()),
         {
           method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-          },
         }
       )
 
-      if (response.ok) {
-        // Refresh the data
-        await fetchLeaveRequests()
-        await fetchLeaveStats()
-      } else {
-        const errorData = await response.json()
-        setError(errorData.message || `Failed to ${action} leave request`)
-      }
+      // Refresh the data
+      await fetchLeaveRequests()
+      await fetchLeaveStats()
     } catch (error) {
-      setError(`Network error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      const errorMessage = error instanceof Error ? error.message : `Failed to ${action} leave request`
+      setError(errorMessage)
     } finally {
       setActionLoading(null)
     }
@@ -679,19 +660,13 @@ export default function LeaveManagementPage() {
                 return
               }
               const requestData = mapLeaveRequestToBackend(formData, selectedEmployeeId, 'pending')
-              const res = await fetch(getEndpointUrl('LEAVE_REQUESTS'), {
+              await apiRequest<any>(getEndpointUrl('LEAVE_REQUESTS'), {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
                 body: JSON.stringify(requestData)
               })
-              if (res.ok) {
-                setShowLeaveForm(false)
-                await fetchLeaveRequests()
-                await fetchLeaveStats()
-              } else {
-                const err = await res.json()
-                setError(err.errors?.join(', ') || 'Failed to create leave request')
-              }
+              setShowLeaveForm(false)
+              await fetchLeaveRequests()
+              await fetchLeaveStats()
             } catch (e) {
               setError(`Network error: ${e instanceof Error ? e.message : 'Unknown error'}`)
             }
