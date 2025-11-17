@@ -115,6 +115,7 @@ export default function LeaveManagementPage() {
   const [error, setError] = useState<string | null>(null)
   const [showLeaveForm, setShowLeaveForm] = useState(false)
   const [employees, setEmployees] = useState<any[]>([])
+  const [departments, setDepartments] = useState<any[]>([])
 
   // Determine if user can apply on behalf of others
   const isHRManager = checkRole("HR Manager") || roles?.some((r: any) => r?.name === "HR Manager")
@@ -148,6 +149,16 @@ export default function LeaveManagementPage() {
       setEmployees(data)
     } catch (e) {
       // ignore
+    }
+  }
+
+  const fetchDepartments = async () => {
+    try {
+      const data = await apiRequest<any[]>(getEndpointUrl('DEPARTMENTS'))
+      setDepartments(Array.isArray(data) ? data : [])
+    } catch (error) {
+      console.error('Error fetching departments:', error)
+      setDepartments([])
     }
   }
 
@@ -191,12 +202,17 @@ export default function LeaveManagementPage() {
   // Filter leave requests
   const filteredRequests = leaveRequests.filter(request => {
     const matchesSearch = 
-      request.employee_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      request.employee_email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      request.leave_type.toLowerCase().includes(searchTerm.toLowerCase())
+      request.employee_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      request.employee_email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      request.leave_type?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      request.leave_type_label?.toLowerCase().includes(searchTerm.toLowerCase())
     
-    const matchesStatus = filterStatus === 'all' || request.status === filterStatus
-    const matchesDepartment = filterStatus === 'all' || request.employee_department === filterDepartment
+    const matchesStatus = filterStatus === 'all' || 
+      request.status?.toLowerCase() === filterStatus.toLowerCase() ||
+      request.status_label?.toLowerCase() === filterStatus.toLowerCase()
+    
+    const matchesDepartment = filterDepartment === 'all' || 
+      request.employee_department?.toLowerCase() === filterDepartment.toLowerCase()
 
     return matchesSearch && matchesStatus && matchesDepartment
   })
@@ -237,6 +253,7 @@ export default function LeaveManagementPage() {
     if (isAuthenticated) {
       fetchLeaveRequests()
       fetchLeaveStats()
+      fetchDepartments()
       if (canApplyOnBehalf) fetchEmployees()
     }
   }, [isAuthenticated, canApplyOnBehalf])
@@ -373,7 +390,13 @@ export default function LeaveManagementPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Departments</SelectItem>
-                  {/* Add department options dynamically */}
+                  {departments
+                    .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+                    .map((dept) => (
+                      <SelectItem key={dept.id} value={dept.name}>
+                        {dept.name}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
