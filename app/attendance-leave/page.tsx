@@ -99,6 +99,9 @@ export default function AttendanceLeavePage() {
   const [month, setMonth] = useState<number>(new Date().getMonth())
   const [year, setYear] = useState<number>(new Date().getFullYear())
   const [searchTerm, setSearchTerm] = useState("")
+  const [attendanceStatusFilter, setAttendanceStatusFilter] = useState<string>("all")
+  const [leaveSearchTerm, setLeaveSearchTerm] = useState("")
+  const [leaveStatusFilter, setLeaveStatusFilter] = useState<string>("all")
   const [attendanceStats, setAttendanceStats] = useState<AttendanceStat[]>([])
   const [todayAttendance, setTodayAttendance] = useState<AttendanceRecord[]>([])
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([])
@@ -317,7 +320,7 @@ export default function AttendanceLeavePage() {
     }
   }
 
-  // Filter attendance by selected date and search term
+  // Filter attendance by selected date, search term, and status
   const filteredAttendance = (date
     ? todayAttendance.filter((record) => {
         // Assume record.date is in ISO format (YYYY-MM-DD)
@@ -326,9 +329,46 @@ export default function AttendanceLeavePage() {
       })
     : todayAttendance
   ).filter((record) => {
-    if (!searchTerm) return true;
-    const employeeName = getEmployeeName(record.employee_id).toLowerCase();
-    return employeeName.includes(searchTerm.toLowerCase());
+    // Filter by search term
+    if (searchTerm) {
+      const employeeName = getEmployeeName(record.employee_id).toLowerCase();
+      if (!employeeName.includes(searchTerm.toLowerCase())) {
+        return false;
+      }
+    }
+    // Filter by status
+    if (attendanceStatusFilter !== "all") {
+      const recordStatus = record.status?.toLowerCase() || "";
+      if (recordStatus !== attendanceStatusFilter.toLowerCase()) {
+        return false;
+      }
+    }
+    return true;
+  });
+
+  // Filter leave requests by search term and status
+  const filteredLeaveRequests = leaveRequests.filter((request) => {
+    // Filter by search term (search in employee name, leave type, reason)
+    if (leaveSearchTerm) {
+      const searchLower = leaveSearchTerm.toLowerCase();
+      const employeeName = getEmployeeName(request.employee_id).toLowerCase();
+      const leaveType = (request.leaveTypeLabel || request.leave_type_label || request.leaveType || request.leave_type || '').toLowerCase();
+      const reason = (request.reason || '').toLowerCase();
+      
+      if (!employeeName.includes(searchLower) && 
+          !leaveType.includes(searchLower) && 
+          !reason.includes(searchLower)) {
+        return false;
+      }
+    }
+    // Filter by status
+    if (leaveStatusFilter !== "all") {
+      const requestStatus = (request.status?.toLowerCase() || request.statusLabel?.toLowerCase() || '');
+      if (requestStatus !== leaveStatusFilter.toLowerCase()) {
+        return false;
+      }
+    }
+    return true;
   });
 
   // Calendar styling is now handled through CSS
@@ -562,7 +602,7 @@ export default function AttendanceLeavePage() {
                         className="pl-10"
                       />
                     </div>
-                    <Select>
+                    <Select value={attendanceStatusFilter} onValueChange={setAttendanceStatusFilter}>
                       <SelectTrigger className="w-full sm:w-48">
                         <SelectValue placeholder="Filter by status" />
                       </SelectTrigger>
@@ -659,9 +699,14 @@ export default function AttendanceLeavePage() {
                   <div className="flex flex-col sm:flex-row gap-4 mb-6">
                     <div className="relative flex-1">
                       <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                      <Input placeholder="Search leave requests..." className="pl-10" />
+                      <Input 
+                        placeholder="Search leave requests..." 
+                        className="pl-10"
+                        value={leaveSearchTerm}
+                        onChange={(e) => setLeaveSearchTerm(e.target.value)}
+                      />
                     </div>
-                    <Select>
+                    <Select value={leaveStatusFilter} onValueChange={setLeaveStatusFilter}>
                       <SelectTrigger className="w-full sm:w-48">
                         <SelectValue placeholder="Filter by status" />
                       </SelectTrigger>
@@ -688,7 +733,14 @@ export default function AttendanceLeavePage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {leaveRequests.map((request) => (
+                        {filteredLeaveRequests.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={7} className="text-center text-gray-500 py-8">
+                              No leave requests found.
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          filteredLeaveRequests.map((request) => (
                           <TableRow key={request.id}>
                             <TableCell>
                               <div>
@@ -758,7 +810,8 @@ export default function AttendanceLeavePage() {
                               </DropdownMenu>
                             </TableCell>
                           </TableRow>
-                        ))}
+                          ))
+                        )}
                       </TableBody>
                     </Table>
                   </div>
