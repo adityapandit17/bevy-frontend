@@ -719,101 +719,103 @@ export default function AttendanceLeavePage() {
                     </Select>
                   </div>
 
-                  <div className="rounded-md border">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Employee</TableHead>
-                          <TableHead>Leave Type</TableHead>
-                          <TableHead>Duration</TableHead>
-                          <TableHead>Days</TableHead>
-                          <TableHead>Reason</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead className="w-12"></TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {filteredLeaveRequests.length === 0 ? (
+                  <div className="rounded-md border overflow-hidden">
+                    <div className="max-h-[600px] overflow-y-auto">
+                      <Table>
+                        <TableHeader className="sticky top-0 bg-white z-10">
                           <TableRow>
-                            <TableCell colSpan={7} className="text-center text-gray-500 py-8">
-                              No leave requests found.
-                            </TableCell>
+                            <TableHead>Employee</TableHead>
+                            <TableHead>Leave Type</TableHead>
+                            <TableHead>Duration</TableHead>
+                            <TableHead>Days</TableHead>
+                            <TableHead>Reason</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead className="w-12"></TableHead>
                           </TableRow>
-                        ) : (
-                          filteredLeaveRequests.map((request) => (
-                          <TableRow key={request.id}>
-                            <TableCell>
-                              <div>
-                                <p className="font-medium text-gray-900">{getEmployeeName(request.employee_id)}</p>
-                                <p className="text-sm text-gray-500">
-                                  {request.employee_id} • {getDepartmentName(request.department_id)}
-                                </p>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <span className="text-sm text-gray-600">
-                                {request.leaveTypeLabel || request.leave_type_label || request.leaveType || request.leave_type || 'N/A'}
-                              </span>
-                            </TableCell>
-                            <TableCell>
-                              <div className="text-sm text-gray-600">
-                                {(() => {
-                                  const startDateStr = request.startDate || request.start_date
-                                  const endDateStr = request.endDate || request.end_date
-                                  const formattedStart = request.formattedStartDate || request.formatted_start_date
-                                  const formattedEnd = request.formattedEndDate || request.formatted_end_date
-                                  
-                                  if (startDateStr && endDateStr) {
-                                    return (
+                        </TableHeader>
+                        <TableBody>
+                          {filteredLeaveRequests.length === 0 ? (
+                            <TableRow>
+                              <TableCell colSpan={7} className="text-center text-gray-500 py-8">
+                                No leave requests found.
+                              </TableCell>
+                            </TableRow>
+                          ) : (
+                            filteredLeaveRequests.map((request) => (
+                            <TableRow key={request.id}>
+                              <TableCell>
+                                <div>
+                                  <p className="font-medium text-gray-900">{getEmployeeName(request.employee_id)}</p>
+                                  <p className="text-sm text-gray-500">
+                                    {request.employee_id} • {getDepartmentName(request.department_id)}
+                                  </p>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <span className="text-sm text-gray-600">
+                                  {request.leaveTypeLabel || request.leave_type_label || request.leaveType || request.leave_type || 'N/A'}
+                                </span>
+                              </TableCell>
+                              <TableCell>
+                                <div className="text-sm text-gray-600">
+                                  {(() => {
+                                    const startDateStr = request.startDate || request.start_date
+                                    const endDateStr = request.endDate || request.end_date
+                                    const formattedStart = request.formattedStartDate || request.formatted_start_date
+                                    const formattedEnd = request.formattedEndDate || request.formatted_end_date
+                                    
+                                    if (startDateStr && endDateStr) {
+                                      return (
+                                        <>
+                                          <p>
+                                            {formattedStart || (startDateStr ? format(new Date(startDateStr), 'MMM dd, yyyy') : 'N/A')}
+                                          </p>
+                                          <p className="text-gray-500">
+                                            to {formattedEnd || (endDateStr ? format(new Date(endDateStr), 'MMM dd, yyyy') : 'N/A')}
+                                          </p>
+                                        </>
+                                      )
+                                    }
+                                    return <span className="text-gray-400">Date not available</span>
+                                  })()}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <span className="font-medium text-gray-900">{request.days} days</span>
+                              </TableCell>
+                              <TableCell>
+                                <span className="text-sm text-gray-600 max-w-32 truncate">{request.reason}</span>
+                              </TableCell>
+                              <TableCell>
+                                <Badge className={getLeaveStatusColor(request.status)}>
+                                  {request.statusLabel || request.status || 'Unknown'}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="sm">
+                                      <MoreHorizontal className="w-4 h-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                    <DropdownMenuItem>View Details</DropdownMenuItem>
+                                    {(request.status?.toLowerCase() === "pending" || request.statusLabel?.toLowerCase() === "pending") && (
                                       <>
-                                        <p>
-                                          {formattedStart || (startDateStr ? format(new Date(startDateStr), 'MMM dd, yyyy') : 'N/A')}
-                                        </p>
-                                        <p className="text-gray-500">
-                                          to {formattedEnd || (endDateStr ? format(new Date(endDateStr), 'MMM dd, yyyy') : 'N/A')}
-                                        </p>
+                                        <DropdownMenuItem className="text-green-600">Approve</DropdownMenuItem>
+                                        <DropdownMenuItem className="text-red-600">Reject</DropdownMenuItem>
                                       </>
-                                    )
-                                  }
-                                  return <span className="text-gray-400">Date not available</span>
-                                })()}
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <span className="font-medium text-gray-900">{request.days} days</span>
-                            </TableCell>
-                            <TableCell>
-                              <span className="text-sm text-gray-600 max-w-32 truncate">{request.reason}</span>
-                            </TableCell>
-                            <TableCell>
-                              <Badge className={getLeaveStatusColor(request.status)}>
-                                {request.statusLabel || request.status || 'Unknown'}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="sm">
-                                    <MoreHorizontal className="w-4 h-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                  <DropdownMenuItem>View Details</DropdownMenuItem>
-                                  {(request.status?.toLowerCase() === "pending" || request.statusLabel?.toLowerCase() === "pending") && (
-                                    <>
-                                      <DropdownMenuItem className="text-green-600">Approve</DropdownMenuItem>
-                                      <DropdownMenuItem className="text-red-600">Reject</DropdownMenuItem>
-                                    </>
-                                  )}
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </TableCell>
-                          </TableRow>
-                          ))
-                        )}
-                      </TableBody>
-                    </Table>
+                                    )}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </TableCell>
+                            </TableRow>
+                            ))
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
