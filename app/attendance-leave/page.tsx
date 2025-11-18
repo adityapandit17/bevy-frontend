@@ -80,6 +80,9 @@ interface AttendanceRecord {
   checkIn?: string
   checkOut?: string
   workHours?: string
+  working_hours?: number | string
+  check_in?: string
+  check_out?: string
   location?: string
   status?: string
 }
@@ -111,6 +114,10 @@ export default function AttendanceLeavePage() {
   const [showLeaveForm, setShowLeaveForm] = useState(false)
   const [showAttendanceModal, setShowAttendanceModal] = useState(false)
   const [attendanceForm, setAttendanceForm] = useState({ employee_id: "", status: "present", check_in: "", check_out: "" })
+  const [selectedAttendanceRecord, setSelectedAttendanceRecord] = useState<AttendanceRecord | null>(null)
+  const [showAttendanceDetails, setShowAttendanceDetails] = useState(false)
+  const [showAttendanceHistory, setShowAttendanceHistory] = useState(false)
+  const [attendanceHistory, setAttendanceHistory] = useState<AttendanceRecord[]>([])
 
   useEffect(() => {
     fetchAttendance()
@@ -192,6 +199,72 @@ export default function AttendanceLeavePage() {
     if (!id) return 'N/A'
     const dept = departments.find(d => String(d.id) === String(id))
     return dept ? dept.name : String(id)
+  }
+
+  const getCheckInTime = (record: AttendanceRecord): string => {
+    const checkIn = record.checkIn || record.check_in
+    if (!checkIn) return ""
+    
+    // Handle datetime format like "2000-01-01 09:30:00.000000000 +0000"
+    if (checkIn.includes(' ')) {
+      const timePart = checkIn.split(' ')[1]?.split(':')
+      if (timePart && timePart.length >= 2) {
+        return `${timePart[0]}:${timePart[1]}`
+      }
+    }
+    // Handle ISO format like "2000-01-01T09:30:00.000Z"
+    if (checkIn.includes('T')) {
+      return checkIn.split('T')[1]?.substring(0, 5) || ""
+    }
+    // Handle time-only format like "09:30"
+    if (checkIn.match(/^\d{2}:\d{2}/)) {
+      return checkIn.substring(0, 5)
+    }
+    return checkIn
+  }
+
+  const getCheckOutTime = (record: AttendanceRecord): string => {
+    const checkOut = record.checkOut || record.check_out
+    if (!checkOut) return ""
+    
+    // Handle datetime format like "2000-01-01 18:00:00.000000000 +0000"
+    if (checkOut.includes(' ')) {
+      const timePart = checkOut.split(' ')[1]?.split(':')
+      if (timePart && timePart.length >= 2) {
+        return `${timePart[0]}:${timePart[1]}`
+      }
+    }
+    // Handle ISO format like "2000-01-01T18:00:00.000Z"
+    if (checkOut.includes('T')) {
+      return checkOut.split('T')[1]?.substring(0, 5) || ""
+    }
+    // Handle time-only format like "18:00"
+    if (checkOut.match(/^\d{2}:\d{2}/)) {
+      return checkOut.substring(0, 5)
+    }
+    return checkOut
+  }
+
+  const getWorkHours = (record: AttendanceRecord): string => {
+    const workHours = record.workHours || record.working_hours
+    if (workHours === null || workHours === undefined) return ""
+    
+    // If it's a number, format it with up to 2 decimal places
+    if (typeof workHours === 'number') {
+      // Handle scientific notation (e.g., 0.85e1 = 8.5)
+      const numValue = workHours
+      // Format to remove unnecessary trailing zeros
+      return numValue % 1 === 0 ? numValue.toString() : numValue.toFixed(2).replace(/\.?0+$/, '')
+    }
+    
+    // If it's a string, try to parse it as a number first
+    const numValue = parseFloat(String(workHours))
+    if (!isNaN(numValue)) {
+      return numValue % 1 === 0 ? numValue.toString() : numValue.toFixed(2).replace(/\.?0+$/, '')
+    }
+    
+    // If it's a string that can't be parsed, return as is
+    return String(workHours)
   }
 
   const getAttendanceStatusColor = (status: string | undefined) => {
@@ -318,6 +391,51 @@ export default function AttendanceLeavePage() {
       console.error('Error marking attendance:', error)
       // Error will be handled by apiRequest
     }
+  }
+
+  const handleViewDetails = (record: AttendanceRecord) => {
+    setSelectedAttendanceRecord(record)
+    setShowAttendanceDetails(true)
+  }
+
+  const handleEditAttendance = (record: AttendanceRecord) => {
+    // Use helper functions to extract time from check_in and check_out
+    const checkInTime = getCheckInTime(record)
+    const checkOutTime = getCheckOutTime(record)
+    
+    setAttendanceForm({
+      employee_id: String(record.employee_id),
+      status: record.status || "present",
+      check_in: checkInTime,
+      check_out: checkOutTime
+    })
+    // Set the date to the record's date
+    if (record.date) {
+      setDate(new Date(record.date))
+    }
+    setShowAttendanceModal(true)
+  }
+
+  const fetchAttendanceHistory = async (employeeId: number) => {
+    setLoading(true)
+    try {
+      const res = await apiRequest<AttendanceRecord[]>(
+        `${getEndpointUrl('ATTENDANCE_RECORDS')}?employee_id=${employeeId}`
+      )
+      setAttendanceHistory(Array.isArray(res) ? res : [])
+      setShowAttendanceHistory(true)
+    } catch (error) {
+      console.error('Error fetching attendance history:', error)
+      setAttendanceHistory([])
+      setShowAttendanceHistory(true)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleViewHistory = (record: AttendanceRecord) => {
+    fetchAttendanceHistory(record.employee_id)
+    setSelectedAttendanceRecord(record)
   }
 
   // Filter attendance by selected date, search term, and status
@@ -620,11 +738,11 @@ export default function AttendanceLeavePage() {
                       <TableHeader>
                         <TableRow>
                           <TableHead>Employee</TableHead>
-                          <TableHead>Check In</TableHead>
-                          <TableHead>Check Out</TableHead>
-                          <TableHead>Work Hours</TableHead>
-                          <TableHead>Location</TableHead>
-                          <TableHead>Status</TableHead>
+                          <TableHead className="text-center">Check In</TableHead>
+                          <TableHead className="text-center">Check Out</TableHead>
+                          <TableHead className="text-center">Work Hours</TableHead>
+                          <TableHead className="text-center">Location</TableHead>
+                          <TableHead className="text-center">Status</TableHead>
                           <TableHead className="w-12"></TableHead>
                         </TableRow>
                       </TableHeader>
@@ -646,19 +764,25 @@ export default function AttendanceLeavePage() {
                                   </p>
                                 </div>
                               </TableCell>
-                              <TableCell>
-                                <span className="text-sm text-gray-600">{record.checkIn}</span>
+                              <TableCell className="text-center">
+                                <span className="text-sm text-gray-600">
+                                  {record.status?.toLowerCase() === "absent" ? "-" : (getCheckInTime(record) || "-")}
+                                </span>
                               </TableCell>
-                              <TableCell>
-                                <span className="text-sm text-gray-600">{record.checkOut}</span>
+                              <TableCell className="text-center">
+                                <span className="text-sm text-gray-600">
+                                  {record.status?.toLowerCase() === "absent" ? "-" : (getCheckOutTime(record) || "-")}
+                                </span>
                               </TableCell>
-                              <TableCell>
-                                <span className="font-medium text-gray-900">{record.workHours}</span>
+                              <TableCell className="text-center">
+                                <span className="font-medium text-gray-900">
+                                  {record.status?.toLowerCase() === "absent" ? "-" : (getWorkHours(record) || "-")}
+                                </span>
                               </TableCell>
-                              <TableCell>
+                              <TableCell className="text-center">
                                 <span className="text-sm text-gray-600">{record.location}</span>
                               </TableCell>
-                              <TableCell>
+                              <TableCell className="text-center">
                                 <Badge className={getAttendanceStatusColor(record.status)}>{record.status}</Badge>
                               </TableCell>
                               <TableCell>
@@ -670,9 +794,15 @@ export default function AttendanceLeavePage() {
                                   </DropdownMenuTrigger>
                                   <DropdownMenuContent align="end">
                                     <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                    <DropdownMenuItem>View Details</DropdownMenuItem>
-                                    <DropdownMenuItem>Edit Attendance</DropdownMenuItem>
-                                    <DropdownMenuItem>View History</DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleViewDetails(record)}>
+                                      View Details
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleEditAttendance(record)}>
+                                      Edit Attendance
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleViewHistory(record)}>
+                                      View History
+                                    </DropdownMenuItem>
                                   </DropdownMenuContent>
                                 </DropdownMenu>
                               </TableCell>
@@ -832,10 +962,17 @@ export default function AttendanceLeavePage() {
           mode="self"
         />
       )}
-      <Dialog open={showAttendanceModal} onOpenChange={setShowAttendanceModal}>
+      <Dialog open={showAttendanceModal} onOpenChange={(open) => {
+        setShowAttendanceModal(open)
+        if (!open) {
+          setAttendanceForm({ employee_id: "", status: "present", check_in: "", check_out: "" })
+        }
+      }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Mark Attendance</DialogTitle>
+            <DialogTitle>
+              {attendanceForm.employee_id ? "Edit Attendance" : "Mark Attendance"}
+            </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleMarkAttendance} className="space-y-4">
             <div>
@@ -890,9 +1027,157 @@ export default function AttendanceLeavePage() {
               </div>
             </div>
             <DialogFooter>
-              <Button type="submit">Mark Attendance</Button>
+              <Button type="submit">
+                {attendanceForm.employee_id ? "Update Attendance" : "Mark Attendance"}
+              </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Attendance Details Dialog */}
+      <Dialog open={showAttendanceDetails} onOpenChange={setShowAttendanceDetails}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Attendance Details</DialogTitle>
+          </DialogHeader>
+          {selectedAttendanceRecord && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Employee</label>
+                  <p className="text-base font-semibold text-gray-900">
+                    {getEmployeeName(selectedAttendanceRecord.employee_id)}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Department</label>
+                  <p className="text-base text-gray-900">
+                    {getDepartmentName(selectedAttendanceRecord.department_id)}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Date</label>
+                  <p className="text-base text-gray-900">
+                    {selectedAttendanceRecord.date 
+                      ? format(new Date(selectedAttendanceRecord.date), "MMM dd, yyyy")
+                      : "N/A"}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Status</label>
+                  <div className="mt-1">
+                    <Badge className={getAttendanceStatusColor(selectedAttendanceRecord.status)}>
+                      {selectedAttendanceRecord.status || "N/A"}
+                    </Badge>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Check In</label>
+                  <p className="text-base text-gray-900">
+                    {selectedAttendanceRecord.status?.toLowerCase() === "absent" 
+                      ? "-" 
+                      : (getCheckInTime(selectedAttendanceRecord) || "-")}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Check Out</label>
+                  <p className="text-base text-gray-900">
+                    {selectedAttendanceRecord.status?.toLowerCase() === "absent" 
+                      ? "-" 
+                      : (getCheckOutTime(selectedAttendanceRecord) || "-")}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Work Hours</label>
+                  <p className="text-base text-gray-900">
+                    {selectedAttendanceRecord.status?.toLowerCase() === "absent" 
+                      ? "-" 
+                      : (getWorkHours(selectedAttendanceRecord) || "-")}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Location</label>
+                  <p className="text-base text-gray-900">
+                    {selectedAttendanceRecord.location || "N/A"}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAttendanceDetails(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Attendance History Dialog */}
+      <Dialog open={showAttendanceHistory} onOpenChange={setShowAttendanceHistory}>
+        <DialogContent className="max-w-4xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>
+              Attendance History - {selectedAttendanceRecord ? getEmployeeName(selectedAttendanceRecord.employee_id) : ""}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="overflow-y-auto max-h-[60vh]">
+            {loading ? (
+              <div className="text-center py-8 text-gray-500">Loading history...</div>
+            ) : attendanceHistory.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">No attendance history found.</div>
+            ) : (
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead className="text-center">Check In</TableHead>
+                      <TableHead className="text-center">Check Out</TableHead>
+                      <TableHead className="text-center">Work Hours</TableHead>
+                      <TableHead className="text-center">Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {attendanceHistory.map((record) => (
+                      <TableRow key={record.id}>
+                        <TableCell>
+                          {record.date 
+                            ? format(new Date(record.date), "MMM dd, yyyy")
+                            : "N/A"}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <span className="text-sm text-gray-600">
+                            {record.status?.toLowerCase() === "absent" ? "-" : (getCheckInTime(record) || "-")}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <span className="text-sm text-gray-600">
+                            {record.status?.toLowerCase() === "absent" ? "-" : (getCheckOutTime(record) || "-")}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <span className="font-medium text-gray-900">
+                            {record.status?.toLowerCase() === "absent" ? "-" : (getWorkHours(record) || "-")}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge className={getAttendanceStatusColor(record.status)}>
+                            {record.status || "N/A"}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAttendanceHistory(false)}>
+              Close
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
