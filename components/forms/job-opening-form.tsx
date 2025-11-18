@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useEffect, useState } from "react"
-import { getEndpointUrl } from "@/lib/api"
+import { getEndpointUrl, apiRequest } from "@/lib/api"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -53,13 +53,18 @@ export function JobOpeningForm({ onClose, onSubmit, initialData }: JobOpeningFor
 
   const fetchDepartments = async () => {
     try {
-      const res = await fetch(getEndpointUrl('DEPARTMENTS'), {
-        headers: { "Accept": "application/json" }
-      })
-      const data = await res.json()
-      setDepartments(data)
+      const data = await apiRequest<any>(getEndpointUrl('DEPARTMENTS'))
+      // Ensure data is always an array
+      if (Array.isArray(data)) {
+        setDepartments(data)
+      } else if (data && Array.isArray(data.departments)) {
+        setDepartments(data.departments)
+      } else {
+        setDepartments([])
+      }
     } catch (err) {
-      // handle error
+      console.error("Error fetching departments:", err)
+      setDepartments([]) // Set to empty array on error
     }
   }
 
@@ -118,7 +123,7 @@ export function JobOpeningForm({ onClose, onSubmit, initialData }: JobOpeningFor
                       <SelectValue placeholder="Select department" />
                     </SelectTrigger>
                     <SelectContent>
-                      {departments.map((dept) => (
+                      {Array.isArray(departments) && departments.map((dept) => (
                         <SelectItem key={dept.id} value={String(dept.id)}>{dept.name}</SelectItem>
                       ))}
                     </SelectContent>
