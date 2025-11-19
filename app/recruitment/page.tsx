@@ -630,7 +630,12 @@ export default function RecruitmentPage() {
                               <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
                                 <DropdownMenuItem onClick={() => router.push(`/candidates/${candidate.id}`)}>View Profile</DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleScheduleInterview(candidate)}>Schedule Interview</DropdownMenuItem>
+                                <DropdownMenuItem 
+                                  onClick={() => handleScheduleInterview(candidate)}
+                                  disabled={candidate.status === "rejected"}
+                                >
+                                  Schedule Interview
+                                </DropdownMenuItem>
                                 <DropdownMenuItem>Send Message</DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem>Move to Next Stage</DropdownMenuItem>

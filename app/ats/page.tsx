@@ -628,11 +628,14 @@ export default function ATSPage() {
                             <Edit className="mr-2 h-4 w-4" />
                             Edit
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={(e) => {
-                            e.stopPropagation()
-                            setSelectedCandidate(candidate)
-                            setShowScheduleInterview(true)
-                          }}>
+                          <DropdownMenuItem 
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setSelectedCandidate(candidate)
+                              setShowScheduleInterview(true)
+                            }}
+                            disabled={candidate.status === "rejected"}
+                          >
                             <Calendar className="mr-2 h-4 w-4" />
                             Schedule Interview
                           </DropdownMenuItem>
@@ -864,7 +867,12 @@ export default function ATSPage() {
                         <SelectItem value="rejected">Rejected</SelectItem>
                       </SelectContent>
                     </Select>
-                    <Button variant="outline" size="sm" onClick={() => setShowScheduleInterview(true)}>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => setShowScheduleInterview(true)}
+                      disabled={selectedCandidate.status === "rejected"}
+                    >
                       <Calendar className="w-4 h-4 mr-2" />
                       Schedule Interview
                     </Button>
@@ -875,7 +883,12 @@ export default function ATSPage() {
                 <div>
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-medium">Interviews</h3>
-                    <Button variant="outline" size="sm" onClick={() => setShowScheduleInterview(true)}>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => setShowScheduleInterview(true)}
+                      disabled={selectedCandidate.status === "rejected"}
+                    >
                       <Plus className="w-4 h-4 mr-2" />
                       Add Interview
                     </Button>
@@ -962,7 +975,13 @@ export default function ATSPage() {
                       <div className="text-center py-8 text-gray-500">
                         <Calendar className="w-12 h-12 mx-auto mb-4 text-gray-300" />
                         <p>No interviews scheduled yet</p>
-                        <Button variant="outline" size="sm" className="mt-2" onClick={() => setShowScheduleInterview(true)}>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="mt-2" 
+                          onClick={() => setShowScheduleInterview(true)}
+                          disabled={selectedCandidate.status === "rejected"}
+                        >
                           Schedule First Interview
                         </Button>
                       </div>
