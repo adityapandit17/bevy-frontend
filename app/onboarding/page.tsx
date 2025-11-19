@@ -737,7 +737,6 @@ export default function OnboardingPage() {
                     variant="outline" 
                     size="sm"
                     onClick={handleSendWelcomeEmail}
-                    disabled={selectedEmployee?.status === 'completed'}
                   >
                     <Send className="w-4 h-4 mr-2" />
                     Send Welcome Email
