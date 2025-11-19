@@ -133,6 +133,13 @@ export default function ATSPage() {
   }
   const [showEditCandidate, setShowEditCandidate] = useState(false)
   const [showScheduleInterview, setShowScheduleInterview] = useState(false)
+  const [showEmailDialog, setShowEmailDialog] = useState(false)
+  const [emailFormData, setEmailFormData] = useState({
+    subject: "",
+    message: "",
+    sender_name: ""
+  })
+  const [isSendingEmail, setIsSendingEmail] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
   const [filterStatus, setFilterStatus] = useState<string>("all")
   const [filterDepartment, setFilterDepartment] = useState<string>("all")
@@ -407,6 +414,56 @@ export default function ATSPage() {
 
   const handleDocumentPreview = (url: string, name: string, type?: string) => {
     setPreviewState({ open: true, documentUrl: url, documentName: name, documentType: type })
+  }
+
+  const handleSendEmail = async () => {
+    if (!selectedCandidate) return
+
+    if (!emailFormData.subject.trim() || !emailFormData.message.trim()) {
+      alert("Please fill in both subject and message fields")
+      return
+    }
+
+    setIsSendingEmail(true)
+    try {
+      const response = await apiRequest<any>(getApiUrl(`candidates/${selectedCandidate.id}/send_email`), {
+        method: 'POST',
+        body: JSON.stringify({
+          subject: emailFormData.subject,
+          message: emailFormData.message,
+          sender_name: emailFormData.sender_name || undefined
+        }),
+      })
+
+      // Update the candidate with the new last_contact date
+      if (response.candidate) {
+        setSelectedCandidate(response.candidate)
+        setCandidates(prev => 
+          prev.map(c => c.id === selectedCandidate.id ? response.candidate : c)
+        )
+      }
+
+      alert("Email sent successfully!")
+      setShowEmailDialog(false)
+      setEmailFormData({ subject: "", message: "", sender_name: "" })
+    } catch (error: any) {
+      console.error('Error sending email:', error)
+      alert(`Failed to send email: ${error?.message || 'Please try again.'}`)
+    } finally {
+      setIsSendingEmail(false)
+    }
+  }
+
+  const handleOpenEmailDialog = () => {
+    if (!selectedCandidate) return
+    // Pre-fill subject with a default based on candidate status
+    const defaultSubject = `Update on Your Application - ${selectedCandidate.position}`
+    setEmailFormData({
+      subject: defaultSubject,
+      message: `Dear ${selectedCandidate.name},\n\n`,
+      sender_name: ""
+    })
+    setShowEmailDialog(true)
   }
 
   return (
@@ -932,7 +989,7 @@ export default function ATSPage() {
 
                 {/* Quick Actions */}
                 <div className="flex gap-2 pt-4 border-t">
-                  <Button variant="outline" size="sm">
+                  <Button variant="outline" size="sm" onClick={handleOpenEmailDialog}>
                     <Send className="w-4 h-4 mr-2" />
                     Send Email
                   </Button>
@@ -1029,6 +1086,81 @@ export default function ATSPage() {
           }
         }}
       />
+
+      {/* Send Email Dialog */}
+      <Dialog open={showEmailDialog} onOpenChange={setShowEmailDialog}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Send Email to Candidate</DialogTitle>
+            <DialogDescription>
+              Send an email to {selectedCandidate?.name} ({selectedCandidate?.email})
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="email-subject">Subject *</Label>
+              <Input
+                id="email-subject"
+                value={emailFormData.subject}
+                onChange={(e) => setEmailFormData({ ...emailFormData, subject: e.target.value })}
+                placeholder="Email subject"
+                required
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="email-message">Message *</Label>
+              <Textarea
+                id="email-message"
+                value={emailFormData.message}
+                onChange={(e) => setEmailFormData({ ...emailFormData, message: e.target.value })}
+                placeholder="Enter your message to the candidate..."
+                rows={8}
+                required
+                className="min-h-[200px]"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="email-sender-name">Sender Name (Optional)</Label>
+              <Input
+                id="email-sender-name"
+                value={emailFormData.sender_name}
+                onChange={(e) => setEmailFormData({ ...emailFormData, sender_name: e.target.value })}
+                placeholder="e.g., John Doe, HR Team"
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-4 border-t">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setShowEmailDialog(false)
+                setEmailFormData({ subject: "", message: "", sender_name: "" })
+              }}
+              disabled={isSendingEmail}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleSendEmail}
+              disabled={isSendingEmail || !emailFormData.subject.trim() || !emailFormData.message.trim()}
+            >
+              {isSendingEmail ? (
+                <>
+                  <Clock4 className="w-4 h-4 mr-2 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <Send className="w-4 h-4 mr-2" />
+                  Send Email
+                </>
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Document Preview Dialog */}
       <DocumentPreview
