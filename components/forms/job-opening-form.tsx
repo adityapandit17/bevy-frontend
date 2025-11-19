@@ -84,6 +84,21 @@ export function JobOpeningForm({ onClose, onSubmit, initialData }: JobOpeningFor
     onSubmit(transformedData)
   }
 
+  const handleSaveAsDraft = () => {
+    // Transform the form data to match backend expectations and set status to draft
+    const transformedData = {
+      ...formData,
+      status: "draft", // Always set status to draft when saving as draft
+      department_id: formData.department_id ? parseInt(formData.department_id) : null,
+      salary_min: formData.salary_min ? parseInt(formData.salary_min) * 100000 : null, // Convert LPA to actual amount
+      salary_max: formData.salary_max ? parseInt(formData.salary_max) * 100000 : null, // Convert LPA to actual amount
+      vacancies: parseInt(formData.vacancies),
+      applications: parseInt(formData.applications) || 0
+    }
+    
+    onSubmit(transformedData)
+  }
+
   const handleChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
   }
@@ -266,7 +281,7 @@ export function JobOpeningForm({ onClose, onSubmit, initialData }: JobOpeningFor
             </div>
 
             <div className="flex justify-end gap-2 pt-4 border-t">
-              <Button type="button" variant="outline" onClick={onClose}>
+              <Button type="button" variant="outline" onClick={handleSaveAsDraft}>
                 Save as Draft
               </Button>
               <Button type="submit" className="bg-green-600 hover:bg-green-700">
