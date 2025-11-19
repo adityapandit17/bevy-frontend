@@ -269,6 +269,19 @@ export default function RecruitmentPage() {
     fetchCandidates()
   }
 
+  const handleRejectApplication = async (candidate: any) => {
+    try {
+      await apiRequest<any>(getApiUrl(`candidates/${candidate.id}/update_status`), {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'rejected' }),
+      })
+      // Refresh candidates list to show updated status
+      fetchCandidates()
+    } catch (err) {
+      console.error('Error rejecting application:', err)
+    }
+  }
+
   // Calculate change indicators
   const getChangeText = (statType: string) => {
     // For now, return placeholder text. Can be enhanced with historical data comparison
@@ -621,7 +634,7 @@ export default function RecruitmentPage() {
                                 <DropdownMenuItem>Send Message</DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem>Move to Next Stage</DropdownMenuItem>
-                                <DropdownMenuItem className="text-red-600">Reject Application</DropdownMenuItem>
+                                <DropdownMenuItem className="text-red-600" onClick={() => handleRejectApplication(candidate)}>Reject Application</DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </TableCell>
