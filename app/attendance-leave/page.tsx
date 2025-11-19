@@ -35,6 +35,7 @@ import {
 } from "lucide-react"
 import { LeaveRequestForm } from "@/components/forms/leave-request-form"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { LeaveRequestDetailsDialog } from "@/components/attendance/leave-request-details-dialog"
 import { format } from "date-fns"
 
 interface LeaveRequest {
@@ -118,6 +119,8 @@ export default function AttendanceLeavePage() {
   const [showAttendanceDetails, setShowAttendanceDetails] = useState(false)
   const [showAttendanceHistory, setShowAttendanceHistory] = useState(false)
   const [attendanceHistory, setAttendanceHistory] = useState<AttendanceRecord[]>([])
+  const [selectedLeaveRequest, setSelectedLeaveRequest] = useState<LeaveRequest | null>(null)
+  const [showLeaveDetails, setShowLeaveDetails] = useState(false)
 
   useEffect(() => {
     fetchAttendance()
@@ -436,6 +439,11 @@ export default function AttendanceLeavePage() {
   const handleViewHistory = (record: AttendanceRecord) => {
     fetchAttendanceHistory(record.employee_id)
     setSelectedAttendanceRecord(record)
+  }
+
+  const handleViewLeaveDetails = (request: LeaveRequest) => {
+    setSelectedLeaveRequest(request)
+    setShowLeaveDetails(true)
   }
 
   // Filter attendance by selected date, search term, and status
@@ -930,7 +938,9 @@ export default function AttendanceLeavePage() {
                                   </DropdownMenuTrigger>
                                   <DropdownMenuContent align="end">
                                     <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                    <DropdownMenuItem>View Details</DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleViewLeaveDetails(request)}>
+                                      View Details
+                                    </DropdownMenuItem>
                                     {(request.status?.toLowerCase() === "pending" || request.statusLabel?.toLowerCase() === "pending") && (
                                       <>
                                         <DropdownMenuItem className="text-green-600">Approve</DropdownMenuItem>
@@ -1180,6 +1190,16 @@ export default function AttendanceLeavePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Leave Request Details Dialog */}
+      <LeaveRequestDetailsDialog
+        request={selectedLeaveRequest}
+        isOpen={showLeaveDetails}
+        onClose={() => setShowLeaveDetails(false)}
+        getEmployeeName={getEmployeeName}
+        getDepartmentName={getDepartmentName}
+        getLeaveStatusColor={getLeaveStatusColor}
+      />
     </div>
   )
 }
