@@ -850,7 +850,7 @@ export default function AttendanceLeavePage() {
                   </div>
 
                   <div className="rounded-md border overflow-hidden">
-                    <div className="max-h-[600px] overflow-y-auto">
+                    <div className="max-h-[500px] overflow-y-auto overflow-x-auto">
                       <Table>
                         <TableHeader className="sticky top-0 bg-white z-10">
                           <TableRow>
