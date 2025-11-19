@@ -1,6 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
+import { getEndpointUrl, getApiUrl, apiRequest } from "@/lib/api"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -16,6 +18,16 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
 import { 
   Search,
   Filter,
@@ -51,122 +63,406 @@ import {
   Award
 } from "lucide-react"
 
+interface Ticket {
+  id: number
+  title: string
+  description: string
+  category: string
+  priority: string
+  status: string
+  assigned_to_id?: number
+  requester_id?: number
+  sla_hours?: number
+  sla_status: string
+  channel: string
+  tags_list: string[]
+  sla_display: string
+  assigned_to_name: string
+  requester_name: string
+  created_at: string
+  assigned_to?: { id: number; first_name: string; last_name: string; email: string }
+  requester?: { id: number; first_name: string; last_name: string; email: string }
+}
+
+interface SLAWorkflow {
+  id: number
+  name: string
+  category: string
+  priority: string
+  sla_hours: number
+  status: string
+  tickets_handled: number
+  avg_resolution_hours?: number
+  escalation_levels_list: Array<{ level: number; time: string; action: string }>
+  sla_display: string
+  avg_resolution_display: string
+}
+
+interface KnowledgeArticle {
+  id: number
+  title: string
+  content: string
+  category: string
+  author: string
+  tags_list: string[]
+  views: number
+  helpful: number
+  status: string
+  last_updated_display: string
+  updated_at: string
+}
+
+interface Stats {
+  open_tickets: number
+  in_progress_tickets: number
+  resolved_tickets: number
+  avg_response_time: string
+  sla_compliance: number
+  knowledge_articles: number
+}
+
 export default function HelpdeskPage() {
+  const router = useRouter()
   const [searchTerm, setSearchTerm] = useState("")
   const [priorityFilter, setPriorityFilter] = useState("all")
   const [statusFilter, setStatusFilter] = useState("all")
   const [categoryFilter, setCategoryFilter] = useState("all")
+  const [tickets, setTickets] = useState<Ticket[]>([])
+  const [slaWorkflows, setSlaWorkflows] = useState<SLAWorkflow[]>([])
+  const [knowledgeBase, setKnowledgeBase] = useState<KnowledgeArticle[]>([])
+  const [stats, setStats] = useState<Stats>({
+    open_tickets: 0,
+    in_progress_tickets: 0,
+    resolved_tickets: 0,
+    avg_response_time: "0h",
+    sla_compliance: 0,
+    knowledge_articles: 0
+  })
+  const [loading, setLoading] = useState(false)
+  const [showCreateTicketDialog, setShowCreateTicketDialog] = useState(false)
+  const [newTicket, setNewTicket] = useState({
+    title: "",
+    description: "",
+    category: "",
+    priority: "medium",
+    channel: "portal"
+  })
+  const [creating, setCreating] = useState(false)
+  const [showCreateWorkflowDialog, setShowCreateWorkflowDialog] = useState(false)
+  const [showCreateArticleDialog, setShowCreateArticleDialog] = useState(false)
+  const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null)
+  const [showEditTicketDialog, setShowEditTicketDialog] = useState(false)
+  const [editingTicket, setEditingTicket] = useState(false)
+  
+  const [newWorkflow, setNewWorkflow] = useState({
+    name: "",
+    category: "",
+    priority: "medium",
+    sla_hours: 24,
+    escalation_levels: [
+      { level: 1, time: "", action: "" },
+      { level: 2, time: "", action: "" },
+      { level: 3, time: "", action: "" }
+    ]
+  })
+  const [creatingWorkflow, setCreatingWorkflow] = useState(false)
 
-  // Sample data for tickets
-  const tickets = [
-    {
-      id: "TKT-001",
-      title: "Payroll Query - Missing Overtime",
-      description: "Employee reports missing overtime hours in last month's payroll",
-      category: "Payroll",
-      priority: "high",
-      status: "open",
-      assignedTo: "Sarah Johnson",
-      requester: "Michael Chen",
-      createdAt: "2024-01-28T10:30:00Z",
-      sla: "24h",
-      slaStatus: "on-track",
-      channel: "email",
-      tags: ["payroll", "overtime", "urgent"]
-    },
-    {
-      id: "TKT-002",
-      title: "Benefits Enrollment Issue",
-      description: "Unable to enroll in new health insurance plan through portal",
-      category: "Benefits",
-      priority: "medium",
-      status: "in-progress",
-      assignedTo: "David Wilson",
-      requester: "Emily Rodriguez",
-      createdAt: "2024-01-27T15:45:00Z",
-      sla: "48h",
-      slaStatus: "on-track",
-      channel: "portal",
-      tags: ["benefits", "enrollment", "portal"]
-    },
-    {
-      id: "TKT-003",
-      title: "Leave Request Approval",
-      description: "Pending approval for 2 weeks vacation in March",
-      category: "Leave Management",
-      priority: "low",
-      status: "pending",
-      assignedTo: "HR Manager",
-      requester: "Alex Thompson",
-      createdAt: "2024-01-26T11:20:00Z",
-      sla: "72h",
-      slaStatus: "on-track",
-      channel: "system",
-      tags: ["leave", "approval", "vacation"]
-    }
-  ]
+  const [newArticle, setNewArticle] = useState({
+    title: "",
+    content: "",
+    category: "",
+    author: "",
+    tags: [] as string[],
+    status: "draft"
+  })
+  const [creatingArticle, setCreatingArticle] = useState(false)
 
-  // Sample data for SLA workflows
-  const slaWorkflows = [
-    {
-      id: 1,
-      name: "Payroll Issues",
-      category: "Payroll",
-      priority: "high",
-      sla: "24h",
-      escalationLevels: [
-        { level: 1, time: "4h", action: "Initial Response" },
-        { level: 2, time: "12h", action: "Escalate to Specialist" },
-        { level: 3, time: "24h", action: "Escalate to Manager" }
-      ],
-      status: "active",
-      ticketsHandled: 45,
-      avgResolutionTime: "18h"
-    },
-    {
-      id: 2,
-      name: "Benefits & Enrollment",
-      category: "Benefits",
-      priority: "medium",
-      sla: "48h",
-      escalationLevels: [
-        { level: 1, time: "8h", action: "Initial Response" },
-        { level: 2, time: "24h", action: "Escalate to Benefits Team" },
-        { level: 3, time: "48h", action: "Escalate to Manager" }
-      ],
-      status: "active",
-      ticketsHandled: 32,
-      avgResolutionTime: "36h"
-    }
-  ]
+  useEffect(() => {
+    fetchTickets()
+    fetchSLAWorkflows()
+    fetchKnowledgeArticles()
+    fetchStats()
+  }, [])
 
-  // Sample data for knowledge base articles
-  const knowledgeBase = [
-    {
-      id: 1,
-      title: "How to Submit a Leave Request",
-      category: "Leave Management",
-      content: "Step-by-step guide for submitting leave requests through the HR portal...",
-      author: "HR Team",
-      lastUpdated: "2024-01-15",
-      views: 156,
-      helpful: 23,
-      tags: ["leave", "request", "portal", "guide"],
-      status: "published"
-    },
-    {
-      id: 2,
-      title: "Payroll Schedule and Payment Methods",
-      category: "Payroll",
-      content: "Information about payroll processing dates, payment methods, and direct deposit setup...",
-      author: "Payroll Team",
-      lastUpdated: "2024-01-10",
-      views: 234,
-      helpful: 45,
-      tags: ["payroll", "schedule", "payment", "direct-deposit"],
-      status: "published"
+  useEffect(() => {
+    fetchTickets()
+  }, [priorityFilter, statusFilter, categoryFilter, searchTerm])
+
+  const handleCreateTicket = () => {
+    setShowCreateTicketDialog(true)
+  }
+
+  const handleSubmitTicket = async () => {
+    if (!newTicket.title || !newTicket.description || !newTicket.category) {
+      alert("Please fill in all required fields")
+      return
     }
-  ]
+
+    setCreating(true)
+    try {
+      await apiRequest(getEndpointUrl('HELPDESK_TICKETS'), {
+        method: "POST",
+        body: JSON.stringify({
+          helpdesk_ticket: {
+            ...newTicket,
+            status: "open",
+            sla_status: "on-track"
+          }
+        })
+      })
+      setShowCreateTicketDialog(false)
+      setNewTicket({
+        title: "",
+        description: "",
+        category: "",
+        priority: "medium",
+        channel: "portal"
+      })
+      fetchTickets()
+      fetchStats()
+    } catch (err) {
+      console.error('Error creating ticket:', err)
+      alert("Failed to create ticket. Please try again.")
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  const handleCreateWorkflow = () => {
+    setShowCreateWorkflowDialog(true)
+  }
+
+  const handleSubmitWorkflow = async () => {
+    if (!newWorkflow.name || !newWorkflow.category || !newWorkflow.sla_hours) {
+      alert("Please fill in all required fields")
+      return
+    }
+
+    setCreatingWorkflow(true)
+    try {
+      await apiRequest(getEndpointUrl('SLA_WORKFLOWS'), {
+        method: "POST",
+        body: JSON.stringify({
+          sla_workflow: {
+            ...newWorkflow,
+            status: "active",
+            tickets_handled: 0,
+            escalation_levels: newWorkflow.escalation_levels.filter(level => level.time && level.action)
+          }
+        })
+      })
+      setShowCreateWorkflowDialog(false)
+      setNewWorkflow({
+        name: "",
+        category: "",
+        priority: "medium",
+        sla_hours: 24,
+        escalation_levels: [
+          { level: 1, time: "", action: "" },
+          { level: 2, time: "", action: "" },
+          { level: 3, time: "", action: "" }
+        ]
+      })
+      fetchSLAWorkflows()
+    } catch (err) {
+      console.error('Error creating workflow:', err)
+      alert("Failed to create workflow. Please try again.")
+    } finally {
+      setCreatingWorkflow(false)
+    }
+  }
+
+  const handleCreateArticle = () => {
+    setShowCreateArticleDialog(true)
+  }
+
+  const handleSubmitArticle = async () => {
+    if (!newArticle.title || !newArticle.content || !newArticle.category) {
+      alert("Please fill in all required fields")
+      return
+    }
+
+    setCreatingArticle(true)
+    try {
+      await apiRequest(getEndpointUrl('KNOWLEDGE_ARTICLES'), {
+        method: "POST",
+        body: JSON.stringify({
+          knowledge_article: {
+            ...newArticle,
+            views: 0,
+            helpful: 0
+          }
+        })
+      })
+      setShowCreateArticleDialog(false)
+      setNewArticle({
+        title: "",
+        content: "",
+        category: "",
+        author: "",
+        tags: [],
+        status: "draft"
+      })
+      fetchKnowledgeArticles()
+      fetchStats()
+    } catch (err) {
+      console.error('Error creating article:', err)
+      alert("Failed to create article. Please try again.")
+    } finally {
+      setCreatingArticle(false)
+    }
+  }
+
+  const handleViewTicketDetails = (ticket: Ticket) => {
+    router.push(`/helpdesk/${ticket.id}`)
+  }
+
+  const handleEditTicket = (ticket: Ticket) => {
+    setSelectedTicket(ticket)
+    setNewTicket({
+      title: ticket.title,
+      description: ticket.description,
+      category: ticket.category,
+      priority: ticket.priority,
+      channel: ticket.channel
+    })
+    setShowEditTicketDialog(true)
+  }
+
+  const handleUpdateTicket = async () => {
+    if (!selectedTicket) return
+
+    setEditingTicket(true)
+    try {
+      await apiRequest(`${getEndpointUrl('HELPDESK_TICKETS')}/${selectedTicket.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          helpdesk_ticket: newTicket
+        })
+      })
+      setShowEditTicketDialog(false)
+      setSelectedTicket(null)
+      setNewTicket({
+        title: "",
+        description: "",
+        category: "",
+        priority: "medium",
+        channel: "portal"
+      })
+      fetchTickets()
+    } catch (err) {
+      console.error('Error updating ticket:', err)
+      alert("Failed to update ticket. Please try again.")
+    } finally {
+      setEditingTicket(false)
+    }
+  }
+
+  const handleDeleteTicket = async (ticket: Ticket) => {
+    if (!confirm(`Are you sure you want to delete ticket "${ticket.title}"?`)) return
+
+    try {
+      await apiRequest(`${getEndpointUrl('HELPDESK_TICKETS')}/${ticket.id}`, {
+        method: "DELETE"
+      })
+      fetchTickets()
+      fetchStats()
+    } catch (err) {
+      console.error('Error deleting ticket:', err)
+      alert("Failed to delete ticket. Please try again.")
+    }
+  }
+
+  const handleArchiveTicket = async (ticket: Ticket) => {
+    try {
+      await apiRequest(`${getEndpointUrl('HELPDESK_TICKETS')}/${ticket.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          helpdesk_ticket: {
+            status: "closed"
+          }
+        })
+      })
+      fetchTickets()
+      fetchStats()
+    } catch (err) {
+      console.error('Error archiving ticket:', err)
+      alert("Failed to archive ticket. Please try again.")
+    }
+  }
+
+  const handleEscalateTicket = async (ticket: Ticket) => {
+    try {
+      await apiRequest(`${getEndpointUrl('HELPDESK_TICKETS')}/${ticket.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          helpdesk_ticket: {
+            priority: ticket.priority === "high" ? "high" : ticket.priority === "medium" ? "high" : "medium",
+            sla_status: "at-risk"
+          }
+        })
+      })
+      fetchTickets()
+    } catch (err) {
+      console.error('Error escalating ticket:', err)
+      alert("Failed to escalate ticket. Please try again.")
+    }
+  }
+
+  const fetchTickets = async () => {
+    setLoading(true)
+    try {
+      const params = new URLSearchParams()
+      if (priorityFilter !== "all") params.append("priority", priorityFilter)
+      if (statusFilter !== "all") params.append("status", statusFilter)
+      if (categoryFilter !== "all") params.append("category", categoryFilter)
+      if (searchTerm) params.append("search", searchTerm)
+
+      const url = `${getEndpointUrl('HELPDESK_TICKETS')}${params.toString() ? `?${params.toString()}` : ''}`
+      const data = await apiRequest<Ticket[]>(url, { method: "GET" })
+      setTickets(data)
+    } catch (err) {
+      console.error('Error fetching tickets:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fetchSLAWorkflows = async () => {
+    try {
+      const data = await apiRequest<SLAWorkflow[]>(getEndpointUrl('SLA_WORKFLOWS'), {
+        method: "GET"
+      })
+      setSlaWorkflows(data)
+    } catch (err) {
+      console.error('Error fetching SLA workflows:', err)
+    }
+  }
+
+  const fetchKnowledgeArticles = async () => {
+    try {
+      const params = new URLSearchParams()
+      if (categoryFilter !== "all") params.append("category", categoryFilter)
+      if (searchTerm) params.append("search", searchTerm)
+
+      const url = `${getEndpointUrl('KNOWLEDGE_ARTICLES')}${params.toString() ? `?${params.toString()}` : ''}`
+      const data = await apiRequest<KnowledgeArticle[]>(url, { method: "GET" })
+      setKnowledgeBase(data)
+    } catch (err) {
+      console.error('Error fetching knowledge articles:', err)
+    }
+  }
+
+  const fetchStats = async () => {
+    try {
+      const data = await apiRequest<Stats>(getEndpointUrl('HELPDESK_TICKETS_STATS'), {
+        method: "GET"
+      })
+      setStats(data)
+    } catch (err) {
+      console.error('Error fetching stats:', err)
+    }
+  }
 
   const getPriorityBadge = (priority: string) => {
     switch (priority) {
@@ -237,7 +533,7 @@ export default function HelpdeskPage() {
             <BarChart3 className="w-4 h-4 mr-2" />
             Analytics
           </Button>
-          <Button>
+          <Button onClick={handleCreateTicket}>
             <Plus className="w-4 h-4 mr-2" />
             Create Ticket
           </Button>
@@ -251,7 +547,7 @@ export default function HelpdeskPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Open Tickets</p>
-                <p className="text-2xl font-bold text-gray-900">23</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.open_tickets}</p>
               </div>
               <div className="p-3 bg-blue-50 rounded-lg">
                 <MessageSquare className="w-6 h-6 text-blue-600" />
@@ -264,7 +560,7 @@ export default function HelpdeskPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Avg Response Time</p>
-                <p className="text-2xl font-bold text-gray-900">2.4h</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.avg_response_time}</p>
               </div>
               <div className="p-3 bg-green-50 rounded-lg">
                 <Clock className="w-6 h-6 text-green-600" />
@@ -277,7 +573,7 @@ export default function HelpdeskPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">SLA Compliance</p>
-                <p className="text-2xl font-bold text-gray-900">94%</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.sla_compliance}%</p>
               </div>
               <div className="p-3 bg-orange-50 rounded-lg">
                 <Target className="w-6 h-6 text-orange-600" />
@@ -290,7 +586,7 @@ export default function HelpdeskPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Knowledge Articles</p>
-                <p className="text-2xl font-bold text-gray-900">45</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.knowledge_articles}</p>
               </div>
               <div className="p-3 bg-purple-50 rounded-lg">
                 <BookOpen className="w-6 h-6 text-purple-600" />
@@ -376,18 +672,34 @@ export default function HelpdeskPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {tickets.map((ticket) => (
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={9} className="text-center py-8">
+                        <div className="flex items-center justify-center">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+                          <span className="ml-2 text-gray-600">Loading tickets...</span>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : tickets.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={9} className="text-center py-8 text-gray-500">
+                        No tickets found
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    tickets.map((ticket) => (
                     <TableRow key={ticket.id}>
                       <TableCell>
                         <div className="flex items-start gap-3">
                           <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-medium text-sm">
-                            {ticket.id.slice(-3)}
+                            {ticket.id.toString().slice(-3)}
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="font-medium text-gray-900 truncate">{ticket.title}</p>
                             <p className="text-sm text-gray-500 truncate">{ticket.description}</p>
                             <div className="flex gap-1 mt-1">
-                              {ticket.tags.slice(0, 2).map((tag, index) => (
+                              {(ticket.tags_list || []).slice(0, 2).map((tag, index) => (
                                 <Badge key={index} variant="secondary" className="text-xs">
                                   {tag}
                                 </Badge>
@@ -404,9 +716,9 @@ export default function HelpdeskPage() {
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <div className="w-6 h-6 bg-gradient-to-br from-green-500 to-blue-600 rounded-full flex items-center justify-center text-white text-xs">
-                            {ticket.assignedTo.split(' ').map(n => n[0]).join('')}
+                            {ticket.assigned_to_name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
                           </div>
-                          <span className="text-sm">{ticket.assignedTo}</span>
+                          <span className="text-sm">{ticket.assigned_to_name}</span>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -417,17 +729,17 @@ export default function HelpdeskPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium">{ticket.sla}</span>
-                          {getSLAStatusBadge(ticket.slaStatus)}
+                          <span className="text-sm font-medium">{ticket.sla_display}</span>
+                          {getSLAStatusBadge(ticket.sla_status)}
                         </div>
                       </TableCell>
                       <TableCell>
                         <div>
                           <p className="text-sm font-medium">
-                            {new Date(ticket.createdAt).toLocaleDateString()}
+                            {new Date(ticket.created_at).toLocaleDateString()}
                           </p>
                           <p className="text-xs text-gray-500">
-                            {new Date(ticket.createdAt).toLocaleTimeString()}
+                            {new Date(ticket.created_at).toLocaleTimeString()}
                           </p>
                         </div>
                       </TableCell>
@@ -440,28 +752,28 @@ export default function HelpdeskPage() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                            <DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => router.push(`/helpdesk/${ticket.id}`)}>
                               <Eye className="mr-2 h-4 w-4" />
                               View Details
                             </DropdownMenuItem>
-                            <DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => alert("Reply functionality coming soon")}>
                               <Reply className="mr-2 h-4 w-4" />
                               Reply
                             </DropdownMenuItem>
-                            <DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleEscalateTicket(ticket)}>
                               <Forward className="mr-2 h-4 w-4" />
                               Escalate
                             </DropdownMenuItem>
-                            <DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleEditTicket(ticket)}>
                               <Edit className="mr-2 h-4 w-4" />
                               Edit Ticket
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleArchiveTicket(ticket)}>
                               <Archive className="mr-2 h-4 w-4" />
                               Archive
                             </DropdownMenuItem>
-                            <DropdownMenuItem className="text-red-600">
+                            <DropdownMenuItem className="text-red-600" onClick={() => handleDeleteTicket(ticket)}>
                               <Trash2 className="mr-2 h-4 w-4" />
                               Delete
                             </DropdownMenuItem>
@@ -469,7 +781,8 @@ export default function HelpdeskPage() {
                         </DropdownMenu>
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ))
+                  )}
                 </TableBody>
               </Table>
             </CardContent>
@@ -495,7 +808,7 @@ export default function HelpdeskPage() {
                     <BarChart3 className="w-4 h-4 mr-2" />
                     SLA Reports
                   </Button>
-                  <Button>
+                  <Button onClick={handleCreateWorkflow}>
                     <Plus className="w-4 h-4 mr-2" />
                     Create Workflow
                   </Button>
@@ -511,7 +824,7 @@ export default function HelpdeskPage() {
                         <div className="flex-1">
                           <CardTitle className="text-lg">{workflow.name}</CardTitle>
                           <CardDescription className="mt-1">
-                            {workflow.category} • {workflow.sla} SLA
+                            {workflow.category} • {workflow.sla_display} SLA
                           </CardDescription>
                         </div>
                         <DropdownMenu>
@@ -553,7 +866,7 @@ export default function HelpdeskPage() {
                       
                       <div className="space-y-3">
                         <h4 className="text-sm font-medium text-gray-900">Escalation Levels</h4>
-                        {workflow.escalationLevels.map((level) => (
+                        {(workflow.escalation_levels_list || []).map((level) => (
                           <div key={level.level} className="flex items-center justify-between text-sm">
                             <div className="flex items-center gap-2">
                               <div className="w-6 h-6 bg-blue-100 text-blue-800 rounded-full flex items-center justify-center text-xs font-medium">
@@ -569,11 +882,11 @@ export default function HelpdeskPage() {
                       <div className="grid grid-cols-2 gap-4 pt-2">
                         <div className="text-center">
                           <p className="text-sm text-gray-600">Tickets Handled</p>
-                          <p className="text-lg font-bold text-gray-900">{workflow.ticketsHandled}</p>
+                          <p className="text-lg font-bold text-gray-900">{workflow.tickets_handled}</p>
                         </div>
                         <div className="text-center">
                           <p className="text-sm text-gray-600">Avg Resolution</p>
-                          <p className="text-lg font-bold text-gray-900">{workflow.avgResolutionTime}</p>
+                          <p className="text-lg font-bold text-gray-900">{workflow.avg_resolution_display}</p>
                         </div>
                       </div>
                     </CardContent>
@@ -620,7 +933,7 @@ export default function HelpdeskPage() {
                       <SelectItem value="IT Support">IT Support</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Button>
+                  <Button onClick={handleCreateArticle}>
                     <Plus className="w-4 h-4 mr-2" />
                     Create Article
                   </Button>
@@ -674,7 +987,7 @@ export default function HelpdeskPage() {
                       </p>
                       
                       <div className="flex flex-wrap gap-1">
-                        {article.tags.slice(0, 3).map((tag, index) => (
+                        {(article.tags_list || []).slice(0, 3).map((tag, index) => (
                           <Badge key={index} variant="secondary" className="text-xs">
                             {tag}
                           </Badge>
@@ -692,7 +1005,7 @@ export default function HelpdeskPage() {
                             {article.helpful}
                           </div>
                         </div>
-                        <span>{new Date(article.lastUpdated).toLocaleDateString()}</span>
+                        <span>{article.last_updated_display}</span>
                       </div>
 
                       <div className="flex gap-2">
@@ -712,6 +1025,399 @@ export default function HelpdeskPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Create Ticket Dialog */}
+      <Dialog open={showCreateTicketDialog} onOpenChange={setShowCreateTicketDialog}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Create New Ticket</DialogTitle>
+            <DialogDescription>
+              Create a new helpdesk ticket to track HR support requests
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="title">Title *</Label>
+              <Input
+                id="title"
+                placeholder="Enter ticket title"
+                value={newTicket.title}
+                onChange={(e) => setNewTicket({ ...newTicket, title: e.target.value })}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="description">Description *</Label>
+              <Textarea
+                id="description"
+                placeholder="Describe the issue or request"
+                value={newTicket.description}
+                onChange={(e) => setNewTicket({ ...newTicket, description: e.target.value })}
+                rows={4}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="category">Category *</Label>
+                <Select
+                  value={newTicket.category}
+                  onValueChange={(value) => setNewTicket({ ...newTicket, category: value })}
+                >
+                  <SelectTrigger id="category">
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Payroll">Payroll</SelectItem>
+                    <SelectItem value="Benefits">Benefits</SelectItem>
+                    <SelectItem value="Leave Management">Leave Management</SelectItem>
+                    <SelectItem value="Performance">Performance</SelectItem>
+                    <SelectItem value="IT Support">IT Support</SelectItem>
+                    <SelectItem value="Other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="priority">Priority</Label>
+                <Select
+                  value={newTicket.priority}
+                  onValueChange={(value) => setNewTicket({ ...newTicket, priority: value })}
+                >
+                  <SelectTrigger id="priority">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="channel">Channel</Label>
+              <Select
+                value={newTicket.channel}
+                onValueChange={(value) => setNewTicket({ ...newTicket, channel: value })}
+              >
+                <SelectTrigger id="channel">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="portal">Portal</SelectItem>
+                  <SelectItem value="email">Email</SelectItem>
+                  <SelectItem value="phone">Phone</SelectItem>
+                  <SelectItem value="system">System</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowCreateTicketDialog(false)
+                setNewTicket({
+                  title: "",
+                  description: "",
+                  category: "",
+                  priority: "medium",
+                  channel: "portal"
+                })
+              }}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleSubmitTicket} disabled={creating}>
+              {creating ? "Creating..." : "Create Ticket"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create SLA Workflow Dialog */}
+      <Dialog open={showCreateWorkflowDialog} onOpenChange={setShowCreateWorkflowDialog}>
+        <DialogContent className="sm:max-w-[700px]">
+          <DialogHeader>
+            <DialogTitle>Create SLA Workflow</DialogTitle>
+            <DialogDescription>
+              Configure a new Service Level Agreement workflow for ticket management
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="workflow-name">Workflow Name *</Label>
+              <Input
+                id="workflow-name"
+                placeholder="e.g., Payroll Issues"
+                value={newWorkflow.name}
+                onChange={(e) => setNewWorkflow({ ...newWorkflow, name: e.target.value })}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="workflow-category">Category *</Label>
+                <Select
+                  value={newWorkflow.category}
+                  onValueChange={(value) => setNewWorkflow({ ...newWorkflow, category: value })}
+                >
+                  <SelectTrigger id="workflow-category">
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Payroll">Payroll</SelectItem>
+                    <SelectItem value="Benefits">Benefits</SelectItem>
+                    <SelectItem value="Leave Management">Leave Management</SelectItem>
+                    <SelectItem value="Performance">Performance</SelectItem>
+                    <SelectItem value="IT Support">IT Support</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="workflow-priority">Priority</Label>
+                <Select
+                  value={newWorkflow.priority}
+                  onValueChange={(value) => setNewWorkflow({ ...newWorkflow, priority: value })}
+                >
+                  <SelectTrigger id="workflow-priority">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="sla-hours">SLA Hours *</Label>
+              <Input
+                id="sla-hours"
+                type="number"
+                placeholder="24"
+                value={newWorkflow.sla_hours}
+                onChange={(e) => setNewWorkflow({ ...newWorkflow, sla_hours: parseInt(e.target.value) || 24 })}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label>Escalation Levels</Label>
+              {newWorkflow.escalation_levels.map((level, index) => (
+                <div key={index} className="grid grid-cols-3 gap-2">
+                  <Input
+                    placeholder="Time (e.g., 4h)"
+                    value={level.time}
+                    onChange={(e) => {
+                      const updated = [...newWorkflow.escalation_levels]
+                      updated[index].time = e.target.value
+                      setNewWorkflow({ ...newWorkflow, escalation_levels: updated })
+                    }}
+                  />
+                  <Input
+                    placeholder="Action"
+                    value={level.action}
+                    onChange={(e) => {
+                      const updated = [...newWorkflow.escalation_levels]
+                      updated[index].action = e.target.value
+                      setNewWorkflow({ ...newWorkflow, escalation_levels: updated })
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreateWorkflowDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSubmitWorkflow} disabled={creatingWorkflow}>
+              {creatingWorkflow ? "Creating..." : "Create Workflow"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Knowledge Article Dialog */}
+      <Dialog open={showCreateArticleDialog} onOpenChange={setShowCreateArticleDialog}>
+        <DialogContent className="sm:max-w-[700px]">
+          <DialogHeader>
+            <DialogTitle>Create Knowledge Article</DialogTitle>
+            <DialogDescription>
+              Create a new knowledge base article to help employees find answers
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="article-title">Title *</Label>
+              <Input
+                id="article-title"
+                placeholder="Enter article title"
+                value={newArticle.title}
+                onChange={(e) => setNewArticle({ ...newArticle, title: e.target.value })}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="article-content">Content *</Label>
+              <Textarea
+                id="article-content"
+                placeholder="Write the article content..."
+                value={newArticle.content}
+                onChange={(e) => setNewArticle({ ...newArticle, content: e.target.value })}
+                rows={8}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="article-category">Category *</Label>
+                <Select
+                  value={newArticle.category}
+                  onValueChange={(value) => setNewArticle({ ...newArticle, category: value })}
+                >
+                  <SelectTrigger id="article-category">
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Leave Management">Leave Management</SelectItem>
+                    <SelectItem value="Payroll">Payroll</SelectItem>
+                    <SelectItem value="Benefits">Benefits</SelectItem>
+                    <SelectItem value="Performance">Performance</SelectItem>
+                    <SelectItem value="IT Support">IT Support</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="article-author">Author</Label>
+                <Input
+                  id="article-author"
+                  placeholder="e.g., HR Team"
+                  value={newArticle.author}
+                  onChange={(e) => setNewArticle({ ...newArticle, author: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="article-status">Status</Label>
+              <Select
+                value={newArticle.status}
+                onValueChange={(value) => setNewArticle({ ...newArticle, status: value })}
+              >
+                <SelectTrigger id="article-status">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="draft">Draft</SelectItem>
+                  <SelectItem value="published">Published</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreateArticleDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSubmitArticle} disabled={creatingArticle}>
+              {creatingArticle ? "Creating..." : "Create Article"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Ticket Dialog */}
+      <Dialog open={showEditTicketDialog} onOpenChange={setShowEditTicketDialog}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Edit Ticket</DialogTitle>
+            <DialogDescription>
+              Update ticket information
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="edit-title">Title *</Label>
+              <Input
+                id="edit-title"
+                value={newTicket.title}
+                onChange={(e) => setNewTicket({ ...newTicket, title: e.target.value })}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-description">Description *</Label>
+              <Textarea
+                id="edit-description"
+                value={newTicket.description}
+                onChange={(e) => setNewTicket({ ...newTicket, description: e.target.value })}
+                rows={4}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="edit-category">Category *</Label>
+                <Select
+                  value={newTicket.category}
+                  onValueChange={(value) => setNewTicket({ ...newTicket, category: value })}
+                >
+                  <SelectTrigger id="edit-category">
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Payroll">Payroll</SelectItem>
+                    <SelectItem value="Benefits">Benefits</SelectItem>
+                    <SelectItem value="Leave Management">Leave Management</SelectItem>
+                    <SelectItem value="Performance">Performance</SelectItem>
+                    <SelectItem value="IT Support">IT Support</SelectItem>
+                    <SelectItem value="Other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-priority">Priority</Label>
+                <Select
+                  value={newTicket.priority}
+                  onValueChange={(value) => setNewTicket({ ...newTicket, priority: value })}
+                >
+                  <SelectTrigger id="edit-priority">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-channel">Channel</Label>
+              <Select
+                value={newTicket.channel}
+                onValueChange={(value) => setNewTicket({ ...newTicket, channel: value })}
+              >
+                <SelectTrigger id="edit-channel">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="portal">Portal</SelectItem>
+                  <SelectItem value="email">Email</SelectItem>
+                  <SelectItem value="phone">Phone</SelectItem>
+                  <SelectItem value="system">System</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowEditTicketDialog(false)
+                setSelectedTicket(null)
+              }}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleUpdateTicket} disabled={editingTicket}>
+              {editingTicket ? "Updating..." : "Update Ticket"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 } 

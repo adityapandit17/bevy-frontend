@@ -39,7 +39,7 @@ import { getApiUrl } from "@/lib/api"
 import { apiRequest } from "@/lib/api"
 
 interface TodayAttendance {
-  id: number
+  id?: number
   employee_id: number
   date: string
   check_in: string | null
@@ -48,6 +48,9 @@ interface TodayAttendance {
   formatted_check_out: string | null
   status: string
   working_hours: number | null
+  total_hours_today?: number
+  total_sessions_today?: number
+  sessions?: TodayAttendance[]
 }
 
 interface AttendanceSession {
@@ -70,11 +73,39 @@ export default function Dashboard() {
   const [isOnBreak, setIsOnBreak] = useState(false)
   const [punchLoading, setPunchLoading] = useState(false)
   const [sessionsModalOpen, setSessionsModalOpen] = useState(false)
+  const [totalHoursToday, setTotalHoursToday] = useState<number>(0)
+  const [dashboardStats, setDashboardStats] = useState({
+    total_employees: 0,
+    present_today: 0,
+    on_leave: 0,
+    monthly_payroll: 0
+  })
+  const [statsLoading, setStatsLoading] = useState(true)
+  const [upcomingEvents, setUpcomingEvents] = useState<Array<{
+    id: number
+    title: string
+    date: string
+    time: string
+    attendees: number
+  }>>([])
+  const [eventsLoading, setEventsLoading] = useState(true)
+
+  const formatPayroll = (amount: number): string => {
+    if (amount === 0) return "₹0"
+    if (amount >= 10000000) {
+      return `₹${(amount / 10000000).toFixed(1)}Cr`
+    }
+    if (amount >= 100000) {
+      return `₹${(amount / 100000).toFixed(1)}L`
+    }
+    return `₹${amount.toLocaleString('en-IN')}`
+  }
+  
   const stats = [
     {
       title: "Total Employees",
-      value: "248",
-      change: "+12 this month",
+      value: dashboardStats.total_employees.toString(),
+      change: "",
       trend: "up",
       icon: Users,
       color: "text-blue-600",
@@ -82,8 +113,10 @@ export default function Dashboard() {
     },
     {
       title: "Present Today",
-      value: "231",
-      change: "93.1% attendance",
+      value: dashboardStats.present_today.toString(),
+      change: dashboardStats.total_employees > 0 
+        ? `${((dashboardStats.present_today / dashboardStats.total_employees) * 100).toFixed(1)}% attendance`
+        : "0% attendance",
       trend: "up",
       icon: UserCheck,
       color: "text-green-600",
@@ -91,8 +124,10 @@ export default function Dashboard() {
     },
     {
       title: "On Leave",
-      value: "17",
-      change: "6.9% on leave",
+      value: dashboardStats.on_leave.toString(),
+      change: dashboardStats.total_employees > 0
+        ? `${((dashboardStats.on_leave / dashboardStats.total_employees) * 100).toFixed(1)}% on leave`
+        : "0% on leave",
       trend: "down",
       icon: Clock,
       color: "text-orange-600",
@@ -100,8 +135,8 @@ export default function Dashboard() {
     },
     {
       title: "Monthly Payroll",
-      value: "₹45.2L",
-      change: "+8.2% from last month",
+      value: formatPayroll(dashboardStats.monthly_payroll),
+      change: "",
       trend: "up",
       icon: IndianRupee,
       color: "text-purple-600",
@@ -175,30 +210,6 @@ export default function Dashboard() {
       count: 3,
       priority: "high",
       dueDate: "End of Week",
-    },
-  ]
-
-  const upcomingEvents = [
-    {
-      id: 1,
-      title: "Team Building Event",
-      date: "Nov 15, 2024",
-      time: "10:00 AM",
-      attendees: 45,
-    },
-    {
-      id: 2,
-      title: "Performance Review Meeting",
-      date: "Nov 18, 2024",
-      time: "2:00 PM",
-      attendees: 12,
-    },
-    {
-      id: 3,
-      title: "New Employee Orientation",
-      date: "Nov 20, 2024",
-      time: "9:00 AM",
-      attendees: 8,
     },
   ]
 
@@ -314,10 +325,86 @@ export default function Dashboard() {
     if (!user?.employee_id) return
     
     try {
-      const data = await apiRequest<TodayAttendance>(
+      const data = await apiRequest<TodayAttendance & {
+        total_hours_today?: number
+        total_sessions_today?: number
+        sessions?: TodayAttendance[]
+      }>(
         getApiUrl(`attendance_records/today?employee_id=${user.employee_id}`)
       )
-      setTodayAttendance(data)
+      
+      // If we have sessions data, sync with local storage
+      if (data.sessions && Array.isArray(data.sessions)) {
+        const sessions: AttendanceSession[] = data.sessions
+          .filter(s => s.check_in)
+          .map(s => ({
+            id: `session_${s.id}`,
+            punchIn: s.check_in!,
+            punchOut: s.check_out || null,
+            workingHours: s.working_hours || 0
+          }))
+        
+        // Find active session (no check_out)
+        const activeSession = sessions.find(s => !s.punchOut)
+        if (activeSession) {
+          setCurrentPunchIn(activeSession.punchIn)
+        }
+        
+        setAttendanceSessions(sessions)
+        saveSessionsToStorage(sessions)
+      }
+      
+      // Set today's attendance to the active one or first session
+      if (data.check_in) {
+        setTodayAttendance(data)
+      } else if (data.sessions && data.sessions.length > 0) {
+        setTodayAttendance(data.sessions[data.sessions.length - 1])
+      }
+      
+      // Update total hours from backend if available
+      if (data.total_hours_today !== undefined && data.total_hours_today !== null) {
+        // Ensure it's a valid number and within reasonable range (0-24 hours)
+        const hours = typeof data.total_hours_today === 'number' 
+          ? data.total_hours_today 
+          : parseFloat(String(data.total_hours_today)) || 0
+        // Sanity check: hours should be between 0 and 24
+        if (hours >= 0 && hours <= 24) {
+          setTotalHoursToday(hours)
+        } else {
+          // If invalid, calculate from sessions
+          console.warn("Invalid total_hours_today from backend:", hours, "Calculating from sessions")
+          if (data.sessions && Array.isArray(data.sessions)) {
+            const calculatedTotal = data.sessions.reduce((sum: number, session: any) => {
+              if (session.check_in && session.check_out) {
+                const start = new Date(session.check_in)
+                const end = new Date(session.check_out)
+                const sessionHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60)
+                return sum + (sessionHours > 0 && sessionHours < 24 ? sessionHours : 0)
+              }
+              const storedHours = session.working_hours || 0
+              return sum + (storedHours > 0 && storedHours < 24 ? storedHours : 0)
+            }, 0)
+            setTotalHoursToday(calculatedTotal)
+          } else {
+            setTotalHoursToday(0)
+          }
+        }
+      } else {
+        // Calculate from sessions if backend doesn't provide it
+        if (data.sessions && Array.isArray(data.sessions)) {
+          const calculatedTotal = data.sessions.reduce((sum: number, session: any) => {
+            if (session.check_in && session.check_out) {
+              const start = new Date(session.check_in)
+              const end = new Date(session.check_out)
+              const sessionHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60)
+              return sum + (sessionHours > 0 && sessionHours < 24 ? sessionHours : 0)
+            }
+            const storedHours = session.working_hours || 0
+            return sum + (storedHours > 0 && storedHours < 24 ? storedHours : 0)
+          }, 0)
+          setTotalHoursToday(calculatedTotal)
+        }
+      }
     } catch (error) {
       console.error("Failed to fetch today's attendance:", error)
     }
@@ -353,6 +440,12 @@ export default function Dashboard() {
   }
 
   const formatDuration = (hours: number): string => {
+    // Ensure hours is a valid number
+    if (!hours || isNaN(hours) || hours < 0) {
+      return "00:00:00"
+    }
+    
+    // Convert hours to total seconds
     const totalSeconds = Math.floor(hours * 3600)
     const hrs = Math.floor(totalSeconds / 3600)
     const mins = Math.floor((totalSeconds % 3600) / 60)
@@ -364,6 +457,80 @@ export default function Dashboard() {
     const formattedSecs = String(secs).padStart(2, '0')
     
     return `${formattedHrs}:${formattedMins}:${formattedSecs}`
+  }
+
+  const fetchDashboardStats = async () => {
+    setStatsLoading(true)
+    try {
+      const data = await apiRequest<{
+        stats: {
+          total_employees: number
+          present_today: number
+          on_leave: number
+          monthly_payroll: number
+        }
+      }>(getApiUrl('dashboard'), {
+        method: "GET"
+      })
+      if (data.stats) {
+        setDashboardStats(data.stats)
+      }
+    } catch (error) {
+      console.error("Failed to fetch dashboard stats:", error)
+      // Set default values on error
+      setDashboardStats({
+        total_employees: 0,
+        present_today: 0,
+        on_leave: 0,
+        monthly_payroll: 0
+      })
+    } finally {
+      setStatsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchDashboardStats()
+    fetchUpcomingEvents()
+  }, [])
+
+  const fetchUpcomingEvents = async () => {
+    setEventsLoading(true)
+    try {
+      interface EventData {
+        id: number
+        title: string
+        start_time: string
+        end_time: string
+        attendee_ids_list: number[]
+      }
+      const data = await apiRequest<EventData[]>(`${getApiUrl('events')}?upcoming=true&limit=3`, {
+        method: "GET"
+      })
+      
+      const formattedEvents = Array.isArray(data) ? data.slice(0, 3).map(event => ({
+        id: event.id,
+        title: event.title,
+        date: new Date(event.start_time).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric"
+        }),
+        time: new Date(event.start_time).toLocaleTimeString("en-US", {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: true
+        }),
+        attendees: event.attendee_ids_list?.length || 0
+      })) : []
+      
+      setUpcomingEvents(formattedEvents)
+    } catch (error) {
+      console.error("Failed to fetch upcoming events:", error)
+      setUpcomingEvents([])
+    } finally {
+      setEventsLoading(false)
+    }
   }
 
   const formatTime = (timeString: string | null) => {
@@ -386,40 +553,33 @@ export default function Dashboard() {
     setPunchLoading(true)
     try {
       const now = new Date().toISOString()
+      
+      // Always create a new attendance record for check-in
+      const attendanceRecord = await apiRequest<TodayAttendance>(
+        getApiUrl(`attendance_records/check_in`),
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            employee_id: user.employee_id
+          })
+        }
+      )
+
       const newSession: AttendanceSession = {
-        id: `session_${Date.now()}`,
-        punchIn: now,
+        id: `session_${attendanceRecord.id || Date.now()}`,
+        punchIn: attendanceRecord.check_in || now,
         punchOut: null,
         workingHours: 0
       }
       
       const updatedSessions = [...attendanceSessions, newSession]
-      const isFirstSession = attendanceSessions.length === 0
-      
       setAttendanceSessions(updatedSessions)
       setCurrentPunchIn(now)
       saveSessionsToStorage(updatedSessions)
-
-      // Only update backend for the first session
-      if (isFirstSession) {
-        try {
-          const currentAttendance = await apiRequest<TodayAttendance>(
-            getApiUrl(`attendance_records/today?employee_id=${user.employee_id}`)
-          )
-          
-          if (currentAttendance && !currentAttendance.check_in) {
-            await apiRequest<TodayAttendance>(
-              getApiUrl(`attendance_records/${currentAttendance.id}/check_in`),
-              { method: 'PATCH' }
-            )
-            await fetchTodayAttendance()
-          }
-        } catch (backendError) {
-          console.log("Backend update skipped (multiple sessions not supported by backend)")
-        }
-      }
+      await fetchTodayAttendance()
     } catch (error) {
       console.error("Failed to punch in:", error)
+      alert("Failed to punch in. Please try again.")
     } finally {
       setPunchLoading(false)
     }
@@ -432,7 +592,6 @@ export default function Dashboard() {
     try {
       const now = new Date().toISOString()
       const currentSessionIndex = attendanceSessions.findIndex(s => s.punchIn === currentPunchIn && !s.punchOut)
-      const isFirstSession = currentSessionIndex === 0
       
       const updatedSessions = attendanceSessions.map(session => {
         if (session.punchIn === currentPunchIn && !session.punchOut) {
@@ -455,26 +614,54 @@ export default function Dashboard() {
         handleBreakEnd()
       }
 
-      // Only update backend for the first session
-      if (isFirstSession) {
-        try {
-          const currentAttendance = await apiRequest<TodayAttendance>(
-            getApiUrl(`attendance_records/today?employee_id=${user.employee_id}`)
-          )
+      // Update backend - find the attendance record using session ID
+      try {
+        // Find the current session to get the record ID
+        const currentSession = attendanceSessions.find(s => s.punchIn === currentPunchIn && !s.punchOut)
+        
+        if (currentSession && currentSession.id) {
+          // Extract record ID from session ID (format: session_123)
+          const recordId = currentSession.id.replace('session_', '')
           
-          if (currentAttendance && !currentAttendance.check_out) {
+          if (recordId && !isNaN(Number(recordId))) {
+            // Update the specific record with check_out
             await apiRequest<TodayAttendance>(
-              getApiUrl(`attendance_records/${currentAttendance.id}/check_out`),
+              getApiUrl(`attendance_records/${recordId}/check_out`),
               { method: 'PATCH' }
             )
-            await fetchTodayAttendance()
+          } else {
+            // Fallback: use today endpoint to find the active session
+            const todayData = await apiRequest<TodayAttendance>(
+              getApiUrl(`attendance_records/today?employee_id=${user.employee_id}`)
+            )
+            
+            // Find the record that matches current punch in time
+            if (todayData.sessions && Array.isArray(todayData.sessions)) {
+              const punchInTime = new Date(currentPunchIn).getTime()
+              const matchingRecord = todayData.sessions.find((record: any) => {
+                if (!record.check_in || record.check_out) return false
+                const recordTime = new Date(record.check_in).getTime()
+                const diff = Math.abs(punchInTime - recordTime)
+                return diff < 60000 // Within 1 minute
+              })
+
+              if (matchingRecord && matchingRecord.id) {
+                await apiRequest<TodayAttendance>(
+                  getApiUrl(`attendance_records/${matchingRecord.id}/check_out`),
+                  { method: 'PATCH' }
+                )
+              }
+            }
           }
-        } catch (backendError) {
-          console.log("Backend update skipped (multiple sessions not supported by backend)")
         }
+        await fetchTodayAttendance()
+      } catch (backendError: any) {
+        console.error("Failed to update backend:", backendError)
+        alert(backendError?.error || "Failed to update attendance record. Please try again.")
       }
     } catch (error) {
       console.error("Failed to punch out:", error)
+      alert("Failed to punch out. Please try again.")
     } finally {
       setPunchLoading(false)
     }
@@ -504,26 +691,50 @@ export default function Dashboard() {
       setCurrentPunchIn(null)
       saveSessionsToStorage(updatedSessions)
       
-      // Update backend if it's the first session
-      const currentSessionIndex = attendanceSessions.findIndex(s => s.punchIn === currentPunchIn && !s.punchOut)
-      const isFirstSession = currentSessionIndex === 0
-      
-      if (isFirstSession) {
-        try {
-          const currentAttendance = await apiRequest<TodayAttendance>(
-            getApiUrl(`attendance_records/today?employee_id=${user.employee_id}`)
-          )
+      // Update backend - find the attendance record using session ID
+      try {
+        // Find the current session to get the record ID
+        const currentSession = attendanceSessions.find(s => s.punchIn === currentPunchIn && !s.punchOut)
+        
+        if (currentSession && currentSession.id) {
+          // Extract record ID from session ID (format: session_123)
+          const recordId = currentSession.id.replace('session_', '')
           
-          if (currentAttendance && !currentAttendance.check_out) {
+          if (recordId && !isNaN(Number(recordId))) {
+            // Update the specific record with check_out
             await apiRequest<TodayAttendance>(
-              getApiUrl(`attendance_records/${currentAttendance.id}/check_out`),
+              getApiUrl(`attendance_records/${recordId}/check_out`),
               { method: 'PATCH' }
             )
-            await fetchTodayAttendance()
+          } else {
+            // Fallback: use today endpoint to find the active session
+            const todayData = await apiRequest<TodayAttendance>(
+              getApiUrl(`attendance_records/today?employee_id=${user.employee_id}`)
+            )
+            
+            // Find the record that matches current punch in time
+            if (todayData.sessions && Array.isArray(todayData.sessions)) {
+              const punchInTime = new Date(currentPunchIn).getTime()
+              const matchingRecord = todayData.sessions.find((record: any) => {
+                if (!record.check_in || record.check_out) return false
+                const recordTime = new Date(record.check_in).getTime()
+                const diff = Math.abs(punchInTime - recordTime)
+                return diff < 60000 // Within 1 minute
+              })
+
+              if (matchingRecord && matchingRecord.id) {
+                await apiRequest<TodayAttendance>(
+                  getApiUrl(`attendance_records/${matchingRecord.id}/check_out`),
+                  { method: 'PATCH' }
+                )
+              }
+            }
           }
-        } catch (backendError) {
-          console.log("Backend update skipped (multiple sessions not supported by backend)")
         }
+        await fetchTodayAttendance()
+      } catch (backendError: any) {
+        console.error("Failed to update backend:", backendError)
+        alert(backendError?.error || "Failed to update attendance record. Please try again.")
       }
       
       // Now start the break
@@ -580,31 +791,50 @@ export default function Dashboard() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat, index) => (
-          <Card key={index} className="hover:shadow-md transition-shadow">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-600">{stat.title}</p>
-                  <p className="text-2xl font-bold text-gray-900 mt-1">{stat.value}</p>
-                  <div className="flex items-center gap-1 mt-1">
-                    {stat.trend === "up" ? (
-                      <ArrowUpRight className="w-4 h-4 text-green-600" />
-                    ) : (
-                      <ArrowDownRight className="w-4 h-4 text-red-600" />
+        {statsLoading ? (
+          Array.from({ length: 4 }).map((_, index) => (
+            <Card key={index} className="hover:shadow-md transition-shadow">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <div className="h-4 bg-gray-200 rounded w-24 mb-2 animate-pulse"></div>
+                    <div className="h-8 bg-gray-200 rounded w-16 mb-2 animate-pulse"></div>
+                    <div className="h-3 bg-gray-200 rounded w-32 animate-pulse"></div>
+                  </div>
+                  <div className="w-12 h-12 bg-gray-200 rounded-lg animate-pulse"></div>
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        ) : (
+          stats.map((stat, index) => (
+            <Card key={index} className="hover:shadow-md transition-shadow">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-gray-600">{stat.title}</p>
+                    <p className="text-2xl font-bold text-gray-900 mt-1">{stat.value}</p>
+                    {stat.change && (
+                      <div className="flex items-center gap-1 mt-1">
+                        {stat.trend === "up" ? (
+                          <ArrowUpRight className="w-4 h-4 text-green-600" />
+                        ) : (
+                          <ArrowDownRight className="w-4 h-4 text-red-600" />
+                        )}
+                        <p className={`text-sm ${stat.trend === "up" ? "text-green-600" : "text-red-600"}`}>
+                          {stat.change}
+                        </p>
+                      </div>
                     )}
-                    <p className={`text-sm ${stat.trend === "up" ? "text-green-600" : "text-red-600"}`}>
-                      {stat.change}
-                    </p>
+                  </div>
+                  <div className={`p-3 rounded-lg ${stat.bgColor}`}>
+                    <stat.icon className={`w-6 h-6 ${stat.color}`} />
                   </div>
                 </div>
-                <div className={`p-3 rounded-lg ${stat.bgColor}`}>
-                  <stat.icon className={`w-6 h-6 ${stat.color}`} />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            </Card>
+          ))
+        )}
       </div>
 
       <div className="flex flex-col lg:flex-row gap-6">
@@ -646,23 +876,51 @@ export default function Dashboard() {
           {/* Upcoming Events */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Calendar className="w-5 h-5" />
-                Upcoming Events
-              </CardTitle>
-              <CardDescription>Scheduled events and meetings</CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Calendar className="w-5 h-5" />
+                    Upcoming Events
+                  </CardTitle>
+                  <CardDescription>Scheduled events and meetings</CardDescription>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => router.push('/events')}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Manage
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="space-y-4 max-h-[150px] overflow-y-auto pr-2">
-                {upcomingEvents.map((event) => (
-                  <div key={event.id} className="p-3 rounded-lg border hover:bg-gray-50">
-                    <p className="text-sm font-medium text-gray-900">{event.title}</p>
-                    <p className="text-xs text-gray-600 mt-1">
-                      {event.date} at {event.time}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-1">{event.attendees} attendees</p>
+                {eventsLoading ? (
+                  <div className="text-center py-4 text-gray-500 text-sm">Loading events...</div>
+                ) : upcomingEvents.length > 0 ? (
+                  upcomingEvents.map((event) => (
+                    <div key={event.id} className="p-3 rounded-lg border hover:bg-gray-50 cursor-pointer" onClick={() => router.push('/events')}>
+                      <p className="text-sm font-medium text-gray-900">{event.title}</p>
+                      <p className="text-xs text-gray-600 mt-1">
+                        {event.date} at {event.time}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">{event.attendees} attendee{event.attendees !== 1 ? 's' : ''}</p>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-4 text-gray-500 text-sm">
+                    No upcoming events
+                    <Button
+                      variant="link"
+                      size="sm"
+                      className="mt-2"
+                      onClick={() => router.push('/events')}
+                    >
+                      Create your first event
+                    </Button>
                   </div>
-                ))}
+                )}
               </div>
             </CardContent>
           </Card>
@@ -709,9 +967,22 @@ export default function Dashboard() {
                       )}
                     </div>
                     <div>
-                      <label className="text-xs font-medium text-gray-500 uppercase">Total Working Hours</label>
+                      <label className="text-xs font-medium text-gray-500 uppercase">Total Working Hours Today</label>
                       <p className="text-lg font-semibold text-green-600 mt-1">
-                        {formatDuration(calculateTotalWorkingHours())}
+                        {(() => {
+                          // Use backend total if valid, otherwise calculate from sessions
+                          let hoursToDisplay = 0
+                          if (totalHoursToday > 0 && totalHoursToday <= 24) {
+                            hoursToDisplay = totalHoursToday
+                          } else {
+                            hoursToDisplay = calculateTotalWorkingHours()
+                          }
+                          // Ensure it's a valid number
+                          if (isNaN(hoursToDisplay) || hoursToDisplay < 0 || hoursToDisplay > 24) {
+                            hoursToDisplay = 0
+                          }
+                          return formatDuration(hoursToDisplay)
+                        })()}
                       </p>
                       <div className="flex items-center gap-2 mt-1">
                         <p className="text-xs text-gray-500">

@@ -54,58 +54,92 @@ export const apiRequest = async <T>(
       const contentType = response.headers.get('content-type') || '';
       const isHTML = contentType.includes('text/html');
       
+      // Clone the response so we can read it multiple times
+      const responseClone = response.clone();
+      
       // Handle 401 Unauthorized - token might be expired
       if (response.status === 401) {
-        // Clear invalid token
-        localStorage.removeItem(AUTH_CONFIG.tokenKey);
-        localStorage.removeItem(AUTH_CONFIG.userKey);
-        
-        // Show toast notification for authorization failure
-        toast({
-          title: "Authentication Failed",
-          description: "Your session has expired. Please login again.",
-          variant: "destructive",
-        });
-        
-        // Redirect to login page after a short delay
-        if (typeof window !== 'undefined') {
-          setTimeout(() => {
-            window.location.href = '/login';
-          }, 2000);
+        // Try to parse the error response first
+        let errorData: any = {};
+        let errorText = '';
+        try {
+          errorText = await responseClone.text();
+          if (errorText) {
+            try {
+              errorData = JSON.parse(errorText);
+            } catch {
+              // Not JSON, use default
+            }
+          }
+        } catch {
+          // Ignore parsing errors
         }
-        
-        throw new Error('Authentication failed. Please login again.');
+
+        // Only logout if it's a real authentication failure (not just a validation error)
+        // Check if the error indicates token expiration or invalid token
+        const errorMessage = errorData.error || errorData.message || '';
+        const isAuthError = errorMessage.toLowerCase().includes('token') || 
+                           errorMessage.toLowerCase().includes('expired') || 
+                           errorMessage.toLowerCase().includes('invalid') ||
+                           errorMessage.toLowerCase().includes('authorization token is required') ||
+                           errorMessage.toLowerCase().includes('invalid or expired token');
+
+        if (isAuthError) {
+          // Clear invalid token
+          localStorage.removeItem(AUTH_CONFIG.tokenKey);
+          localStorage.removeItem(AUTH_CONFIG.userKey);
+          
+          // Show toast notification for authorization failure
+          toast({
+            title: "Authentication Failed",
+            description: "Your session has expired. Please login again.",
+            variant: "destructive",
+          });
+          
+          // Redirect to login page after a short delay
+          if (typeof window !== 'undefined') {
+            setTimeout(() => {
+              window.location.href = '/login';
+            }, 2000);
+          }
+          
+          throw new Error('Authentication failed. Please login again.');
+        } else {
+          // It's a 401 but not an auth error - might be a validation/permission issue
+          // Don't logout, just show the error
+          const finalError = errorData.error || errorData.message || errorData.errors?.join(', ') || 'Unauthorized';
+          throw new Error(finalError);
+        }
       }
 
       // Try to parse error response
       let errorMessage = `Request failed with status ${response.status}`;
       
-      if (isHTML) {
-        // If response is HTML (like Rails error pages), extract meaningful message
+      try {
         const errorText = await response.text();
-        // Try to extract error message from HTML
-        const match = errorText.match(/<h2[^>]*>([^<]+)<\/h2>/i) || 
-                      errorText.match(/<title[^>]*>([^<]+)<\/title>/i);
-        if (match && match[1]) {
-          errorMessage = match[1].trim();
-        } else {
-          errorMessage = `Server error (${response.status}). The requested resource was not found.`;
-        }
-      } else {
-        try {
-          const errorText = await response.text();
-          if (errorText) {
+        if (errorText) {
+          if (isHTML || errorText.includes('<!DOCTYPE') || errorText.includes('<html')) {
+            // If response is HTML (like Rails error pages), extract meaningful message
+            const match = errorText.match(/<h2[^>]*>([^<]+)<\/h2>/i) || 
+                          errorText.match(/<title[^>]*>([^<]+)<\/title>/i);
+            if (match && match[1]) {
+              errorMessage = match[1].trim();
+            } else {
+              errorMessage = `Server error (${response.status}). The requested resource was not found.`;
+            }
+          } else {
             try {
               const errorJson = JSON.parse(errorText);
               errorMessage = errorJson.message || errorJson.error || errorJson.errors?.join(', ') || errorMessage;
             } catch {
-              // If not JSON, use the text directly (but truncate if too long)
+              // Use the text directly (but truncate if too long)
               errorMessage = errorText.length > 200 ? errorText.substring(0, 200) + '...' : errorText;
             }
           }
-        } catch {
-          // If we can't parse the error, use default message
         }
+      } catch (parseError) {
+        // If we can't parse the error, use default message
+        console.error('Error parsing response:', parseError);
       }
 
       // Show toast notification for errors
@@ -257,6 +291,16 @@ export const API_ENDPOINTS = {
   ROLE_TOGGLE_PERMISSION: '/roles/{id}/toggle_permission',
   ROLE_ADD_PERMISSION: '/roles/{id}/add_permission',
   ROLE_ADD_DEFAULTS: '/roles/{id}/add_default_module_permissions',
+
+  // Helpdesk
+  HELPDESK_TICKETS: '/helpdesk_tickets',
+  HELPDESK_TICKETS_STATS: '/helpdesk_tickets/stats',
+  TICKET_COMMENTS: '/helpdesk_tickets/{id}/ticket_comments',
+  SLA_WORKFLOWS: '/sla_workflows',
+  KNOWLEDGE_ARTICLES: '/knowledge_articles',
+
+  // Events
+  EVENTS: '/events',
 } as const;
 
 /**

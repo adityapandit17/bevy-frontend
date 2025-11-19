@@ -32,10 +32,10 @@ import {
   AlertCircle,
   Users,
   CalendarIcon,
+  Eye,
 } from "lucide-react"
 import { LeaveRequestForm } from "@/components/forms/leave-request-form"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { LeaveRequestDetailsDialog } from "@/components/attendance/leave-request-details-dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { format } from "date-fns"
 
 interface LeaveRequest {
@@ -117,10 +117,13 @@ export default function AttendanceLeavePage() {
   const [attendanceForm, setAttendanceForm] = useState({ employee_id: "", status: "present", check_in: "", check_out: "" })
   const [selectedAttendanceRecord, setSelectedAttendanceRecord] = useState<AttendanceRecord | null>(null)
   const [showAttendanceDetails, setShowAttendanceDetails] = useState(false)
+  const [dayAttendanceHistory, setDayAttendanceHistory] = useState<AttendanceRecord[]>([])
+  const [loadingDayHistory, setLoadingDayHistory] = useState(false)
   const [showAttendanceHistory, setShowAttendanceHistory] = useState(false)
   const [attendanceHistory, setAttendanceHistory] = useState<AttendanceRecord[]>([])
-  const [selectedLeaveRequest, setSelectedLeaveRequest] = useState<LeaveRequest | null>(null)
-  const [showLeaveDetails, setShowLeaveDetails] = useState(false)
+  const [showPreviousRecords, setShowPreviousRecords] = useState(false)
+  const [previousRecords, setPreviousRecords] = useState<AttendanceRecord[]>([])
+  const [loadingPreviousRecords, setLoadingPreviousRecords] = useState(false)
 
   useEffect(() => {
     fetchAttendance()
@@ -396,9 +399,40 @@ export default function AttendanceLeavePage() {
     }
   }
 
-  const handleViewDetails = (record: AttendanceRecord) => {
+  const handleViewDetails = async (record: AttendanceRecord) => {
     setSelectedAttendanceRecord(record)
     setShowAttendanceDetails(true)
+    // Fetch all attendance records for this employee on this date
+    if (record.employee_id && record.date) {
+      await fetchDayAttendanceHistory(record.employee_id, record.date)
+    }
+  }
+
+  const fetchDayAttendanceHistory = async (employeeId: number, date: string) => {
+    setLoadingDayHistory(true)
+    try {
+      const dateStr = new Date(date).toISOString().split('T')[0]
+      const res = await apiRequest<AttendanceRecord[]>(
+        `${getEndpointUrl('ATTENDANCE_RECORDS')}?employee_id=${employeeId}&date=${dateStr}`
+      )
+      // Sort by check-in time (earliest first)
+      const sorted = Array.isArray(res) 
+        ? res.sort((a, b) => {
+            const timeA = a.check_in || a.checkIn || ''
+            const timeB = b.check_in || b.checkIn || ''
+            if (!timeA && !timeB) return 0
+            if (!timeA) return 1
+            if (!timeB) return -1
+            return new Date(timeA).getTime() - new Date(timeB).getTime()
+          })
+        : []
+      setDayAttendanceHistory(sorted)
+    } catch (error) {
+      console.error('Error fetching day attendance history:', error)
+      setDayAttendanceHistory([])
+    } finally {
+      setLoadingDayHistory(false)
+    }
   }
 
   const handleEditAttendance = (record: AttendanceRecord) => {
@@ -433,6 +467,35 @@ export default function AttendanceLeavePage() {
       setShowAttendanceHistory(true)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchPreviousRecords = async () => {
+    if (!user?.employee_id) {
+      alert("Please login to view your attendance records")
+      return
+    }
+    
+    setLoadingPreviousRecords(true)
+    setShowPreviousRecords(true)
+    try {
+      const res = await apiRequest<AttendanceRecord[]>(
+        `${getEndpointUrl('ATTENDANCE_RECORDS')}?employee_id=${user.employee_id}`
+      )
+      // Sort by date descending (most recent first)
+      const sorted = Array.isArray(res) 
+        ? res.sort((a, b) => {
+            const dateA = a.date ? new Date(a.date).getTime() : 0
+            const dateB = b.date ? new Date(b.date).getTime() : 0
+            return dateB - dateA
+          })
+        : []
+      setPreviousRecords(sorted)
+    } catch (error) {
+      console.error('Error fetching previous records:', error)
+      setPreviousRecords([])
+    } finally {
+      setLoadingPreviousRecords(false)
     }
   }
 
@@ -704,18 +767,33 @@ export default function AttendanceLeavePage() {
             <TabsContent value="attendance" className="space-y-4">
               <Card>
                 <CardHeader className="pb-4">
-                  <CardTitle className="flex items-center gap-2 text-lg font-semibold">
-                    <CalendarCheck className="w-5 h-5" />
-                    Attendance for {date ? date.toLocaleDateString() : "-"}
-                  </CardTitle>
-                  <CardDescription className="text-sm text-gray-600">
-                    {date ? date.toLocaleDateString("en-IN", {
-                      weekday: "long",
-                      year: "numeric",
-                      month: "long",
-                      day: "numeric",
-                    }) : "Select a date to view attendance."}
-                  </CardDescription>
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div>
+                      <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+                        <CalendarCheck className="w-5 h-5" />
+                        Attendance for {date ? date.toLocaleDateString() : "-"}
+                      </CardTitle>
+                      <CardDescription className="text-sm text-gray-600">
+                        {date ? date.toLocaleDateString("en-IN", {
+                          weekday: "long",
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
+                        }) : "Select a date to view attendance."}
+                      </CardDescription>
+                    </div>
+                    {user?.employee_id && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={fetchPreviousRecords}
+                        className="flex items-center gap-2"
+                      >
+                        <Eye className="w-4 h-4" />
+                        Previous Records
+                      </Button>
+                    )}
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <div className="flex flex-col sm:flex-row gap-4 mb-6">
@@ -1050,65 +1128,223 @@ export default function AttendanceLeavePage() {
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Attendance Details</DialogTitle>
+            <DialogDescription>
+              Check-in and check-out times for {selectedAttendanceRecord?.date 
+                ? format(new Date(selectedAttendanceRecord.date), "MMMM dd, yyyy")
+                : "this day"}
+            </DialogDescription>
           </DialogHeader>
           {selectedAttendanceRecord && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-6">
+              {/* Date and Status Header */}
+              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                 <div>
-                  <label className="text-sm font-medium text-gray-500">Employee</label>
-                  <p className="text-base font-semibold text-gray-900">
-                    {getEmployeeName(selectedAttendanceRecord.employee_id)}
-                  </p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Department</label>
-                  <p className="text-base text-gray-900">
-                    {getDepartmentName(selectedAttendanceRecord.department_id)}
-                  </p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Date</label>
-                  <p className="text-base text-gray-900">
+                  <p className="text-sm font-medium text-gray-500">Date</p>
+                  <p className="text-lg font-semibold text-gray-900 mt-1">
                     {selectedAttendanceRecord.date 
-                      ? format(new Date(selectedAttendanceRecord.date), "MMM dd, yyyy")
+                      ? format(new Date(selectedAttendanceRecord.date), "EEEE, MMMM dd, yyyy")
                       : "N/A"}
                   </p>
                 </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Status</label>
+                <div className="text-right">
+                  <p className="text-sm font-medium text-gray-500">Status</p>
                   <div className="mt-1">
                     <Badge className={getAttendanceStatusColor(selectedAttendanceRecord.status)}>
                       {selectedAttendanceRecord.status || "N/A"}
                     </Badge>
                   </div>
                 </div>
+              </div>
+
+              {/* Employee Information */}
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm font-medium text-gray-500">Check In</label>
-                  <p className="text-base text-gray-900">
-                    {selectedAttendanceRecord.status?.toLowerCase() === "absent" 
-                      ? "-" 
-                      : (getCheckInTime(selectedAttendanceRecord) || "-")}
+                  <label className="text-sm font-medium text-gray-500">Employee</label>
+                  <p className="text-base font-semibold text-gray-900 mt-1">
+                    {getEmployeeName(selectedAttendanceRecord.employee_id)}
                   </p>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-500">Check Out</label>
-                  <p className="text-base text-gray-900">
-                    {selectedAttendanceRecord.status?.toLowerCase() === "absent" 
-                      ? "-" 
-                      : (getCheckOutTime(selectedAttendanceRecord) || "-")}
+                  <label className="text-sm font-medium text-gray-500">Department</label>
+                  <p className="text-base text-gray-900 mt-1">
+                    {getDepartmentName(selectedAttendanceRecord.department_id)}
                   </p>
                 </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Work Hours</label>
-                  <p className="text-base text-gray-900">
-                    {selectedAttendanceRecord.status?.toLowerCase() === "absent" 
-                      ? "-" 
-                      : (getWorkHours(selectedAttendanceRecord) || "-")}
-                  </p>
+              </div>
+
+              {/* Check-in and Check-out Times */}
+              <div className="border-t pt-4">
+                <h3 className="text-sm font-semibold text-gray-700 mb-4">Time Records</h3>
+                {loadingDayHistory ? (
+                  <div className="text-center py-4 text-gray-500">Loading history...</div>
+                ) : dayAttendanceHistory.length > 1 ? (
+                  // Show list if multiple records
+                  <div className="space-y-3">
+                    {dayAttendanceHistory.map((record, index) => (
+                      <div key={record.id || index} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                              <span className="text-xs font-semibold text-blue-700">#{index + 1}</span>
+                            </div>
+                            <span className="text-sm font-medium text-gray-700">Session {index + 1}</span>
+                          </div>
+                          {record.status && (
+                            <Badge className={getAttendanceStatusColor(record.status)} variant="outline">
+                              {record.status}
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="p-3 bg-blue-50 rounded border border-blue-200">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Clock className="w-3 h-3 text-blue-600" />
+                              <label className="text-xs font-medium text-blue-700">Check In</label>
+                            </div>
+                            <p className="text-lg font-bold text-blue-900">
+                              {record.status?.toLowerCase() === "absent" 
+                                ? "N/A" 
+                                : (getCheckInTime(record) || "Not recorded")}
+                            </p>
+                            {record.check_in && (
+                              <p className="text-xs text-blue-600 mt-1">
+                                {new Date(record.check_in).toLocaleTimeString()}
+                              </p>
+                            )}
+                          </div>
+                          <div className="p-3 bg-green-50 rounded border border-green-200">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Clock className="w-3 h-3 text-green-600" />
+                              <label className="text-xs font-medium text-green-700">Check Out</label>
+                            </div>
+                            <p className="text-lg font-bold text-green-900">
+                              {record.status?.toLowerCase() === "absent" 
+                                ? "N/A" 
+                                : (getCheckOutTime(record) || "Not recorded")}
+                            </p>
+                            {record.check_out && (
+                              <p className="text-xs text-green-600 mt-1">
+                                {new Date(record.check_out).toLocaleTimeString()}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        {record.check_in && record.check_out && (
+                          <div className="mt-3 pt-3 border-t border-gray-200">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs text-gray-500">Duration</span>
+                              <span className="text-sm font-semibold text-gray-700">
+                                {(() => {
+                                  const checkIn = new Date(record.check_in)
+                                  const checkOut = new Date(record.check_out)
+                                  const diffMs = checkOut.getTime() - checkIn.getTime()
+                                  const diffMins = Math.floor(diffMs / 60000)
+                                  const hours = Math.floor(diffMins / 60)
+                                  const mins = diffMins % 60
+                                  return `${hours}h ${mins}m`
+                                })()}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                    {/* Total Summary */}
+                    <div className="p-4 bg-purple-50 rounded-lg border border-purple-200 mt-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-semibold text-purple-700">Total Work Hours (All Sessions)</span>
+                        <span className="text-xl font-bold text-purple-900">
+                          {(() => {
+                            let totalMinutes = 0
+                            dayAttendanceHistory.forEach(record => {
+                              if (record.check_in && record.check_out) {
+                                const checkIn = new Date(record.check_in)
+                                const checkOut = new Date(record.check_out)
+                                const diffMs = checkOut.getTime() - checkIn.getTime()
+                                totalMinutes += Math.floor(diffMs / 60000)
+                              }
+                            })
+                            const hours = Math.floor(totalMinutes / 60)
+                            const mins = totalMinutes % 60
+                            return `${hours}h ${mins}m`
+                          })()}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  // Show single record view if only one
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Clock className="w-4 h-4 text-blue-600" />
+                        <label className="text-sm font-medium text-blue-700">Check In</label>
+                      </div>
+                      <p className="text-xl font-bold text-blue-900">
+                        {selectedAttendanceRecord.status?.toLowerCase() === "absent" 
+                          ? "N/A" 
+                          : (getCheckInTime(selectedAttendanceRecord) || "Not recorded")}
+                      </p>
+                      {selectedAttendanceRecord.check_in && (
+                        <p className="text-xs text-blue-600 mt-1">
+                          {new Date(selectedAttendanceRecord.check_in).toLocaleString()}
+                        </p>
+                      )}
+                    </div>
+                    <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Clock className="w-4 h-4 text-green-600" />
+                        <label className="text-sm font-medium text-green-700">Check Out</label>
+                      </div>
+                      <p className="text-xl font-bold text-green-900">
+                        {selectedAttendanceRecord.status?.toLowerCase() === "absent" 
+                          ? "N/A" 
+                          : (getCheckOutTime(selectedAttendanceRecord) || "Not recorded")}
+                      </p>
+                      {selectedAttendanceRecord.check_out && (
+                        <p className="text-xs text-green-600 mt-1">
+                          {new Date(selectedAttendanceRecord.check_out).toLocaleString()}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Work Hours Summary */}
+              {selectedAttendanceRecord.status?.toLowerCase() !== "absent" && (
+                <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <label className="text-sm font-medium text-purple-700">Total Work Hours</label>
+                      <p className="text-2xl font-bold text-purple-900 mt-1">
+                        {getWorkHours(selectedAttendanceRecord) || "0"} hours
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      {selectedAttendanceRecord.check_in && selectedAttendanceRecord.check_out && (
+                        <p className="text-xs text-purple-600">
+                          {(() => {
+                            const checkIn = new Date(selectedAttendanceRecord.check_in)
+                            const checkOut = new Date(selectedAttendanceRecord.check_out)
+                            const diffMs = checkOut.getTime() - checkIn.getTime()
+                            const diffMins = Math.floor(diffMs / 60000)
+                            const hours = Math.floor(diffMins / 60)
+                            const mins = diffMins % 60
+                            return `${hours}h ${mins}m`
+                          })()}
+                        </p>
+                      )}
+                    </div>
+                  </div>
                 </div>
+              )}
+
+              {/* Additional Information */}
+              <div className="grid grid-cols-2 gap-4 border-t pt-4">
                 <div>
                   <label className="text-sm font-medium text-gray-500">Location</label>
-                  <p className="text-base text-gray-900">
+                  <p className="text-base text-gray-900 mt-1">
                     {selectedAttendanceRecord.location || "N/A"}
                   </p>
                 </div>
@@ -1117,6 +1353,144 @@ export default function AttendanceLeavePage() {
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowAttendanceDetails(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Previous Records Dialog */}
+      <Dialog open={showPreviousRecords} onOpenChange={setShowPreviousRecords}>
+        <DialogContent className="max-w-4xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>Previous Attendance Records</DialogTitle>
+            <DialogDescription>
+              View all your previous attendance records
+            </DialogDescription>
+          </DialogHeader>
+          <div className="overflow-y-auto max-h-[60vh]">
+            {loadingPreviousRecords ? (
+              <div className="text-center py-8 text-gray-500">Loading records...</div>
+            ) : previousRecords.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">No previous records found.</div>
+            ) : (
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead className="text-center">Check In</TableHead>
+                      <TableHead className="text-center">Check Out</TableHead>
+                      <TableHead className="text-center">Work Hours</TableHead>
+                      <TableHead className="text-center">Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {previousRecords.map((record) => (
+                      <TableRow key={record.id}>
+                        <TableCell>
+                          {record.date 
+                            ? format(new Date(record.date), "MMM dd, yyyy")
+                            : "N/A"}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <span className="text-sm text-gray-600">
+                            {record.status?.toLowerCase() === "absent" ? "-" : (getCheckInTime(record) || "-")}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <span className="text-sm text-gray-600">
+                            {record.status?.toLowerCase() === "absent" ? "-" : (getCheckOutTime(record) || "-")}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <span className="font-medium text-gray-900">
+                            {record.status?.toLowerCase() === "absent" ? "-" : (getWorkHours(record) || "-")}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge className={getAttendanceStatusColor(record.status)}>
+                            {record.status || "N/A"}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPreviousRecords(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Previous Records Dialog */}
+      <Dialog open={showPreviousRecords} onOpenChange={setShowPreviousRecords}>
+        <DialogContent className="max-w-4xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>Previous Attendance Records</DialogTitle>
+            <DialogDescription>
+              View all your previous attendance records
+            </DialogDescription>
+          </DialogHeader>
+          <div className="overflow-y-auto max-h-[60vh]">
+            {loadingPreviousRecords ? (
+              <div className="text-center py-8 text-gray-500">Loading records...</div>
+            ) : previousRecords.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">No previous records found.</div>
+            ) : (
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead className="text-center">Check In</TableHead>
+                      <TableHead className="text-center">Check Out</TableHead>
+                      <TableHead className="text-center">Work Hours</TableHead>
+                      <TableHead className="text-center">Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {previousRecords.map((record) => (
+                      <TableRow key={record.id}>
+                        <TableCell>
+                          {record.date 
+                            ? format(new Date(record.date), "MMM dd, yyyy")
+                            : "N/A"}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <span className="text-sm text-gray-600">
+                            {record.status?.toLowerCase() === "absent" ? "-" : (getCheckInTime(record) || "-")}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <span className="text-sm text-gray-600">
+                            {record.status?.toLowerCase() === "absent" ? "-" : (getCheckOutTime(record) || "-")}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <span className="font-medium text-gray-900">
+                            {record.status?.toLowerCase() === "absent" ? "-" : (getWorkHours(record) || "-")}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge className={getAttendanceStatusColor(record.status)}>
+                            {record.status || "N/A"}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPreviousRecords(false)}>
               Close
             </Button>
           </DialogFooter>
