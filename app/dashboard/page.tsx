@@ -90,6 +90,14 @@ export default function Dashboard() {
     attendees: number
   }>>([])
   const [eventsLoading, setEventsLoading] = useState(true)
+  const [pendingTasks, setPendingTasks] = useState<Array<{
+    id: number
+    title: string
+    count: number
+    priority: string
+    dueDate: string
+  }>>([])
+  const [pendingTasksLoading, setPendingTasksLoading] = useState(true)
 
   // Helper functions for calculating hours (must be defined before any useEffect that uses them)
   const calculateSessionHours = (punchIn: string, punchOut: string | null): number => {
@@ -216,36 +224,6 @@ export default function Dashboard() {
     },
   ]
 
-  const pendingTasks = [
-    {
-      id: 1,
-      title: "Review Leave Applications",
-      count: 5,
-      priority: "high",
-      dueDate: "Today",
-    },
-    {
-      id: 2,
-      title: "Approve Expense Reports",
-      count: 12,
-      priority: "medium",
-      dueDate: "Tomorrow",
-    },
-    {
-      id: 3,
-      title: "Update Employee Records",
-      count: 8,
-      priority: "low",
-      dueDate: "This Week",
-    },
-    {
-      id: 4,
-      title: "Process Salary Increments",
-      count: 3,
-      priority: "high",
-      dueDate: "End of Week",
-    },
-  ]
 
   // Load sessions from localStorage on mount and check for new day
   useEffect(() => {
@@ -596,9 +574,53 @@ export default function Dashboard() {
     }
   }
 
+  const fetchPendingTasks = async () => {
+    setPendingTasksLoading(true)
+    try {
+      const data = await apiRequest<{
+        stats?: any
+        pending_tasks?: Array<{
+          id: number
+          title: string
+          count: number
+          priority: string
+          dueDate: string
+        }>
+      }>(getApiUrl('dashboard'), {
+        method: "GET"
+      })
+      
+      // Debug logging
+      console.log('Dashboard API response:', data)
+      
+      if (data.pending_tasks && Array.isArray(data.pending_tasks)) {
+        console.log('Pending tasks found:', data.pending_tasks)
+        setPendingTasks(data.pending_tasks)
+      } else {
+        console.log('No pending_tasks in response or not an array')
+        setPendingTasks([])
+      }
+    } catch (error) {
+      console.error("Failed to fetch pending tasks:", error)
+      setPendingTasks([])
+    } finally {
+      setPendingTasksLoading(false)
+    }
+  }
+
   useEffect(() => {
     fetchDashboardStats()
     fetchUpcomingEvents()
+    fetchPendingTasks()
+  }, [])
+
+  // Refresh pending tasks periodically (every 30 seconds) to catch new leave requests
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchPendingTasks()
+    }, 30000) // Refresh every 30 seconds
+
+    return () => clearInterval(interval)
   }, [])
 
   const fetchUpcomingEvents = async () => {
@@ -1304,33 +1326,70 @@ export default function Dashboard() {
             <CardDescription>Items requiring your attention</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {pendingTasks.map((task) => (
-                <div key={task.id} className="flex items-center justify-between p-3 rounded-lg border hover:bg-gray-50">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium text-gray-900">{task.title}</p>
-                      <Badge
-                        variant={
-                          task.priority === "high"
-                            ? "destructive"
-                            : task.priority === "medium"
-                              ? "default"
-                              : "secondary"
-                        }
-                        className="text-xs"
-                      >
-                        {task.count}
-                      </Badge>
+            {pendingTasksLoading ? (
+              <div className="space-y-4">
+                {Array.from({ length: 2 }).map((_, index) => (
+                  <div key={index} className="flex items-center justify-between p-3 rounded-lg border">
+                    <div className="flex-1">
+                      <div className="h-4 bg-gray-200 rounded w-32 mb-2 animate-pulse"></div>
+                      <div className="h-3 bg-gray-200 rounded w-24 animate-pulse"></div>
                     </div>
-                    <p className="text-xs text-gray-500 mt-1">Due: {task.dueDate}</p>
+                    <div className="w-8 h-8 bg-gray-200 rounded animate-pulse"></div>
                   </div>
-                  <Button variant="ghost" size="sm">
-                    <Eye className="w-4 h-4" />
-                  </Button>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : pendingTasks.length > 0 ? (
+              <div className="space-y-4">
+                {pendingTasks.map((task) => (
+                  <div 
+                    key={task.id} 
+                    className={`flex items-center justify-between p-3 rounded-lg border hover:bg-gray-50 ${
+                      task.title === "Review Leave Applications" ? "cursor-pointer" : ""
+                    }`}
+                    onClick={() => {
+                      if (task.title === "Review Leave Applications") {
+                        router.push('/review-leave-applications')
+                      }
+                    }}
+                  >
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium text-gray-900">{task.title}</p>
+                        <Badge
+                          variant={
+                            task.priority === "high"
+                              ? "destructive"
+                              : task.priority === "medium"
+                                ? "default"
+                                : "secondary"
+                          }
+                          className="text-xs"
+                        >
+                          {task.count}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">Due: {task.dueDate}</p>
+                    </div>
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (task.title === "Review Leave Applications") {
+                          router.push('/review-leave-applications')
+                        }
+                      }}
+                    >
+                      <Eye className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500 text-sm">
+                No pending tasks
+              </div>
+            )}
           </CardContent>
         </Card>
 

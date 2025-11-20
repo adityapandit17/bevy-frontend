@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { apiRequest, getApiUrl, getEndpointUrl } from "@/lib/api"
 import { mapLeaveRequestToBackend, mapLeaveRequestFromBackend } from "@/lib/leave-request-mapper"
 import { useAuth } from "@/lib/auth/auth.hooks"
@@ -111,6 +112,7 @@ interface AttendanceStat {
 
 export default function AttendanceLeavePage() {
   const { user, isAuthenticated } = useAuth()
+  const searchParams = useSearchParams()
   const [date, setDate] = useState<Date | undefined>(new Date())
   const [month, setMonth] = useState<number>(new Date().getMonth())
   const [year, setYear] = useState<number>(new Date().getFullYear())
@@ -118,6 +120,7 @@ export default function AttendanceLeavePage() {
   const [attendanceStatusFilter, setAttendanceStatusFilter] = useState<string>("all")
   const [leaveSearchTerm, setLeaveSearchTerm] = useState("")
   const [leaveStatusFilter, setLeaveStatusFilter] = useState<string>("all")
+  const [activeTab, setActiveTab] = useState<string>("attendance")
   const [attendanceStats, setAttendanceStats] = useState<AttendanceStat[]>([])
   const [todayAttendance, setTodayAttendance] = useState<AttendanceRecord[]>([])
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([])
@@ -140,11 +143,19 @@ export default function AttendanceLeavePage() {
   const [showLeaveDetails, setShowLeaveDetails] = useState(false)
 
   useEffect(() => {
+    // Check for query parameters
+    const tabParam = searchParams?.get('tab')
+    const managerPending = searchParams?.get('manager_pending')
+    
+    if (tabParam) {
+      setActiveTab(tabParam)
+    }
+    
     fetchAttendance()
-    fetchLeaveRequests()
+    fetchLeaveRequests(managerPending === 'true')
     fetchEmployees()
     fetchDepartments()
-  }, [])
+  }, [searchParams])
 
   const fetchAttendance = async () => {
     setLoading(true)
@@ -159,10 +170,17 @@ export default function AttendanceLeavePage() {
     }
   }
 
-  const fetchLeaveRequests = async () => {
+  const fetchLeaveRequests = async (managerPending: boolean = false) => {
     setLoading(true)
     try {
-      const res = await apiRequest<any[]>(getEndpointUrl('LEAVE_REQUESTS'))
+      let url = getEndpointUrl('LEAVE_REQUESTS')
+      if (managerPending) {
+        const params = new URLSearchParams()
+        params.append('manager_pending', 'true')
+        params.append('status', 'pending')
+        url += `?${params.toString()}`
+      }
+      const res = await apiRequest<any[]>(url)
       // Map backend response to frontend format, preserving both formats for compatibility
       const mappedRequests = Array.isArray(res) ? res.map((item) => {
         const mapped = mapLeaveRequestFromBackend(item)
@@ -182,6 +200,10 @@ export default function AttendanceLeavePage() {
         }
       }) : []
       setLeaveRequests(mappedRequests)
+      // If manager_pending is true, also set the status filter to pending
+      if (managerPending) {
+        setLeaveStatusFilter('pending')
+      }
     } catch (error) {
       console.error('Error fetching leave requests:', error)
       setLeaveRequests([])
@@ -772,7 +794,7 @@ export default function AttendanceLeavePage() {
 
         {/* Tabs for Attendance and Leave */}
         <div className="lg:col-span-3">
-          <Tabs defaultValue="attendance" className="space-y-4">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="attendance">Attendance</TabsTrigger>
               <TabsTrigger value="leave">Leave Requests</TabsTrigger>
