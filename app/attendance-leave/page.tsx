@@ -36,6 +36,7 @@ import {
 } from "lucide-react"
 import { LeaveRequestForm } from "@/components/forms/leave-request-form"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
+import { LeaveRequestDetailsDialog } from "@/components/attendance/leave-request-details-dialog"
 import { format } from "date-fns"
 
 interface LeaveRequest {
@@ -73,6 +74,16 @@ interface Department {
   name: string
 }
 
+interface AttendanceSession {
+  id: number
+  attendance_record_id: number
+  check_in: string
+  check_out: string | null
+  session_hours: number | null
+  created_at?: string
+  updated_at?: string
+}
+
 interface AttendanceRecord {
   id: number
   employee_id: number
@@ -86,6 +97,7 @@ interface AttendanceRecord {
   check_out?: string
   location?: string
   status?: string
+  attendance_sessions?: AttendanceSession[]
 }
 
 interface AttendanceStat {
@@ -124,6 +136,8 @@ export default function AttendanceLeavePage() {
   const [showPreviousRecords, setShowPreviousRecords] = useState(false)
   const [previousRecords, setPreviousRecords] = useState<AttendanceRecord[]>([])
   const [loadingPreviousRecords, setLoadingPreviousRecords] = useState(false)
+  const [selectedLeaveRequest, setSelectedLeaveRequest] = useState<LeaveRequest | null>(null)
+  const [showLeaveDetails, setShowLeaveDetails] = useState(false)
 
   useEffect(() => {
     fetchAttendance()
@@ -1177,104 +1191,174 @@ export default function AttendanceLeavePage() {
                 <h3 className="text-sm font-semibold text-gray-700 mb-4">Time Records</h3>
                 {loadingDayHistory ? (
                   <div className="text-center py-4 text-gray-500">Loading history...</div>
-                ) : dayAttendanceHistory.length > 1 ? (
-                  // Show list if multiple records
-                  <div className="space-y-3">
-                    {dayAttendanceHistory.map((record, index) => (
-                      <div key={record.id || index} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                              <span className="text-xs font-semibold text-blue-700">#{index + 1}</span>
+                ) : (() => {
+                  // Collect all sessions from all records
+                  const allSessions: AttendanceSession[] = []
+                  dayAttendanceHistory.forEach(record => {
+                    if (record.attendance_sessions && Array.isArray(record.attendance_sessions)) {
+                      allSessions.push(...record.attendance_sessions)
+                    } else if (record.check_in) {
+                      // Fallback: treat record as a session if no sessions array
+                      allSessions.push({
+                        id: record.id,
+                        attendance_record_id: record.id,
+                        check_in: record.check_in,
+                        check_out: record.check_out || null,
+                        session_hours: typeof record.working_hours === 'number' ? record.working_hours : 
+                                       typeof record.working_hours === 'string' ? parseFloat(record.working_hours) || null : null
+                      })
+                    }
+                  })
+                  
+                  return allSessions.length > 1 ? (
+                    // Show list if multiple sessions
+                    <div className="space-y-3">
+                      {allSessions.map((session, index) => (
+                        <div key={session.id || index} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                              <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                                <span className="text-xs font-semibold text-blue-700">#{index + 1}</span>
+                              </div>
+                              <span className="text-sm font-medium text-gray-700">Session {index + 1}</span>
                             </div>
-                            <span className="text-sm font-medium text-gray-700">Session {index + 1}</span>
                           </div>
-                          {record.status && (
-                            <Badge className={getAttendanceStatusColor(record.status)} variant="outline">
-                              {record.status}
-                            </Badge>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="p-3 bg-blue-50 rounded border border-blue-200">
+                              <div className="flex items-center gap-2 mb-1">
+                                <Clock className="w-3 h-3 text-blue-600" />
+                                <label className="text-xs font-medium text-blue-700">Check In</label>
+                              </div>
+                              <p className="text-lg font-bold text-blue-900">
+                                {session.check_in 
+                                  ? new Date(session.check_in).toLocaleTimeString("en-US", { 
+                                      hour: "2-digit", 
+                                      minute: "2-digit",
+                                      hour12: true 
+                                    })
+                                  : "Not recorded"}
+                              </p>
+                              {session.check_in && (
+                                <p className="text-xs text-blue-600 mt-1">
+                                  {new Date(session.check_in).toLocaleString()}
+                                </p>
+                              )}
+                            </div>
+                            <div className="p-3 bg-green-50 rounded border border-green-200">
+                              <div className="flex items-center gap-2 mb-1">
+                                <Clock className="w-3 h-3 text-green-600" />
+                                <label className="text-xs font-medium text-green-700">Check Out</label>
+                              </div>
+                              <p className="text-lg font-bold text-green-900">
+                                {session.check_out 
+                                  ? new Date(session.check_out).toLocaleTimeString("en-US", { 
+                                      hour: "2-digit", 
+                                      minute: "2-digit",
+                                      hour12: true 
+                                    })
+                                  : "Active"}
+                              </p>
+                              {session.check_out && (
+                                <p className="text-xs text-green-600 mt-1">
+                                  {new Date(session.check_out).toLocaleString()}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          {session.check_in && session.check_out && (
+                            <div className="mt-3 pt-3 border-t border-gray-200">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-gray-500">Duration</span>
+                                <span className="text-sm font-semibold text-gray-700">
+                                  {session.session_hours 
+                                    ? `${Math.floor(session.session_hours)}h ${Math.round((session.session_hours % 1) * 60)}m`
+                                    : (() => {
+                                        const checkIn = new Date(session.check_in)
+                                        const checkOut = new Date(session.check_out)
+                                        const diffMs = checkOut.getTime() - checkIn.getTime()
+                                        const diffMins = Math.floor(diffMs / 60000)
+                                        const hours = Math.floor(diffMins / 60)
+                                        const mins = diffMins % 60
+                                        return `${hours}h ${mins}m`
+                                      })()}
+                                </span>
+                              </div>
+                            </div>
                           )}
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="p-3 bg-blue-50 rounded border border-blue-200">
-                            <div className="flex items-center gap-2 mb-1">
-                              <Clock className="w-3 h-3 text-blue-600" />
-                              <label className="text-xs font-medium text-blue-700">Check In</label>
-                            </div>
-                            <p className="text-lg font-bold text-blue-900">
-                              {record.status?.toLowerCase() === "absent" 
-                                ? "N/A" 
-                                : (getCheckInTime(record) || "Not recorded")}
-                            </p>
-                            {record.check_in && (
-                              <p className="text-xs text-blue-600 mt-1">
-                                {new Date(record.check_in).toLocaleTimeString()}
-                              </p>
-                            )}
-                          </div>
-                          <div className="p-3 bg-green-50 rounded border border-green-200">
-                            <div className="flex items-center gap-2 mb-1">
-                              <Clock className="w-3 h-3 text-green-600" />
-                              <label className="text-xs font-medium text-green-700">Check Out</label>
-                            </div>
-                            <p className="text-lg font-bold text-green-900">
-                              {record.status?.toLowerCase() === "absent" 
-                                ? "N/A" 
-                                : (getCheckOutTime(record) || "Not recorded")}
-                            </p>
-                            {record.check_out && (
-                              <p className="text-xs text-green-600 mt-1">
-                                {new Date(record.check_out).toLocaleTimeString()}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                        {record.check_in && record.check_out && (
-                          <div className="mt-3 pt-3 border-t border-gray-200">
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs text-gray-500">Duration</span>
-                              <span className="text-sm font-semibold text-gray-700">
-                                {(() => {
-                                  const checkIn = new Date(record.check_in)
-                                  const checkOut = new Date(record.check_out)
+                      ))}
+                      {/* Total Summary */}
+                      <div className="p-4 bg-purple-50 rounded-lg border border-purple-200 mt-4">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-semibold text-purple-700">Total Work Hours (All Sessions)</span>
+                          <span className="text-xl font-bold text-purple-900">
+                            {(() => {
+                              let totalHours = 0
+                              allSessions.forEach(session => {
+                                if (session.session_hours) {
+                                  totalHours += session.session_hours
+                                } else if (session.check_in && session.check_out) {
+                                  const checkIn = new Date(session.check_in)
+                                  const checkOut = new Date(session.check_out)
                                   const diffMs = checkOut.getTime() - checkIn.getTime()
-                                  const diffMins = Math.floor(diffMs / 60000)
-                                  const hours = Math.floor(diffMins / 60)
-                                  const mins = diffMins % 60
-                                  return `${hours}h ${mins}m`
-                                })()}
-                              </span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                    {/* Total Summary */}
-                    <div className="p-4 bg-purple-50 rounded-lg border border-purple-200 mt-4">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-semibold text-purple-700">Total Work Hours (All Sessions)</span>
-                        <span className="text-xl font-bold text-purple-900">
-                          {(() => {
-                            let totalMinutes = 0
-                            dayAttendanceHistory.forEach(record => {
-                              if (record.check_in && record.check_out) {
-                                const checkIn = new Date(record.check_in)
-                                const checkOut = new Date(record.check_out)
-                                const diffMs = checkOut.getTime() - checkIn.getTime()
-                                totalMinutes += Math.floor(diffMs / 60000)
-                              }
-                            })
-                            const hours = Math.floor(totalMinutes / 60)
-                            const mins = totalMinutes % 60
-                            return `${hours}h ${mins}m`
-                          })()}
-                        </span>
+                                  totalHours += diffMs / (1000 * 60 * 60)
+                                }
+                              })
+                              const hours = Math.floor(totalHours)
+                              const mins = Math.round((totalHours % 1) * 60)
+                              return `${hours}h ${mins}m`
+                            })()}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ) : (
-                  // Show single record view if only one
-                  <div className="grid grid-cols-2 gap-4">
+                  ) : allSessions.length === 1 ? (
+                    // Show single session view
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Clock className="w-4 h-4 text-blue-600" />
+                          <label className="text-sm font-medium text-blue-700">Check In</label>
+                        </div>
+                        <p className="text-xl font-bold text-blue-900">
+                          {allSessions[0].check_in 
+                            ? new Date(allSessions[0].check_in).toLocaleTimeString("en-US", { 
+                                hour: "2-digit", 
+                                minute: "2-digit",
+                                hour12: true 
+                              })
+                            : "Not recorded"}
+                        </p>
+                        {allSessions[0].check_in && (
+                          <p className="text-xs text-blue-600 mt-1">
+                            {new Date(allSessions[0].check_in).toLocaleString()}
+                          </p>
+                        )}
+                      </div>
+                      <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Clock className="w-4 h-4 text-green-600" />
+                          <label className="text-sm font-medium text-green-700">Check Out</label>
+                        </div>
+                        <p className="text-xl font-bold text-green-900">
+                          {allSessions[0].check_out 
+                            ? new Date(allSessions[0].check_out).toLocaleTimeString("en-US", { 
+                                hour: "2-digit", 
+                                minute: "2-digit",
+                                hour12: true 
+                              })
+                            : "Active"}
+                        </p>
+                        {allSessions[0].check_out && (
+                          <p className="text-xs text-green-600 mt-1">
+                            {new Date(allSessions[0].check_out).toLocaleString()}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    // Show single record view if no sessions (fallback)
+                    <div className="grid grid-cols-2 gap-4">
                     <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
                       <div className="flex items-center gap-2 mb-2">
                         <Clock className="w-4 h-4 text-blue-600" />
@@ -1308,7 +1392,8 @@ export default function AttendanceLeavePage() {
                       )}
                     </div>
                   </div>
-                )}
+                  )
+                })()}
               </div>
 
               {/* Work Hours Summary */}
