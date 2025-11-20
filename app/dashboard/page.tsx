@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useMemo } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -35,7 +35,7 @@ import {
   LogOut,
   Coffee,
 } from "lucide-react"
-import { getApiUrl } from "@/lib/api"
+import { getApiUrl, getEndpointUrl } from "@/lib/api"
 import { apiRequest } from "@/lib/api"
 
 interface TodayAttendance {
@@ -74,6 +74,7 @@ export default function Dashboard() {
   const [punchLoading, setPunchLoading] = useState(false)
   const [sessionsModalOpen, setSessionsModalOpen] = useState(false)
   const [totalHoursToday, setTotalHoursToday] = useState<number>(0)
+  const [timerTick, setTimerTick] = useState<number>(0) // Force re-render for timer
   const [dashboardStats, setDashboardStats] = useState({
     total_employees: 0,
     present_today: 0,
@@ -89,6 +90,39 @@ export default function Dashboard() {
     attendees: number
   }>>([])
   const [eventsLoading, setEventsLoading] = useState(true)
+
+  // Helper functions for calculating hours (must be defined before any useEffect that uses them)
+  const calculateSessionHours = (punchIn: string, punchOut: string | null): number => {
+    if (!punchOut) {
+      const now = new Date()
+      const start = new Date(punchIn)
+      return ((now.getTime() - start.getTime()) / (1000 * 60 * 60))
+    }
+    const start = new Date(punchIn)
+    const end = new Date(punchOut)
+    return ((end.getTime() - start.getTime()) / (1000 * 60 * 60))
+  }
+
+  const calculateTotalWorkingHours = (sessions: AttendanceSession[] = attendanceSessions): number => {
+    if (!sessions || sessions.length === 0) {
+      return 0
+    }
+    
+    return sessions.reduce((total, session) => {
+      if (!session.punchIn) {
+        return total
+      }
+      
+      if (session.punchOut) {
+        // For completed sessions, calculate from punchIn and punchOut
+        // This ensures accuracy even if workingHours is 0 or missing
+        const hours = calculateSessionHours(session.punchIn, session.punchOut)
+        return total + hours
+      }
+      // For active session, calculate current hours
+      return total + calculateSessionHours(session.punchIn, null)
+    }, 0)
+  }
 
   const formatPayroll = (amount: number): string => {
     if (amount === 0) return "₹0"
@@ -300,19 +334,50 @@ export default function Dashboard() {
 
   // Update active session hours in real-time (every second for seconds display)
   useEffect(() => {
-    if (!currentPunchIn) return
-
     const interval = setInterval(() => {
       setAttendanceSessions(prevSessions => {
+        // Check if there are any active sessions
+        const hasActiveSession = prevSessions.some(s => !s.punchOut)
+        
+        if (!hasActiveSession) {
+          // No active sessions, ensure currentPunchIn is cleared
+          if (currentPunchIn) {
+            setCurrentPunchIn(null)
+          }
+          return prevSessions
+        }
+        
         const updated = prevSessions.map(session => {
-          if (session.punchIn === currentPunchIn && !session.punchOut) {
+          // Update any active session (no punchOut)
+          if (!session.punchOut) {
+            const hours = calculateSessionHours(session.punchIn, null)
             return {
               ...session,
-              workingHours: calculateSessionHours(session.punchIn, null)
+              workingHours: hours
             }
           }
           return session
         })
+        
+        // Find the most recent active session and set currentPunchIn
+        const activeSessions = updated.filter(s => !s.punchOut)
+        if (activeSessions.length > 0) {
+          const mostRecentActive = activeSessions.sort((a, b) => 
+            new Date(b.punchIn).getTime() - new Date(a.punchIn).getTime()
+          )[0]
+          
+          if (mostRecentActive.punchIn !== currentPunchIn) {
+            setCurrentPunchIn(mostRecentActive.punchIn)
+          }
+        }
+        
+        // Update total hours
+        const total = calculateTotalWorkingHours(updated)
+        setTotalHoursToday(total)
+        
+        // Force re-render by updating tick counter
+        setTimerTick(prev => prev + 1)
+        
         saveSessionsToStorage(updated)
         return updated
       })
@@ -321,92 +386,156 @@ export default function Dashboard() {
     return () => clearInterval(interval)
   }, [currentPunchIn, user])
 
+  // Calculate total working hours with useMemo to ensure it updates when sessions or timer changes
+  const displayTotalHours = useMemo(() => {
+    const total = calculateTotalWorkingHours(attendanceSessions)
+    // Ensure it's a valid number
+    if (isNaN(total) || total < 0 || total > 24) {
+      return 0
+    }
+    return total
+  }, [attendanceSessions, timerTick]) // Recalculate when sessions change or timer ticks
+
   const fetchTodayAttendance = async () => {
     if (!user?.employee_id) return
     
     try {
-      const data = await apiRequest<TodayAttendance & {
+      const employeeId = Number(user.employee_id)
+      if (isNaN(employeeId)) {
+        console.error("Invalid employee_id:", user.employee_id)
+        return
+      }
+      const url = `${getEndpointUrl('ATTENDANCE_TODAY')}?employee_id=${employeeId}`
+      const data = await apiRequest<{
+        id?: number | null
+        employee_id: number
+        date: string
+        check_in: string | null
+        check_out: string | null
+        status: string
+        current_session_id?: number | null
         total_hours_today?: number
         total_sessions_today?: number
-        sessions?: TodayAttendance[]
-      }>(
-        getApiUrl(`attendance_records/today?employee_id=${user.employee_id}`)
-      )
+        sessions?: Array<{
+          id: number
+          attendance_record_id: number
+          check_in: string
+          check_out: string | null
+          session_hours: number | null
+        }>
+        attendance_records?: TodayAttendance[]
+      }>(url)
       
-      // If we have sessions data, sync with local storage
+      // Process sessions from backend (these are attendance_sessions)
       if (data.sessions && Array.isArray(data.sessions)) {
         const sessions: AttendanceSession[] = data.sessions
           .filter(s => s.check_in)
-          .map(s => ({
-            id: `session_${s.id}`,
-            punchIn: s.check_in!,
-            punchOut: s.check_out || null,
-            workingHours: s.working_hours || 0
-          }))
+          .map(s => {
+            // Always calculate hours from times to ensure accuracy
+            // For active sessions (no check_out), calculate current hours
+            // For completed sessions, calculate from check_in and check_out
+            let workingHours = 0
+            if (!s.check_out) {
+              // Active session - calculate current hours
+              workingHours = calculateSessionHours(s.check_in, null)
+            } else {
+              // Completed session - calculate from check_in and check_out
+              workingHours = calculateSessionHours(s.check_in, s.check_out)
+              // Use backend session_hours if available and valid, otherwise use calculated
+              if (s.session_hours && s.session_hours > 0) {
+                workingHours = s.session_hours
+              }
+            }
+            
+            return {
+              id: `session_${s.id}`,
+              punchIn: s.check_in,
+              punchOut: s.check_out || null,
+              workingHours: workingHours
+            }
+          })
         
-        // Find active session (no check_out)
-        const activeSession = sessions.find(s => !s.punchOut)
+        // Find active session (no check_out) - use the most recent one
+        const activeSessions = sessions.filter(s => !s.punchOut)
+        const activeSession = activeSessions.length > 0 
+          ? activeSessions.sort((a, b) => new Date(b.punchIn).getTime() - new Date(a.punchIn).getTime())[0]
+          : null
+        
         if (activeSession) {
           setCurrentPunchIn(activeSession.punchIn)
+        } else {
+          setCurrentPunchIn(null)
         }
         
         setAttendanceSessions(sessions)
         saveSessionsToStorage(sessions)
+        
+        // Calculate and set total hours from sessions (including active session)
+        const calculatedTotal = calculateTotalWorkingHours(sessions)
+        setTotalHoursToday(calculatedTotal)
       }
       
-      // Set today's attendance to the active one or first session
+      // Set today's attendance status
       if (data.check_in) {
-        setTodayAttendance(data)
-      } else if (data.sessions && data.sessions.length > 0) {
-        setTodayAttendance(data.sessions[data.sessions.length - 1])
+        setTodayAttendance({
+          id: data.id || undefined,
+          employee_id: data.employee_id,
+          date: data.date,
+          check_in: data.check_in,
+          check_out: data.check_out,
+          status: data.status,
+          working_hours: data.total_hours_today || null
+        })
+      } else {
+        setTodayAttendance({
+          id: data.id || undefined,
+          employee_id: data.employee_id,
+          date: data.date,
+          check_in: null,
+          check_out: null,
+          status: data.status || "absent",
+          working_hours: data.total_hours_today || null
+        })
       }
       
-      // Update total hours from backend if available
-      if (data.total_hours_today !== undefined && data.total_hours_today !== null) {
-        // Ensure it's a valid number and within reasonable range (0-24 hours)
-        const hours = typeof data.total_hours_today === 'number' 
-          ? data.total_hours_today 
-          : parseFloat(String(data.total_hours_today)) || 0
-        // Sanity check: hours should be between 0 and 24
-        if (hours >= 0 && hours <= 24) {
-          setTotalHoursToday(hours)
-        } else {
-          // If invalid, calculate from sessions
-          console.warn("Invalid total_hours_today from backend:", hours, "Calculating from sessions")
-          if (data.sessions && Array.isArray(data.sessions)) {
-            const calculatedTotal = data.sessions.reduce((sum: number, session: any) => {
-              if (session.check_in && session.check_out) {
-                const start = new Date(session.check_in)
-                const end = new Date(session.check_out)
-                const sessionHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60)
-                return sum + (sessionHours > 0 && sessionHours < 24 ? sessionHours : 0)
-              }
-              const storedHours = session.working_hours || 0
-              return sum + (storedHours > 0 && storedHours < 24 ? storedHours : 0)
-            }, 0)
-            setTotalHoursToday(calculatedTotal)
+      // Total hours is already calculated and set when processing sessions above
+      // If sessions weren't processed, use backend value as fallback
+      if (!data.sessions || !Array.isArray(data.sessions)) {
+        if (data.total_hours_today !== undefined && data.total_hours_today !== null) {
+          const hours = typeof data.total_hours_today === 'number' 
+            ? data.total_hours_today 
+            : parseFloat(String(data.total_hours_today)) || 0
+          if (hours >= 0 && hours <= 24) {
+            setTotalHoursToday(hours)
           } else {
             setTotalHoursToday(0)
           }
-        }
-      } else {
-        // Calculate from sessions if backend doesn't provide it
-        if (data.sessions && Array.isArray(data.sessions)) {
-          const calculatedTotal = data.sessions.reduce((sum: number, session: any) => {
-            if (session.check_in && session.check_out) {
-              const start = new Date(session.check_in)
-              const end = new Date(session.check_out)
-              const sessionHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60)
-              return sum + (sessionHours > 0 && sessionHours < 24 ? sessionHours : 0)
-            }
-            const storedHours = session.working_hours || 0
-            return sum + (storedHours > 0 && storedHours < 24 ? storedHours : 0)
-          }, 0)
-          setTotalHoursToday(calculatedTotal)
+        } else {
+          setTotalHoursToday(0)
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to fetch today's attendance:", error)
+      // Log more details about the error
+      if (error?.statusCode) {
+        console.error(`HTTP Status: ${error.statusCode}`)
+      }
+      if (error?.message) {
+        console.error(`Error Message: ${error.message}`)
+      }
+      // Set default values on error to prevent UI breaking
+      setTodayAttendance({
+        id: undefined,
+        employee_id: user?.employee_id || 0,
+        date: new Date().toISOString().split('T')[0],
+        check_in: null,
+        check_out: null,
+        status: "absent",
+        working_hours: null
+      })
+      setAttendanceSessions([])
+      setCurrentPunchIn(null)
+      setTotalHoursToday(0)
     }
   }
 
@@ -415,28 +544,6 @@ export default function Dashboard() {
     const today = new Date().toISOString().split('T')[0]
     const storageKey = `attendance_sessions_${user.employee_id}_${today}`
     localStorage.setItem(storageKey, JSON.stringify(sessions))
-  }
-
-  const calculateSessionHours = (punchIn: string, punchOut: string | null): number => {
-    if (!punchOut) {
-      const now = new Date()
-      const start = new Date(punchIn)
-      return ((now.getTime() - start.getTime()) / (1000 * 60 * 60))
-    }
-    const start = new Date(punchIn)
-    const end = new Date(punchOut)
-    return ((end.getTime() - start.getTime()) / (1000 * 60 * 60))
-  }
-
-  const calculateTotalWorkingHours = (): number => {
-    return attendanceSessions.reduce((total, session) => {
-      if (session.punchOut) {
-        // For completed sessions, use stored workingHours
-        return total + session.workingHours
-      }
-      // For active session, calculate current hours
-      return total + calculateSessionHours(session.punchIn, null)
-    }, 0)
   }
 
   const formatDuration = (hours: number): string => {
@@ -552,34 +659,73 @@ export default function Dashboard() {
     
     setPunchLoading(true)
     try {
-      const now = new Date().toISOString()
-      
-      // Always create a new attendance record for check-in
-      const attendanceRecord = await apiRequest<TodayAttendance>(
-        getApiUrl(`attendance_records/check_in`),
+      // Use clock_in endpoint which works with attendance_sessions
+      const response = await apiRequest<{
+        message: string
+        attendance_record: TodayAttendance
+        sessions: Array<{
+          id: number
+          check_in: string
+          check_out: string | null
+          session_hours: number | null
+        }>
+      }>(
+        getApiUrl(`employees/${user.employee_id}/attendance_records/clock_in`),
         {
-          method: 'POST',
-          body: JSON.stringify({
-            employee_id: user.employee_id
-          })
+          method: 'POST'
         }
       )
 
-      const newSession: AttendanceSession = {
-        id: `session_${attendanceRecord.id || Date.now()}`,
-        punchIn: attendanceRecord.check_in || now,
-        punchOut: null,
-        workingHours: 0
+      // Update sessions from backend response
+      if (response.sessions && Array.isArray(response.sessions)) {
+        const sessions: AttendanceSession[] = response.sessions.map(s => {
+          // Always calculate hours from times to ensure accuracy
+          let workingHours = 0
+          if (!s.check_out) {
+            // Active session - calculate current hours
+            workingHours = calculateSessionHours(s.check_in, null)
+          } else {
+            // Completed session - calculate from check_in and check_out
+            workingHours = calculateSessionHours(s.check_in, s.check_out)
+            // Use backend session_hours if available and valid, otherwise use calculated
+            if (s.session_hours && s.session_hours > 0) {
+              workingHours = s.session_hours
+            }
+          }
+          
+          return {
+            id: `session_${s.id}`,
+            punchIn: s.check_in,
+            punchOut: s.check_out || null,
+            workingHours: workingHours
+          }
+        })
+        
+        // Find active session (no check_out) - use the most recent one
+        const activeSessions = sessions.filter(s => !s.punchOut)
+        const activeSession = activeSessions.length > 0 
+          ? activeSessions.sort((a, b) => new Date(b.punchIn).getTime() - new Date(a.punchIn).getTime())[0]
+          : null
+        
+        if (activeSession) {
+          setCurrentPunchIn(activeSession.punchIn)
+        } else {
+          setCurrentPunchIn(null)
+        }
+        
+        setAttendanceSessions(sessions)
+        saveSessionsToStorage(sessions)
+        
+        // Calculate and set total hours
+        const calculatedTotal = calculateTotalWorkingHours(sessions)
+        setTotalHoursToday(calculatedTotal)
       }
       
-      const updatedSessions = [...attendanceSessions, newSession]
-      setAttendanceSessions(updatedSessions)
-      setCurrentPunchIn(now)
-      saveSessionsToStorage(updatedSessions)
       await fetchTodayAttendance()
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to punch in:", error)
-      alert("Failed to punch in. Please try again.")
+      const errorMessage = error?.error || error?.message || "Failed to punch in. Please try again."
+      alert(errorMessage)
     } finally {
       setPunchLoading(false)
     }
@@ -590,78 +736,77 @@ export default function Dashboard() {
     
     setPunchLoading(true)
     try {
-      const now = new Date().toISOString()
-      const currentSessionIndex = attendanceSessions.findIndex(s => s.punchIn === currentPunchIn && !s.punchOut)
-      
-      const updatedSessions = attendanceSessions.map(session => {
-        if (session.punchIn === currentPunchIn && !session.punchOut) {
-          const hours = calculateSessionHours(session.punchIn, now)
-          return {
-            ...session,
-            punchOut: now,
-            workingHours: hours
-          }
+      // Use clock_out endpoint which works with attendance_sessions
+      const response = await apiRequest<{
+        message: string
+        attendance_record: TodayAttendance
+        sessions: Array<{
+          id: number
+          check_in: string
+          check_out: string | null
+          session_hours: number | null
+        }>
+      }>(
+        getApiUrl(`employees/${user.employee_id}/attendance_records/clock_out`),
+        {
+          method: 'POST'
         }
-        return session
-      })
+      )
+
+      // Update sessions from backend response
+      if (response.sessions && Array.isArray(response.sessions)) {
+        const sessions: AttendanceSession[] = response.sessions.map(s => {
+          // Always calculate hours from times to ensure accuracy
+          let workingHours = 0
+          if (!s.check_out) {
+            // Active session - calculate current hours
+            workingHours = calculateSessionHours(s.check_in, null)
+          } else {
+            // Completed session - calculate from check_in and check_out
+            workingHours = calculateSessionHours(s.check_in, s.check_out)
+            // Use backend session_hours if available and valid, otherwise use calculated
+            if (s.session_hours && s.session_hours > 0) {
+              workingHours = s.session_hours
+            }
+          }
+          
+          return {
+            id: `session_${s.id}`,
+            punchIn: s.check_in,
+            punchOut: s.check_out || null,
+            workingHours: workingHours
+          }
+        })
+        
+        setAttendanceSessions(sessions)
+        saveSessionsToStorage(sessions)
+      }
       
-      setAttendanceSessions(updatedSessions)
       setCurrentPunchIn(null)
-      saveSessionsToStorage(updatedSessions)
 
       // End break if on break
       if (isOnBreak) {
         handleBreakEnd()
       }
 
-      // Update backend - find the attendance record using session ID
-      try {
-        // Find the current session to get the record ID
-        const currentSession = attendanceSessions.find(s => s.punchIn === currentPunchIn && !s.punchOut)
-        
-        if (currentSession && currentSession.id) {
-          // Extract record ID from session ID (format: session_123)
-          const recordId = currentSession.id.replace('session_', '')
-          
-          if (recordId && !isNaN(Number(recordId))) {
-            // Update the specific record with check_out
-            await apiRequest<TodayAttendance>(
-              getApiUrl(`attendance_records/${recordId}/check_out`),
-              { method: 'PATCH' }
-            )
-          } else {
-            // Fallback: use today endpoint to find the active session
-            const todayData = await apiRequest<TodayAttendance>(
-              getApiUrl(`attendance_records/today?employee_id=${user.employee_id}`)
-            )
-            
-            // Find the record that matches current punch in time
-            if (todayData.sessions && Array.isArray(todayData.sessions)) {
-              const punchInTime = new Date(currentPunchIn).getTime()
-              const matchingRecord = todayData.sessions.find((record: any) => {
-                if (!record.check_in || record.check_out) return false
-                const recordTime = new Date(record.check_in).getTime()
-                const diff = Math.abs(punchInTime - recordTime)
-                return diff < 60000 // Within 1 minute
-              })
-
-              if (matchingRecord && matchingRecord.id) {
-                await apiRequest<TodayAttendance>(
-                  getApiUrl(`attendance_records/${matchingRecord.id}/check_out`),
-                  { method: 'PATCH' }
-                )
-              }
-            }
-          }
-        }
-        await fetchTodayAttendance()
-      } catch (backendError: any) {
-        console.error("Failed to update backend:", backendError)
-        alert(backendError?.error || "Failed to update attendance record. Please try again.")
-      }
-    } catch (error) {
+      await fetchTodayAttendance()
+    } catch (error: any) {
       console.error("Failed to punch out:", error)
-      alert("Failed to punch out. Please try again.")
+      const errorMessage = error?.error || error?.message || "Failed to punch out. Please try again."
+      
+      // If the error indicates no session exists, clear the frontend state
+      if (error?.code === "NO_SESSION" || errorMessage.includes("No active session") || errorMessage.includes("not properly recorded")) {
+        // Clear the local state since backend has no session
+        setCurrentPunchIn(null)
+        setAttendanceSessions([])
+        saveSessionsToStorage([])
+        // Refresh to get correct state
+        await fetchTodayAttendance()
+        // Don't show alert - the state is already cleared, user can punch in again
+        // The error toast will show the message
+      } else {
+        alert(errorMessage)
+      }
     } finally {
       setPunchLoading(false)
     }
@@ -670,78 +815,61 @@ export default function Dashboard() {
   const handleBreakStart = async () => {
     if (!currentPunchIn || !user?.employee_id) return
     
-    const now = new Date().toISOString()
-    
-    // Automatically punch out the current session when break starts
     setPunchLoading(true)
     try {
-      const updatedSessions = attendanceSessions.map(session => {
-        if (session.punchIn === currentPunchIn && !session.punchOut) {
-          const hours = calculateSessionHours(session.punchIn, now)
-          return {
-            ...session,
-            punchOut: now,
-            workingHours: hours
-          }
+      // Punch out the current session when break starts
+      const response = await apiRequest<{
+        message: string
+        attendance_record: TodayAttendance
+        sessions: Array<{
+          id: number
+          check_in: string
+          check_out: string | null
+          session_hours: number | null
+        }>
+      }>(
+        getApiUrl(`employees/${user.employee_id}/attendance_records/clock_out`),
+        {
+          method: 'POST'
         }
-        return session
-      })
-      
-      setAttendanceSessions(updatedSessions)
-      setCurrentPunchIn(null)
-      saveSessionsToStorage(updatedSessions)
-      
-      // Update backend - find the attendance record using session ID
-      try {
-        // Find the current session to get the record ID
-        const currentSession = attendanceSessions.find(s => s.punchIn === currentPunchIn && !s.punchOut)
-        
-        if (currentSession && currentSession.id) {
-          // Extract record ID from session ID (format: session_123)
-          const recordId = currentSession.id.replace('session_', '')
-          
-          if (recordId && !isNaN(Number(recordId))) {
-            // Update the specific record with check_out
-            await apiRequest<TodayAttendance>(
-              getApiUrl(`attendance_records/${recordId}/check_out`),
-              { method: 'PATCH' }
-            )
-          } else {
-            // Fallback: use today endpoint to find the active session
-            const todayData = await apiRequest<TodayAttendance>(
-              getApiUrl(`attendance_records/today?employee_id=${user.employee_id}`)
-            )
-            
-            // Find the record that matches current punch in time
-            if (todayData.sessions && Array.isArray(todayData.sessions)) {
-              const punchInTime = new Date(currentPunchIn).getTime()
-              const matchingRecord = todayData.sessions.find((record: any) => {
-                if (!record.check_in || record.check_out) return false
-                const recordTime = new Date(record.check_in).getTime()
-                const diff = Math.abs(punchInTime - recordTime)
-                return diff < 60000 // Within 1 minute
-              })
+      )
 
-              if (matchingRecord && matchingRecord.id) {
-                await apiRequest<TodayAttendance>(
-                  getApiUrl(`attendance_records/${matchingRecord.id}/check_out`),
-                  { method: 'PATCH' }
-                )
-              }
+      // Update sessions from backend response
+      if (response.sessions && Array.isArray(response.sessions)) {
+        const sessions: AttendanceSession[] = response.sessions.map(s => ({
+          id: `session_${s.id}`,
+          punchIn: s.check_in,
+          punchOut: s.check_out || null,
+          workingHours: (() => {
+            // Always calculate hours from times to ensure accuracy
+            if (!s.check_out) {
+              // Active session - calculate current hours
+              return calculateSessionHours(s.check_in, null)
+            } else {
+              // Completed session - calculate from check_in and check_out
+              const calculated = calculateSessionHours(s.check_in, s.check_out)
+              // Use backend session_hours if available and valid, otherwise use calculated
+              return (s.session_hours && s.session_hours > 0) ? s.session_hours : calculated
             }
-          }
-        }
-        await fetchTodayAttendance()
-      } catch (backendError: any) {
-        console.error("Failed to update backend:", backendError)
-        alert(backendError?.error || "Failed to update attendance record. Please try again.")
+          })()
+        }))
+        
+        setAttendanceSessions(sessions)
+        saveSessionsToStorage(sessions)
       }
       
+      setCurrentPunchIn(null)
+      
       // Now start the break
+      const now = new Date().toISOString()
       setBreakStartTime(now)
       setIsOnBreak(true)
-    } catch (error) {
+      
+      await fetchTodayAttendance()
+    } catch (error: any) {
       console.error("Failed to start break:", error)
+      const errorMessage = error?.error || error?.message || "Failed to start break. Please try again."
+      alert(errorMessage)
     } finally {
       setPunchLoading(false)
     }
@@ -968,21 +1096,8 @@ export default function Dashboard() {
                     </div>
                     <div>
                       <label className="text-xs font-medium text-gray-500 uppercase">Total Working Hours Today</label>
-                      <p className="text-lg font-semibold text-green-600 mt-1">
-                        {(() => {
-                          // Use backend total if valid, otherwise calculate from sessions
-                          let hoursToDisplay = 0
-                          if (totalHoursToday > 0 && totalHoursToday <= 24) {
-                            hoursToDisplay = totalHoursToday
-                          } else {
-                            hoursToDisplay = calculateTotalWorkingHours()
-                          }
-                          // Ensure it's a valid number
-                          if (isNaN(hoursToDisplay) || hoursToDisplay < 0 || hoursToDisplay > 24) {
-                            hoursToDisplay = 0
-                          }
-                          return formatDuration(hoursToDisplay)
-                        })()}
+                      <p className="text-lg font-semibold text-green-600 mt-1" key={timerTick}>
+                        {formatDuration(displayTotalHours)}
                       </p>
                       <div className="flex items-center gap-2 mt-1">
                         <p className="text-xs text-gray-500">
