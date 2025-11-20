@@ -37,6 +37,7 @@ import {
 } from "lucide-react"
 import { getApiUrl, getEndpointUrl } from "@/lib/api"
 import { apiRequest } from "@/lib/api"
+import { ScheduledInterviewsModal } from "@/components/dashboard/scheduled-interviews-modal"
 
 interface TodayAttendance {
   id?: number
@@ -98,6 +99,7 @@ export default function Dashboard() {
     dueDate: string
   }>>([])
   const [pendingTasksLoading, setPendingTasksLoading] = useState(true)
+  const [scheduledInterviewsModalOpen, setScheduledInterviewsModalOpen] = useState(false)
 
   // Helper functions for calculating hours (must be defined before any useEffect that uses them)
   const calculateSessionHours = (punchIn: string, punchOut: string | null): number => {
@@ -1344,11 +1346,13 @@ export default function Dashboard() {
                   <div 
                     key={task.id} 
                     className={`flex items-center justify-between p-3 rounded-lg border hover:bg-gray-50 ${
-                      task.title === "Review Leave Applications" ? "cursor-pointer" : ""
+                      task.title === "Review Leave Applications" || task.title === "Interview Scheduled" ? "cursor-pointer" : ""
                     }`}
                     onClick={() => {
                       if (task.title === "Review Leave Applications") {
                         router.push('/review-leave-applications')
+                      } else if (task.title === "Interview Scheduled") {
+                        setScheduledInterviewsModalOpen(true)
                       }
                     }}
                   >
@@ -1377,6 +1381,8 @@ export default function Dashboard() {
                         e.stopPropagation()
                         if (task.title === "Review Leave Applications") {
                           router.push('/review-leave-applications')
+                        } else if (task.title === "Interview Scheduled") {
+                          setScheduledInterviewsModalOpen(true)
                         }
                       }}
                     >
@@ -1495,6 +1501,13 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Scheduled Interviews Modal */}
+      <ScheduledInterviewsModal
+        isOpen={scheduledInterviewsModalOpen}
+        onClose={() => setScheduledInterviewsModalOpen(false)}
+        onRefresh={fetchPendingTasks}
+      />
     </div>
   )
 }
