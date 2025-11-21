@@ -83,6 +83,7 @@ interface Candidate {
 
 interface Interview {
   id: string
+  candidate_id?: string
   interview_type: "phone" | "video" | "onsite"
   scheduled_date: string
   scheduled_time: string
@@ -140,6 +141,10 @@ export default function ATSPage() {
     sender_name: ""
   })
   const [isSendingEmail, setIsSendingEmail] = useState(false)
+  const [selectedInterview, setSelectedInterview] = useState<Interview | null>(null)
+  const [showInterviewDetails, setShowInterviewDetails] = useState(false)
+  const [showEditInterview, setShowEditInterview] = useState(false)
+  const [isSendingReminder, setIsSendingReminder] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
   const [filterStatus, setFilterStatus] = useState<string>("all")
   const [filterDepartment, setFilterDepartment] = useState<string>("all")
@@ -464,6 +469,69 @@ export default function ATSPage() {
       sender_name: ""
     })
     setShowEmailDialog(true)
+  }
+
+  const handleViewInterviewDetails = (interview: Interview) => {
+    setSelectedInterview(interview)
+    setShowInterviewDetails(true)
+  }
+
+  const handleEditInterview = (interview: Interview) => {
+    setSelectedInterview(interview)
+    setShowEditInterview(true)
+  }
+
+  const handleSendReminder = async (interview: Interview) => {
+    if (!selectedCandidate) return
+
+    setIsSendingReminder(true)
+    try {
+      // Format the interview date and time
+      const interviewDate = new Date(interview.scheduled_date).toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      })
+      const interviewTime = interview.scheduled_time
+
+      // Create reminder message
+      const reminderMessage = `Dear ${selectedCandidate.name},
+
+This is a reminder about your upcoming interview:
+
+Interview Type: ${interview.interview_type.charAt(0).toUpperCase() + interview.interview_type.slice(1)} Interview
+Date: ${interviewDate}
+Time: ${interviewTime}
+Interviewer: ${interview.interviewer}
+
+${interview.notes ? `Notes: ${interview.notes}\n\n` : ''}Please make sure to be available at the scheduled time. If you have any questions or need to reschedule, please contact us as soon as possible.
+
+We look forward to speaking with you!
+
+Best regards,
+HR Team`
+
+      await apiRequest<any>(getApiUrl(`candidates/${selectedCandidate.id}/send_email`), {
+        method: 'POST',
+        body: JSON.stringify({
+          subject: `Reminder: Interview Scheduled for ${interviewDate}`,
+          message: reminderMessage,
+          sender_name: "HR Team"
+        }),
+      })
+
+      // Update the candidate's last contact date
+      await fetchCandidates()
+      
+      // Show success message
+      alert("Reminder sent successfully!")
+    } catch (error: any) {
+      console.error('Error sending reminder:', error)
+      alert(`Failed to send reminder: ${error?.message || 'Please try again.'}`)
+    } finally {
+      setIsSendingReminder(false)
+    }
   }
 
   return (
@@ -912,16 +980,22 @@ export default function ATSPage() {
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                <DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleViewInterviewDetails(interview)}>
                                   <Eye className="w-4 h-4 mr-2" />
                                   View Details
                                 </DropdownMenuItem>
-                                <DropdownMenuItem>
+                                <DropdownMenuItem 
+                                  onClick={() => handleSendReminder(interview)}
+                                  disabled={isSendingReminder || interview.status !== "scheduled"}
+                                >
                                   <MessageSquare className="w-4 h-4 mr-2" />
-                                  Send Reminder
+                                  {isSendingReminder ? "Sending..." : "Send Reminder"}
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem>
+                                <DropdownMenuItem 
+                                  onClick={() => handleEditInterview(interview)}
+                                  disabled={interview.status === "completed"}
+                                >
                                   <Edit className="w-4 h-4 mr-2" />
                                   Edit Interview
                                 </DropdownMenuItem>
@@ -1105,6 +1179,195 @@ export default function ATSPage() {
           }
         }}
       />
+
+      {/* Edit Interview Dialog */}
+      <InterviewForm
+        open={showEditInterview}
+        onOpenChange={(open) => {
+          setShowEditInterview(open)
+          if (!open) setSelectedInterview(null)
+        }}
+        candidate={selectedCandidate ? {
+          id: selectedCandidate.id,
+          name: selectedCandidate.name,
+          email: selectedCandidate.email,
+          position: selectedCandidate.position
+        } : undefined}
+        editInterview={selectedInterview ? {
+          id: selectedInterview.id,
+          interview_type: selectedInterview.interview_type,
+          scheduled_date: selectedInterview.scheduled_date,
+          scheduled_time: selectedInterview.scheduled_time,
+          interviewer: selectedInterview.interviewer,
+          notes: selectedInterview.notes
+        } : undefined}
+        onSuccess={async () => {
+          setShowEditInterview(false)
+          setSelectedInterview(null)
+          // Refresh all data
+          await fetchCandidates()
+          await fetchStats()
+          await fetchInterviews()
+          
+          // Update the selected candidate with fresh data
+          if (selectedCandidate) {
+            try {
+              const updatedCandidate = await apiRequest<any>(getApiUrl(`candidates/${selectedCandidate.id}`))
+              setSelectedCandidate(updatedCandidate)
+              saveSelectedCandidate(updatedCandidate)
+            } catch (error) {
+              console.error('Error refreshing selected candidate:', error)
+            }
+          }
+        }}
+      />
+
+      {/* Interview Details Dialog */}
+      <Dialog open={showInterviewDetails} onOpenChange={setShowInterviewDetails}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="w-5 h-5" />
+              Interview Details
+            </DialogTitle>
+            <DialogDescription>
+              Complete information about the interview
+            </DialogDescription>
+          </DialogHeader>
+          {selectedInterview && selectedCandidate && (
+            <div className="space-y-6 py-4">
+              {/* Interview Status and Type */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Badge className={getInterviewStatusColor(selectedInterview.status)}>
+                    {selectedInterview.status.charAt(0).toUpperCase() + selectedInterview.status.slice(1)}
+                  </Badge>
+                  <span className="font-medium text-lg">
+                    {selectedInterview.interview_type.charAt(0).toUpperCase() + selectedInterview.interview_type.slice(1)} Interview
+                  </span>
+                </div>
+              </div>
+
+              {/* Candidate Information */}
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <h4 className="font-medium text-gray-900 mb-3">Candidate Information</h4>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-gray-600">Name:</span>
+                    <p className="font-medium">{selectedCandidate.name}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Position:</span>
+                    <p className="font-medium">{selectedCandidate.position}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Email:</span>
+                    <p className="font-medium">{selectedCandidate.email}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Phone:</span>
+                    <p className="font-medium">{selectedCandidate.phone}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Interview Schedule */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
+                    <Calendar className="w-4 h-4" />
+                    <span>Date</span>
+                  </div>
+                  <p className="font-medium">{new Date(selectedInterview.scheduled_date).toLocaleDateString('en-US', {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                  })}</p>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
+                    <Clock className="w-4 h-4" />
+                    <span>Time</span>
+                  </div>
+                  <p className="font-medium">{selectedInterview.scheduled_time}</p>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
+                    <UserPlus className="w-4 h-4" />
+                    <span>Interviewer</span>
+                  </div>
+                  <p className="font-medium">{selectedInterview.interviewer}</p>
+                </div>
+                {selectedInterview.rating && (
+                  <div>
+                    <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
+                      <span>Rating</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {[...Array(5)].map((_, i) => (
+                        <div
+                          key={i}
+                          className={`w-4 h-4 rounded-full ${
+                            i < selectedInterview.rating! ? "bg-yellow-400" : "bg-gray-200"
+                          }`}
+                        />
+                      ))}
+                      <span className="ml-2 text-sm text-gray-600">({selectedInterview.rating}/5)</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Notes */}
+              {selectedInterview.notes && (
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-2">Notes</h4>
+                  <div className="p-3 bg-gray-50 rounded-lg">
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedInterview.notes}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Feedback */}
+              {selectedInterview.feedback && (
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-2">Feedback</h4>
+                  <div className="p-3 bg-gray-50 rounded-lg">
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedInterview.feedback}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex justify-end gap-2 pt-4 border-t">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowInterviewDetails(false)
+                    handleEditInterview(selectedInterview)
+                  }}
+                  disabled={selectedInterview.status === "completed"}
+                >
+                  <Edit className="w-4 h-4 mr-2" />
+                  Edit Interview
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowInterviewDetails(false)
+                    handleSendReminder(selectedInterview)
+                  }}
+                  disabled={isSendingReminder || selectedInterview.status !== "scheduled"}
+                >
+                  <MessageSquare className="w-4 h-4 mr-2" />
+                  {isSendingReminder ? "Sending..." : "Send Reminder"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Send Email Dialog */}
       <Dialog open={showEmailDialog} onOpenChange={setShowEmailDialog}>
