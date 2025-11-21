@@ -37,7 +37,6 @@ import {
 } from "lucide-react"
 import { getApiUrl, getEndpointUrl } from "@/lib/api"
 import { apiRequest } from "@/lib/api"
-import { ScheduledInterviewsModal } from "@/components/dashboard/scheduled-interviews-modal"
 
 interface TodayAttendance {
   id?: number
@@ -99,7 +98,6 @@ export default function Dashboard() {
     dueDate: string
   }>>([])
   const [pendingTasksLoading, setPendingTasksLoading] = useState(true)
-  const [scheduledInterviewsModalOpen, setScheduledInterviewsModalOpen] = useState(false)
 
   // Helper functions for calculating hours (must be defined before any useEffect that uses them)
   const calculateSessionHours = (punchIn: string, punchOut: string | null): number => {
@@ -1352,7 +1350,7 @@ export default function Dashboard() {
                       if (task.title === "Review Leave Applications") {
                         router.push('/review-leave-applications')
                       } else if (task.title === "Interview Scheduled") {
-                        setScheduledInterviewsModalOpen(true)
+                        router.push('/scheduled-interviews')
                       }
                     }}
                   >
@@ -1382,7 +1380,7 @@ export default function Dashboard() {
                         if (task.title === "Review Leave Applications") {
                           router.push('/review-leave-applications')
                         } else if (task.title === "Interview Scheduled") {
-                          setScheduledInterviewsModalOpen(true)
+                          router.push('/scheduled-interviews')
                         }
                       }}
                     >
@@ -1502,12 +1500,6 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* Scheduled Interviews Modal */}
-      <ScheduledInterviewsModal
-        isOpen={scheduledInterviewsModalOpen}
-        onClose={() => setScheduledInterviewsModalOpen(false)}
-        onRefresh={fetchPendingTasks}
-      />
     </div>
   )
 }

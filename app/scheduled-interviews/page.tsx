@@ -1,18 +1,12 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Input } from "@/components/ui/input"
-import { Search, RefreshCw, Eye, Calendar, Phone, Video, MapPin, Clock, MoreHorizontal, CheckCircle, XCircle, AlertCircle } from "lucide-react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Search, RefreshCw, Eye, Calendar, Phone, Video, MapPin, Clock, MoreHorizontal, CheckCircle, XCircle, AlertCircle, ArrowLeft } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,6 +15,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import {
@@ -33,6 +34,7 @@ import {
 import { apiRequest, getApiUrl, getEndpointUrl } from "@/lib/api"
 import { toast } from "@/hooks/use-toast"
 import { useAuthContext } from "@/lib/auth"
+import { useRouter } from "next/navigation"
 
 interface Interview {
   id: number
@@ -56,17 +58,8 @@ interface Interview {
   scheduled_datetime?: string
 }
 
-interface ScheduledInterviewsModalProps {
-  isOpen: boolean
-  onClose: () => void
-  onRefresh?: () => void
-}
-
-export function ScheduledInterviewsModal({
-  isOpen,
-  onClose,
-  onRefresh,
-}: ScheduledInterviewsModalProps) {
+export default function ScheduledInterviewsPage() {
+  const router = useRouter()
   const { user } = useAuthContext()
   const [interviews, setInterviews] = useState<Interview[]>([])
   const [filteredInterviews, setFilteredInterviews] = useState<Interview[]>([])
@@ -86,10 +79,8 @@ export function ScheduledInterviewsModal({
   const [noShowNotes, setNoShowNotes] = useState("")
 
   useEffect(() => {
-    if (isOpen) {
-      fetchInterviews()
-    }
-  }, [isOpen, user])
+    fetchInterviews()
+  }, [user])
 
   useEffect(() => {
     // Filter interviews based on search term
@@ -258,9 +249,6 @@ export function ScheduledInterviewsModal({
 
       // Refresh interviews
       await fetchInterviews()
-      if (onRefresh) {
-        onRefresh()
-      }
 
       toast({
         title: "Status Updated",
@@ -309,159 +297,173 @@ export function ScheduledInterviewsModal({
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Calendar className="w-5 h-5" />
-            Scheduled Interviews
-          </DialogTitle>
-          <DialogDescription>
-            Interviews assigned to you that are scheduled
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-4">
-          {/* Search Bar */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-            <Input
-              placeholder="Search by candidate name, email, or interview type..."
-              className="pl-10"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-
-          {/* Interviews Table */}
-          {loading ? (
-            <div className="text-center py-8 text-gray-500">
-              <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2" />
-              <p>Loading interviews...</p>
-            </div>
-          ) : filteredInterviews.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <p>No scheduled interviews found.</p>
-            </div>
-          ) : (
-            <div className="rounded-md border overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Candidate</TableHead>
-                    <TableHead>Interview Type</TableHead>
-                    <TableHead>Scheduled Date & Time</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Notes</TableHead>
-                    <TableHead className="w-[50px]">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredInterviews.map((interview) => (
-                    <TableRow key={interview.id}>
-                      <TableCell className="font-medium">
-                        <div>
-                          <div>{interview.candidate_name || `Candidate ${interview.candidate_id}`}</div>
-                          {interview.candidate_email && (
-                            <div className="text-xs text-gray-500">{interview.candidate_email}</div>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          {getInterviewTypeIcon(interview.interview_type)}
-                          <span>{getInterviewTypeLabel(interview.interview_type)}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Clock className="w-4 h-4 text-gray-400" />
-                          <span>
-                            {interview.formatted_date && interview.formatted_time
-                              ? `${interview.formatted_date} at ${interview.formatted_time}`
-                              : formatDateTime(interview.scheduled_date, interview.scheduled_time)}
-                          </span>
-                        </div>
-                        {interview.is_today && (
-                          <Badge variant="outline" className="mt-1 text-xs bg-blue-50 text-blue-700 border-blue-200">
-                            Today
-                          </Badge>
-                        )}
-                        {interview.is_overdue && (
-                          <Badge variant="outline" className="mt-1 text-xs bg-red-50 text-red-700 border-red-200">
-                            Overdue
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={getStatusColor(interview.status)}>
-                          {interview.status || 'Scheduled'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="max-w-xs truncate">
-                        {interview.notes || 'No notes'}
-                      </TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                            {interview.status === "scheduled" && (
-                              <>
-                                <DropdownMenuItem onClick={() => handleOpenCompleteDialog(interview)}>
-                                  <CheckCircle className="w-4 h-4 mr-2" />
-                                  Mark Complete
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleOpenCancelDialog(interview)}>
-                                  <XCircle className="w-4 h-4 mr-2" />
-                                  Cancel Interview
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleOpenNoShowDialog(interview)}>
-                                  <AlertCircle className="w-4 h-4 mr-2" />
-                                  Mark No Show
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                              </>
-                            )}
-                            <DropdownMenuItem onClick={() => {
-                              // View details - could open a detail view or navigate
-                              toast({
-                                title: "Interview Details",
-                                description: `${interview.candidate_name} - ${getInterviewTypeLabel(interview.interview_type)} Interview`,
-                              })
-                            }}>
-                              <Eye className="w-4 h-4 mr-2" />
-                              View Details
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </div>
-
-        <div className="flex justify-end gap-2 pt-4 border-t">
-          <Button variant="outline" onClick={onClose}>
-            Close
-          </Button>
+    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
           <Button
-            variant="outline"
-            onClick={fetchInterviews}
-            disabled={loading}
+            variant="ghost"
+            size="sm"
+            onClick={() => router.back()}
+            className="flex items-center gap-2"
           >
-            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
+            <ArrowLeft className="w-4 h-4" />
+            Back
           </Button>
+          <div>
+            <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 flex items-center gap-2">
+              <Calendar className="w-6 h-6" />
+              Scheduled Interviews
+            </h1>
+            <p className="text-gray-600 mt-1">Interviews assigned to you that are scheduled</p>
+          </div>
         </div>
-      </DialogContent>
+        <Button
+          variant="outline"
+          onClick={fetchInterviews}
+          disabled={loading}
+        >
+          <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+          Refresh
+        </Button>
+      </div>
+
+      {/* Main Content */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Interviews</CardTitle>
+          <CardDescription>Manage your scheduled interviews</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {/* Search Bar */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <Input
+                placeholder="Search by candidate name, email, or interview type..."
+                className="pl-10"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+
+            {/* Interviews Table */}
+            {loading ? (
+              <div className="text-center py-8 text-gray-500">
+                <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2" />
+                <p>Loading interviews...</p>
+              </div>
+            ) : filteredInterviews.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <Calendar className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                <p>No scheduled interviews found.</p>
+              </div>
+            ) : (
+              <div className="rounded-md border overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Candidate</TableHead>
+                      <TableHead>Interview Type</TableHead>
+                      <TableHead>Scheduled Date & Time</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Notes</TableHead>
+                      <TableHead className="w-[50px]">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredInterviews.map((interview) => (
+                      <TableRow key={interview.id}>
+                        <TableCell className="font-medium">
+                          <div>
+                            <div>{interview.candidate_name || `Candidate ${interview.candidate_id}`}</div>
+                            {interview.candidate_email && (
+                              <div className="text-xs text-gray-500">{interview.candidate_email}</div>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            {getInterviewTypeIcon(interview.interview_type)}
+                            <span>{getInterviewTypeLabel(interview.interview_type)}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Clock className="w-4 h-4 text-gray-400" />
+                            <span>
+                              {interview.formatted_date && interview.formatted_time
+                                ? `${interview.formatted_date} at ${interview.formatted_time}`
+                                : formatDateTime(interview.scheduled_date, interview.scheduled_time)}
+                            </span>
+                          </div>
+                          {interview.is_today && (
+                            <Badge variant="outline" className="mt-1 text-xs bg-blue-50 text-blue-700 border-blue-200">
+                              Today
+                            </Badge>
+                          )}
+                          {interview.is_overdue && (
+                            <Badge variant="outline" className="mt-1 text-xs bg-red-50 text-red-700 border-red-200">
+                              Overdue
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={getStatusColor(interview.status)}>
+                            {interview.status || 'Scheduled'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="max-w-xs truncate">
+                          {interview.notes || 'No notes'}
+                        </TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                              {interview.status === "scheduled" && (
+                                <>
+                                  <DropdownMenuItem onClick={() => handleOpenCompleteDialog(interview)}>
+                                    <CheckCircle className="w-4 h-4 mr-2" />
+                                    Mark Complete
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleOpenCancelDialog(interview)}>
+                                    <XCircle className="w-4 h-4 mr-2" />
+                                    Cancel Interview
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleOpenNoShowDialog(interview)}>
+                                    <AlertCircle className="w-4 h-4 mr-2" />
+                                    Mark No Show
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                </>
+                              )}
+                              <DropdownMenuItem onClick={() => {
+                                // View details - could open a detail view or navigate
+                                toast({
+                                  title: "Interview Details",
+                                  description: `${interview.candidate_name} - ${getInterviewTypeLabel(interview.interview_type)} Interview`,
+                                })
+                              }}>
+                                <Eye className="w-4 h-4 mr-2" />
+                                View Details
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Complete Interview Dialog */}
       <Dialog open={showCompleteDialog} onOpenChange={setShowCompleteDialog}>
@@ -678,7 +680,7 @@ export function ScheduledInterviewsModal({
           )}
         </DialogContent>
       </Dialog>
-    </Dialog>
+    </div>
   )
 }
 
