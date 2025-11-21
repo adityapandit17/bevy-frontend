@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Search, RefreshCw, Eye, Calendar, Phone, Video, MapPin, Clock, MoreHorizontal, CheckCircle, XCircle, AlertCircle, ArrowLeft } from "lucide-react"
+import { Search, RefreshCw, Eye, Calendar, Phone, Video, MapPin, Clock, MoreHorizontal, CheckCircle, XCircle, AlertCircle, ArrowLeft, CalendarClock } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,7 +34,7 @@ import {
 import { apiRequest, getApiUrl, getEndpointUrl } from "@/lib/api"
 import { toast } from "@/hooks/use-toast"
 import { useAuthContext } from "@/lib/auth"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 
 interface Interview {
   id: number
@@ -60,6 +60,7 @@ interface Interview {
 
 export default function ScheduledInterviewsPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { user } = useAuthContext()
   const [interviews, setInterviews] = useState<Interview[]>([])
   const [filteredInterviews, setFilteredInterviews] = useState<Interview[]>([])
@@ -70,6 +71,7 @@ export default function ScheduledInterviewsPage() {
   const [showCompleteDialog, setShowCompleteDialog] = useState(false)
   const [showCancelDialog, setShowCancelDialog] = useState(false)
   const [showNoShowDialog, setShowNoShowDialog] = useState(false)
+  const [showRescheduleDialog, setShowRescheduleDialog] = useState(false)
   const [isChangingStatus, setIsChangingStatus] = useState(false)
   const [completeInterviewData, setCompleteInterviewData] = useState({
     feedback: "",
@@ -77,10 +79,16 @@ export default function ScheduledInterviewsPage() {
   })
   const [cancelNotes, setCancelNotes] = useState("")
   const [noShowNotes, setNoShowNotes] = useState("")
+  const [rescheduleData, setRescheduleData] = useState({
+    scheduled_date: "",
+    scheduled_time: ""
+  })
+  
+  const isMissedInterviews = searchParams?.get('missed') === 'true'
 
   useEffect(() => {
     fetchInterviews()
-  }, [user])
+  }, [user, isMissedInterviews])
 
   useEffect(() => {
     // Filter interviews based on search term
@@ -117,7 +125,11 @@ export default function ScheduledInterviewsPage() {
       const params = new URLSearchParams()
       params.append('interviewer', name)
       params.append('status', 'scheduled')
-      params.append('upcoming', 'true')
+      if (isMissedInterviews) {
+        params.append('past', 'true')
+      } else {
+        params.append('upcoming', 'true')
+      }
       const url = `${getEndpointUrl('INTERVIEWS')}?${params.toString()}`
       
       const res = await apiRequest<Interview[]>(url)
@@ -296,6 +308,78 @@ export default function ScheduledInterviewsPage() {
     setShowNoShowDialog(true)
   }
 
+  const handleOpenRescheduleDialog = (interview: Interview) => {
+    setSelectedInterview(interview)
+    // Format date as YYYY-MM-DD for input
+    const dateStr = interview.scheduled_date ? new Date(interview.scheduled_date).toISOString().split('T')[0] : ""
+    // Format time as HH:MM for input
+    let timeStr = ""
+    if (interview.scheduled_time) {
+      try {
+        const timeParts = interview.scheduled_time.split(':')
+        if (timeParts.length >= 2) {
+          timeStr = `${timeParts[0].padStart(2, '0')}:${timeParts[1].padStart(2, '0')}`
+        }
+      } catch (e) {
+        console.error('Error parsing time:', e)
+      }
+    }
+    setRescheduleData({
+      scheduled_date: dateStr,
+      scheduled_time: timeStr
+    })
+    setShowRescheduleDialog(true)
+  }
+
+  const handleRescheduleInterview = async () => {
+    if (!selectedInterview) return
+    
+    if (!rescheduleData.scheduled_date || !rescheduleData.scheduled_time) {
+      toast({
+        title: "Validation Error",
+        description: "Please select both date and time for rescheduling.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsChangingStatus(true)
+    try {
+      await apiRequest<any>(getApiUrl(`interviews/${selectedInterview.id}`), {
+        method: 'PATCH',
+        body: JSON.stringify({
+          interview: {
+            scheduled_date: rescheduleData.scheduled_date,
+            scheduled_time: rescheduleData.scheduled_time,
+            status: "scheduled"
+          }
+        }),
+      })
+
+      // Refresh interviews
+      await fetchInterviews()
+
+      toast({
+        title: "Interview Rescheduled",
+        description: "Interview has been rescheduled successfully.",
+      })
+      
+      // Close dialog
+      setShowRescheduleDialog(false)
+      setRescheduleData({ scheduled_date: "", scheduled_time: "" })
+      setSelectedInterview(null)
+    } catch (error: any) {
+      console.error('Error rescheduling interview:', error)
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to reschedule interview. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsChangingStatus(false)
+    }
+  }
+
   return (
     <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6">
       {/* Header */}
@@ -313,9 +397,13 @@ export default function ScheduledInterviewsPage() {
           <div>
             <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 flex items-center gap-2">
               <Calendar className="w-6 h-6" />
-              Scheduled Interviews
+              {isMissedInterviews ? "Missed Interviews" : "Scheduled Interviews"}
             </h1>
-            <p className="text-gray-600 mt-1">Interviews assigned to you that are scheduled</p>
+            <p className="text-gray-600 mt-1">
+              {isMissedInterviews 
+                ? "Interviews assigned to you that have passed their scheduled date" 
+                : "Interviews assigned to you that are scheduled"}
+            </p>
           </div>
         </div>
         <Button
@@ -331,8 +419,12 @@ export default function ScheduledInterviewsPage() {
       {/* Main Content */}
       <Card>
         <CardHeader>
-          <CardTitle>Interviews</CardTitle>
-          <CardDescription>Manage your scheduled interviews</CardDescription>
+          <CardTitle>{isMissedInterviews ? "Missed Interviews" : "Interviews"}</CardTitle>
+          <CardDescription>
+            {isMissedInterviews 
+              ? "Manage your missed interviews" 
+              : "Manage your scheduled interviews"}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -356,7 +448,7 @@ export default function ScheduledInterviewsPage() {
             ) : filteredInterviews.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
                 <Calendar className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                <p>No scheduled interviews found.</p>
+                <p>{isMissedInterviews ? "No missed interviews found." : "No scheduled interviews found."}</p>
               </div>
             ) : (
               <div className="rounded-md border overflow-hidden">
@@ -427,6 +519,12 @@ export default function ScheduledInterviewsPage() {
                               <DropdownMenuLabel>Actions</DropdownMenuLabel>
                               {interview.status === "scheduled" && (
                                 <>
+                                  {interview.is_overdue && (
+                                    <DropdownMenuItem onClick={() => handleOpenRescheduleDialog(interview)}>
+                                      <CalendarClock className="w-4 h-4 mr-2" />
+                                      Reschedule
+                                    </DropdownMenuItem>
+                                  )}
                                   <DropdownMenuItem onClick={() => handleOpenCompleteDialog(interview)}>
                                     <CheckCircle className="w-4 h-4 mr-2" />
                                     Mark Complete
@@ -674,6 +772,77 @@ export default function ScheduledInterviewsPage() {
                   disabled={isChangingStatus}
                 >
                   {isChangingStatus ? "Updating..." : "Mark No Show"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Reschedule Interview Dialog */}
+      <Dialog open={showRescheduleDialog} onOpenChange={setShowRescheduleDialog}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CalendarClock className="w-5 h-5" />
+              Reschedule Interview
+            </DialogTitle>
+            <DialogDescription>
+              Update the scheduled date and time for this interview
+            </DialogDescription>
+          </DialogHeader>
+          {selectedInterview && (
+            <div className="space-y-4 py-4">
+              <div className="p-3 bg-gray-50 rounded-lg">
+                <p className="text-sm text-gray-600 mb-1">Current Interview Details</p>
+                <p className="font-medium">{getInterviewTypeLabel(selectedInterview.interview_type)} Interview</p>
+                <p className="text-sm text-gray-600">
+                  {formatDateTime(selectedInterview.scheduled_date, selectedInterview.scheduled_time)}
+                </p>
+                <p className="text-sm text-gray-600">Candidate: {selectedInterview.candidate_name}</p>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="reschedule-date">New Date *</Label>
+                  <Input
+                    id="reschedule-date"
+                    type="date"
+                    value={rescheduleData.scheduled_date}
+                    onChange={(e) => setRescheduleData({ ...rescheduleData, scheduled_date: e.target.value })}
+                    min={new Date().toISOString().split('T')[0]}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="reschedule-time">New Time *</Label>
+                  <Input
+                    id="reschedule-time"
+                    type="time"
+                    value={rescheduleData.scheduled_time}
+                    onChange={(e) => setRescheduleData({ ...rescheduleData, scheduled_time: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4 border-t">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowRescheduleDialog(false)
+                    setRescheduleData({ scheduled_date: "", scheduled_time: "" })
+                    setSelectedInterview(null)
+                  }}
+                  disabled={isChangingStatus}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleRescheduleInterview}
+                  disabled={isChangingStatus || !rescheduleData.scheduled_date || !rescheduleData.scheduled_time}
+                >
+                  {isChangingStatus ? "Rescheduling..." : "Reschedule Interview"}
                 </Button>
               </div>
             </div>

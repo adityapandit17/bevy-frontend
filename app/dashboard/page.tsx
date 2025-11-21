@@ -1344,13 +1344,15 @@ export default function Dashboard() {
                   <div 
                     key={task.id} 
                     className={`flex items-center justify-between p-3 rounded-lg border hover:bg-gray-50 ${
-                      task.title === "Review Leave Applications" || task.title === "Interview Scheduled" ? "cursor-pointer" : ""
+                      task.title === "Review Leave Applications" || task.title === "Interview Scheduled" || task.title === "Missed Interviews" ? "cursor-pointer" : ""
                     }`}
                     onClick={() => {
                       if (task.title === "Review Leave Applications") {
                         router.push('/review-leave-applications')
                       } else if (task.title === "Interview Scheduled") {
                         router.push('/scheduled-interviews')
+                      } else if (task.title === "Missed Interviews") {
+                        router.push('/scheduled-interviews?missed=true')
                       }
                     }}
                   >
@@ -1381,6 +1383,8 @@ export default function Dashboard() {
                           router.push('/review-leave-applications')
                         } else if (task.title === "Interview Scheduled") {
                           router.push('/scheduled-interviews')
+                        } else if (task.title === "Missed Interviews") {
+                          router.push('/scheduled-interviews?missed=true')
                         }
                       }}
                     >
