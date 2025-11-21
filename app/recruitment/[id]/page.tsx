@@ -1,6 +1,6 @@
 "use client"
 import { useEffect, useState } from "react"
-import { getApiUrl, getEndpointUrl } from "@/lib/api"
+import { getApiUrl, getEndpointUrl, apiRequest } from "@/lib/api"
 import { useRouter, useParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -17,39 +17,100 @@ export default function JobShowPage() {
   const [job, setJob] = useState(null)
   const [status, setStatus] = useState("")
   const [candidates, setCandidates] = useState([])
-  const [newCandidate, setNewCandidate] = useState({ name: "", email: "" })
+  const [newCandidate, setNewCandidate] = useState({ name: "", email: "", phone: "" })
+  const [isLoadingCandidates, setIsLoadingCandidates] = useState(false)
+  const [isAddingCandidate, setIsAddingCandidate] = useState(false)
 
   useEffect(() => {
     fetchJob()
-    // fetchCandidates() // Uncomment if backend for candidates exists
   }, [jobId])
+
+  useEffect(() => {
+    if (job) {
+      fetchCandidates()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [job])
 
   const fetchJob = async () => {
     try {
-      const res = await fetch(getApiUrl(`job_openings/${jobId}`))
-      const data = await res.json()
+      const data = await apiRequest(getApiUrl(`job_openings/${jobId}`))
       setJob(data)
       setStatus(data.status)
     } catch (err) {
-      // handle error
+      console.error("Error fetching job:", err)
+    }
+  }
+
+  const fetchCandidates = async () => {
+    if (!job) return
+    
+    setIsLoadingCandidates(true)
+    try {
+      // Fetch candidates that match this job opening by position and department
+      const url = `${getEndpointUrl('CANDIDATES')}?search=${encodeURIComponent(job.title)}&department=${encodeURIComponent(job.department_name || '')}`
+      const data = await apiRequest(url)
+      
+      // Filter candidates that match the job position (title) and department
+      const matchingCandidates = data.filter(candidate => 
+        candidate.position === job.title && candidate.department === job.department_name
+      )
+      setCandidates(matchingCandidates)
+    } catch (err) {
+      console.error("Error fetching candidates:", err)
+      setCandidates([])
+    } finally {
+      setIsLoadingCandidates(false)
     }
   }
 
   const handleStatusChange = async (value) => {
     setStatus(value)
-    await fetch(getApiUrl(`job_openings/${jobId}`), {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json", "Accept": "application/json" },
-      body: JSON.stringify({ job_opening: { status: value } })
-    })
-    fetchJob()
+    try {
+      await apiRequest(getApiUrl(`job_openings/${jobId}`), {
+        method: "PATCH",
+        body: JSON.stringify({ job_opening: { status: value } })
+      })
+      fetchJob()
+    } catch (err) {
+      console.error("Error updating job status:", err)
+    }
   }
 
-  const handleAddCandidate = (e) => {
+  const handleAddCandidate = async (e) => {
     e.preventDefault()
-    // Stub: Add candidate to backend if available
-    setCandidates([...candidates, { ...newCandidate }])
-    setNewCandidate({ name: "", email: "" })
+    
+    if (!job) return
+    
+    setIsAddingCandidate(true)
+    try {
+      const candidateData = {
+        name: newCandidate.name,
+        email: newCandidate.email,
+        phone: newCandidate.phone,
+        position: job.title, // Link to job opening via position
+        department: job.department_name, // Link to job opening via department
+        status: "applied",
+        applied_date: new Date().toISOString().split('T')[0], // Current date in YYYY-MM-DD format
+        skills: job.skills || "",
+        experience: job.experience || ""
+      }
+
+      const savedCandidate = await apiRequest(getEndpointUrl('CANDIDATES'), {
+        method: 'POST',
+        body: JSON.stringify({ candidate: candidateData }),
+      })
+
+      // Refresh candidates list
+      await fetchCandidates()
+      
+      // Clear form
+      setNewCandidate({ name: "", email: "", phone: "" })
+    } catch (err) {
+      console.error("Error adding candidate:", err)
+    } finally {
+      setIsAddingCandidate(false)
+    }
   }
 
   if (!job) return <div className="p-8">Loading...</div>
@@ -131,31 +192,52 @@ export default function JobShowPage() {
               <CardTitle className="flex items-center gap-2"><Users className="w-5 h-5 text-primary" />Candidates</CardTitle>
             </CardHeader>
             <CardContent>
-              <form className="flex gap-2 mb-4" onSubmit={handleAddCandidate}>
-                <Input
-                  placeholder="Candidate Name"
-                  value={newCandidate.name}
-                  onChange={e => setNewCandidate({ ...newCandidate, name: e.target.value })}
-                  required
-                />
-                <Input
-                  placeholder="Email"
-                  value={newCandidate.email}
-                  onChange={e => setNewCandidate({ ...newCandidate, email: e.target.value })}
-                  required
-                />
-                <Button type="submit">Add</Button>
+              <form className="space-y-2 mb-4" onSubmit={handleAddCandidate}>
+                <div className="flex flex-col gap-2">
+                  <Input
+                    placeholder="Candidate Name"
+                    value={newCandidate.name}
+                    onChange={e => setNewCandidate({ ...newCandidate, name: e.target.value })}
+                    required
+                  />
+                  <Input
+                    type="email"
+                    placeholder="Email"
+                    value={newCandidate.email}
+                    onChange={e => setNewCandidate({ ...newCandidate, email: e.target.value })}
+                    required
+                  />
+                  <Input
+                    type="tel"
+                    placeholder="Phone"
+                    value={newCandidate.phone}
+                    onChange={e => setNewCandidate({ ...newCandidate, phone: e.target.value })}
+                    required
+                  />
+                </div>
+                <Button type="submit" disabled={isAddingCandidate} className="w-full">
+                  {isAddingCandidate ? "Adding..." : "Add"}
+                </Button>
               </form>
-              <ul className="space-y-2">
-                {candidates.map((c, i) => (
-                  <li key={i} className="flex gap-2 items-center">
-                    <Users className="w-4 h-4 text-muted-foreground" />
-                    <span className="font-medium">{c.name}</span>
-                    <span className="text-gray-500">{c.email}</span>
-                  </li>
-                ))}
-                {candidates.length === 0 && <li className="text-gray-500">No candidates yet.</li>}
-              </ul>
+              {isLoadingCandidates ? (
+                <div className="text-center text-gray-500 py-4">Loading candidates...</div>
+              ) : (
+                <ul className="space-y-2">
+                  {candidates.map((c) => (
+                    <li key={c.id} className="flex flex-col gap-1 p-2 border rounded-md">
+                      <div className="flex items-center gap-2">
+                        <Users className="w-4 h-4 text-muted-foreground" />
+                        <span className="font-medium">{c.name}</span>
+                      </div>
+                      <div className="text-sm text-gray-500 ml-6">{c.email}</div>
+                      {c.phone && (
+                        <div className="text-sm text-gray-500 ml-6">{c.phone}</div>
+                      )}
+                    </li>
+                  ))}
+                  {candidates.length === 0 && <li className="text-gray-500 text-center py-4">No candidates yet.</li>}
+                </ul>
+              )}
             </CardContent>
           </Card>
         </div>
