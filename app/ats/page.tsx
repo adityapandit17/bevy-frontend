@@ -145,6 +145,16 @@ export default function ATSPage() {
   const [showInterviewDetails, setShowInterviewDetails] = useState(false)
   const [showEditInterview, setShowEditInterview] = useState(false)
   const [isSendingReminder, setIsSendingReminder] = useState(false)
+  const [showCompleteInterviewDialog, setShowCompleteInterviewDialog] = useState(false)
+  const [showCancelInterviewDialog, setShowCancelInterviewDialog] = useState(false)
+  const [showNoShowDialog, setShowNoShowDialog] = useState(false)
+  const [completeInterviewData, setCompleteInterviewData] = useState({
+    feedback: "",
+    rating: ""
+  })
+  const [cancelInterviewNotes, setCancelInterviewNotes] = useState("")
+  const [noShowNotes, setNoShowNotes] = useState("")
+  const [isChangingStatus, setIsChangingStatus] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
   const [filterStatus, setFilterStatus] = useState<string>("all")
   const [filterDepartment, setFilterDepartment] = useState<string>("all")
@@ -532,6 +542,108 @@ HR Team`
     } finally {
       setIsSendingReminder(false)
     }
+  }
+
+  const handleChangeInterviewStatus = async (interview: Interview, newStatus: string, additionalData?: { feedback?: string; rating?: number; notes?: string }) => {
+    setIsChangingStatus(true)
+    try {
+      let url = ""
+      let body: any = {}
+
+      switch (newStatus) {
+        case "completed":
+          url = getApiUrl(`interviews/${interview.id}/complete`)
+          body = {
+            feedback: additionalData?.feedback || "",
+            rating: additionalData?.rating ? parseInt(String(additionalData.rating)) : null
+          }
+          break
+        case "cancelled":
+          url = getApiUrl(`interviews/${interview.id}/cancel`)
+          body = {
+            notes: additionalData?.notes || ""
+          }
+          break
+        case "no_show":
+          url = getApiUrl(`interviews/${interview.id}/no_show`)
+          body = {
+            notes: additionalData?.notes || ""
+          }
+          break
+        case "scheduled":
+          // Use general update endpoint
+          url = getApiUrl(`interviews/${interview.id}`)
+          body = {
+            interview: {
+              status: "scheduled"
+            }
+          }
+          break
+        default:
+          throw new Error("Invalid status")
+      }
+
+      const updatedInterview = await apiRequest<any>(url, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      })
+
+      // Refresh interviews and candidates
+      await fetchInterviews()
+      await fetchCandidates()
+      
+      // Update selected candidate's interviews
+      if (selectedCandidate) {
+        try {
+          const updatedCandidate = await apiRequest<any>(getApiUrl(`candidates/${selectedCandidate.id}`))
+          setSelectedCandidate(updatedCandidate)
+          saveSelectedCandidate(updatedCandidate)
+        } catch (error) {
+          console.error('Error refreshing selected candidate:', error)
+        }
+      }
+
+      // Update selected interview if it's the one being changed
+      if (selectedInterview && selectedInterview.id === interview.id) {
+        setSelectedInterview(updatedInterview)
+      }
+
+      alert(`Interview status updated to ${newStatus.charAt(0).toUpperCase() + newStatus.slice(1)}`)
+      
+      // Close dialogs
+      setShowCompleteInterviewDialog(false)
+      setShowCancelInterviewDialog(false)
+      setShowNoShowDialog(false)
+      setCompleteInterviewData({ feedback: "", rating: "" })
+      setCancelInterviewNotes("")
+      setNoShowNotes("")
+    } catch (error: any) {
+      console.error('Error changing interview status:', error)
+      alert(`Failed to update status: ${error?.message || 'Please try again.'}`)
+    } finally {
+      setIsChangingStatus(false)
+    }
+  }
+
+  const handleOpenCompleteDialog = (interview: Interview) => {
+    setSelectedInterview(interview)
+    setCompleteInterviewData({
+      feedback: interview.feedback || "",
+      rating: interview.rating ? String(interview.rating) : ""
+    })
+    setShowCompleteInterviewDialog(true)
+  }
+
+  const handleOpenCancelDialog = (interview: Interview) => {
+    setSelectedInterview(interview)
+    setCancelInterviewNotes(interview.notes || "")
+    setShowCancelInterviewDialog(true)
+  }
+
+  const handleOpenNoShowDialog = (interview: Interview) => {
+    setSelectedInterview(interview)
+    setNoShowNotes(interview.notes || "")
+    setShowNoShowDialog(true)
   }
 
   return (
@@ -991,6 +1103,23 @@ HR Team`
                                   <MessageSquare className="w-4 h-4 mr-2" />
                                   {isSendingReminder ? "Sending..." : "Send Reminder"}
                                 </DropdownMenuItem>
+                                {interview.status === "scheduled" && (
+                                  <>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem onClick={() => handleOpenCompleteDialog(interview)}>
+                                      <CheckCircle className="w-4 h-4 mr-2" />
+                                      Mark Complete
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleOpenCancelDialog(interview)}>
+                                      <XCircle className="w-4 h-4 mr-2" />
+                                      Cancel Interview
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleOpenNoShowDialog(interview)}>
+                                      <AlertCircle className="w-4 h-4 mr-2" />
+                                      Mark No Show
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem 
                                   onClick={() => handleEditInterview(interview)}
@@ -1246,6 +1375,30 @@ HR Team`
                     {selectedInterview.interview_type.charAt(0).toUpperCase() + selectedInterview.interview_type.slice(1)} Interview
                   </span>
                 </div>
+                <Select 
+                  value={selectedInterview.status} 
+                  onValueChange={(value) => {
+                    if (value === "completed") {
+                      handleOpenCompleteDialog(selectedInterview)
+                    } else if (value === "cancelled") {
+                      handleOpenCancelDialog(selectedInterview)
+                    } else if (value === "no_show") {
+                      handleOpenNoShowDialog(selectedInterview)
+                    } else {
+                      handleChangeInterviewStatus(selectedInterview, value)
+                    }
+                  }}
+                >
+                  <SelectTrigger className="w-40">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="scheduled">Scheduled</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                    <SelectItem value="no_show">No Show</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               {/* Candidate Information */}
@@ -1340,7 +1493,41 @@ HR Team`
               )}
 
               {/* Actions */}
-              <div className="flex justify-end gap-2 pt-4 border-t">
+              <div className="flex flex-wrap justify-end gap-2 pt-4 border-t">
+                {selectedInterview.status === "scheduled" && (
+                  <>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setShowInterviewDetails(false)
+                        handleOpenCompleteDialog(selectedInterview)
+                      }}
+                    >
+                      <CheckCircle className="w-4 h-4 mr-2" />
+                      Mark Complete
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setShowInterviewDetails(false)
+                        handleOpenCancelDialog(selectedInterview)
+                      }}
+                    >
+                      <XCircle className="w-4 h-4 mr-2" />
+                      Cancel
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setShowInterviewDetails(false)
+                        handleOpenNoShowDialog(selectedInterview)
+                      }}
+                    >
+                      <AlertCircle className="w-4 h-4 mr-2" />
+                      Mark No Show
+                    </Button>
+                  </>
+                )}
                 <Button
                   variant="outline"
                   onClick={() => {
@@ -1452,6 +1639,212 @@ HR Team`
         documentName={previewState.documentName}
         documentType={previewState.documentType}
       />
+
+      {/* Complete Interview Dialog */}
+      <Dialog open={showCompleteInterviewDialog} onOpenChange={setShowCompleteInterviewDialog}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle className="w-5 h-5" />
+              Complete Interview
+            </DialogTitle>
+            <DialogDescription>
+              Mark this interview as completed and provide feedback
+            </DialogDescription>
+          </DialogHeader>
+          {selectedInterview && (
+            <div className="space-y-4 py-4">
+              <div className="p-3 bg-gray-50 rounded-lg">
+                <p className="text-sm text-gray-600 mb-1">Interview Details</p>
+                <p className="font-medium">{selectedInterview.interview_type.charAt(0).toUpperCase() + selectedInterview.interview_type.slice(1)} Interview</p>
+                <p className="text-sm text-gray-600">
+                  {new Date(selectedInterview.scheduled_date).toLocaleDateString()} at {selectedInterview.scheduled_time}
+                </p>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="rating">Rating *</Label>
+                <Select 
+                  value={completeInterviewData.rating} 
+                  onValueChange={(value) => setCompleteInterviewData({ ...completeInterviewData, rating: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select rating" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">1 - Poor</SelectItem>
+                    <SelectItem value="2">2 - Below Average</SelectItem>
+                    <SelectItem value="3">3 - Average</SelectItem>
+                    <SelectItem value="4">4 - Good</SelectItem>
+                    <SelectItem value="5">5 - Excellent</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="feedback">Feedback</Label>
+                <Textarea
+                  id="feedback"
+                  placeholder="Enter feedback about the interview..."
+                  value={completeInterviewData.feedback}
+                  onChange={(e) => setCompleteInterviewData({ ...completeInterviewData, feedback: e.target.value })}
+                  rows={5}
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4 border-t">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowCompleteInterviewDialog(false)
+                    setCompleteInterviewData({ feedback: "", rating: "" })
+                  }}
+                  disabled={isChangingStatus}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => {
+                    if (!completeInterviewData.rating) {
+                      alert("Please select a rating")
+                      return
+                    }
+                    handleChangeInterviewStatus(selectedInterview, "completed", {
+                      feedback: completeInterviewData.feedback,
+                      rating: parseInt(completeInterviewData.rating)
+                    })
+                  }}
+                  disabled={isChangingStatus || !completeInterviewData.rating}
+                >
+                  {isChangingStatus ? "Completing..." : "Mark Complete"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Cancel Interview Dialog */}
+      <Dialog open={showCancelInterviewDialog} onOpenChange={setShowCancelInterviewDialog}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <XCircle className="w-5 h-5" />
+              Cancel Interview
+            </DialogTitle>
+            <DialogDescription>
+              Cancel this interview and optionally add notes
+            </DialogDescription>
+          </DialogHeader>
+          {selectedInterview && (
+            <div className="space-y-4 py-4">
+              <div className="p-3 bg-gray-50 rounded-lg">
+                <p className="text-sm text-gray-600 mb-1">Interview Details</p>
+                <p className="font-medium">{selectedInterview.interview_type.charAt(0).toUpperCase() + selectedInterview.interview_type.slice(1)} Interview</p>
+                <p className="text-sm text-gray-600">
+                  {new Date(selectedInterview.scheduled_date).toLocaleDateString()} at {selectedInterview.scheduled_time}
+                </p>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="cancel-notes">Notes (Optional)</Label>
+                <Textarea
+                  id="cancel-notes"
+                  placeholder="Enter reason for cancellation..."
+                  value={cancelInterviewNotes}
+                  onChange={(e) => setCancelInterviewNotes(e.target.value)}
+                  rows={4}
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4 border-t">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowCancelInterviewDialog(false)
+                    setCancelInterviewNotes("")
+                  }}
+                  disabled={isChangingStatus}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => {
+                    handleChangeInterviewStatus(selectedInterview, "cancelled", {
+                      notes: cancelInterviewNotes
+                    })
+                  }}
+                  disabled={isChangingStatus}
+                >
+                  {isChangingStatus ? "Cancelling..." : "Cancel Interview"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* No Show Dialog */}
+      <Dialog open={showNoShowDialog} onOpenChange={setShowNoShowDialog}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertCircle className="w-5 h-5" />
+              Mark No Show
+            </DialogTitle>
+            <DialogDescription>
+              Mark this interview as no show and optionally add notes
+            </DialogDescription>
+          </DialogHeader>
+          {selectedInterview && (
+            <div className="space-y-4 py-4">
+              <div className="p-3 bg-gray-50 rounded-lg">
+                <p className="text-sm text-gray-600 mb-1">Interview Details</p>
+                <p className="font-medium">{selectedInterview.interview_type.charAt(0).toUpperCase() + selectedInterview.interview_type.slice(1)} Interview</p>
+                <p className="text-sm text-gray-600">
+                  {new Date(selectedInterview.scheduled_date).toLocaleDateString()} at {selectedInterview.scheduled_time}
+                </p>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="no-show-notes">Notes (Optional)</Label>
+                <Textarea
+                  id="no-show-notes"
+                  placeholder="Enter any notes about the no show..."
+                  value={noShowNotes}
+                  onChange={(e) => setNoShowNotes(e.target.value)}
+                  rows={4}
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4 border-t">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowNoShowDialog(false)
+                    setNoShowNotes("")
+                  }}
+                  disabled={isChangingStatus}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => {
+                    handleChangeInterviewStatus(selectedInterview, "no_show", {
+                      notes: noShowNotes
+                    })
+                  }}
+                  disabled={isChangingStatus}
+                >
+                  {isChangingStatus ? "Updating..." : "Mark No Show"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 } 
