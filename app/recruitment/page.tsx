@@ -521,7 +521,7 @@ export default function RecruitmentPage() {
                             <DropdownMenuContent align="end">
                               <DropdownMenuLabel>Actions</DropdownMenuLabel>
                               <DropdownMenuItem onClick={() => handleEditJob(job)}>Edit Job</DropdownMenuItem>
-                              <DropdownMenuItem>View Applications</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => router.push(`/recruitment/${job.id}`)}>View Applications</DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
                                 className={job.status === "closed" ? "text-green-600" : "text-red-600"}
