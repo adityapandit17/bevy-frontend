@@ -927,16 +927,6 @@ export default function Dashboard() {
           <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Dashboard</h1>
           <p className="text-gray-600">Welcome back! Here's what's happening at your company.</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm">
-            <FileText className="w-4 h-4 mr-2" />
-            Generate Report
-          </Button>
-          <Button size="sm">
-            <Plus className="w-4 h-4 mr-2" />
-            Quick Action
-          </Button>
-        </div>
       </div>
 
       {/* Stats Cards */}
