@@ -83,10 +83,8 @@ export function ReviewLeaveApplicationsModal({
   const fetchLeaveRequests = async () => {
     setLoading(true)
     try {
-      const params = new URLSearchParams()
-      params.append('manager_pending', 'true')
-      params.append('status', 'pending')
-      const url = `${getEndpointUrl('LEAVE_REQUESTS')}?${params.toString()}`
+      // Use optimized endpoint that fetches from pending_tasks
+      const url = `${getEndpointUrl('LEAVE_REQUESTS')}/pending_from_tasks`
       
       const res = await apiRequest<any[]>(url)
       const mappedRequests = Array.isArray(res) ? res.map((item) => {

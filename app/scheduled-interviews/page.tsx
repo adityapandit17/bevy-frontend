@@ -113,24 +113,12 @@ export default function ScheduledInterviewsPage() {
     
     setLoading(true)
     try {
-      // Get employee name to filter interviews (cache it)
-      let name = employeeName
-      if (!name) {
-        const employeeResponse = await apiRequest<any>(getApiUrl(`employees/${user.employee_id}`))
-        name = employeeResponse.name || `${employeeResponse.first_name} ${employeeResponse.last_name}`
-        setEmployeeName(name)
-      }
-      
-      // Fetch interviews assigned to this employee
+      // Use optimized endpoint that fetches from pending_tasks
       const params = new URLSearchParams()
-      params.append('interviewer', name)
-      params.append('status', 'scheduled')
       if (isMissedInterviews) {
-        params.append('past', 'true')
-      } else {
-        params.append('upcoming', 'true')
+        params.append('missed', 'true')
       }
-      const url = `${getEndpointUrl('INTERVIEWS')}?${params.toString()}`
+      const url = `${getEndpointUrl('INTERVIEWS')}/pending_from_tasks?${params.toString()}`
       
       const res = await apiRequest<Interview[]>(url)
       const interviewsList = Array.isArray(res) ? res : []

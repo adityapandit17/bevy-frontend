@@ -114,20 +114,8 @@ export function ScheduledInterviewsModal({
     
     setLoading(true)
     try {
-      // Get employee name to filter interviews (cache it)
-      let name = employeeName
-      if (!name) {
-        const employeeResponse = await apiRequest<any>(getApiUrl(`employees/${user.employee_id}`))
-        name = employeeResponse.name || `${employeeResponse.first_name} ${employeeResponse.last_name}`
-        setEmployeeName(name)
-      }
-      
-      // Fetch interviews assigned to this employee
-      const params = new URLSearchParams()
-      params.append('interviewer', name)
-      params.append('status', 'scheduled')
-      params.append('upcoming', 'true')
-      const url = `${getEndpointUrl('INTERVIEWS')}?${params.toString()}`
+      // Use optimized endpoint that fetches from pending_tasks (upcoming interviews only)
+      const url = `${getEndpointUrl('INTERVIEWS')}/pending_from_tasks`
       
       const res = await apiRequest<Interview[]>(url)
       const interviewsList = Array.isArray(res) ? res : []
