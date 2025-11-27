@@ -622,6 +622,18 @@ export default function DocumentsPage() {
     return matchesSearch && matchesCategory
   })
 
+  // Filter employee documents
+  const filteredEmployeeDocuments = employeeDocuments.filter((doc) => {
+    const searchLower = searchTerm.toLowerCase()
+    const matchesSearch = 
+      !searchTerm || 
+      (doc.employee_name?.toLowerCase().includes(searchLower) ||
+       doc.name?.toLowerCase().includes(searchLower) ||
+       doc.document_type?.toLowerCase().includes(searchLower))
+    const matchesStatus = statusFilter === "all" || doc.status === statusFilter
+    return matchesSearch && matchesStatus
+  })
+
 
   // Upload file to server
   const uploadFileToServer = async (file: File): Promise<string> => {
@@ -1183,6 +1195,8 @@ export default function DocumentsPage() {
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                     <Input
                       placeholder="Search documents..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
                       className="pl-10 w-64"
                     />
                   </div>
@@ -1223,14 +1237,14 @@ export default function DocumentsPage() {
                         <p className="text-sm text-gray-500 mt-2">Loading documents...</p>
                       </TableCell>
                     </TableRow>
-                  ) : employeeDocuments.length === 0 ? (
+                  ) : filteredEmployeeDocuments.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={8} className="text-center py-8 text-gray-500">
                         No employee documents found
                       </TableCell>
                     </TableRow>
                   ) : (
-                    employeeDocuments.map((doc) => {
+                    filteredEmployeeDocuments.map((doc) => {
                       const employeeInitials = doc.employee_name 
                         ? doc.employee_name.split(' ').map((n: string) => n[0]).join('').toUpperCase()
                         : 'EE'
