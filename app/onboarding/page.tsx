@@ -1,7 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import React, { useState, useEffect } from "react"
 import { getApiUrl, getEndpointUrl, API_ENDPOINTS, apiRequest } from "@/lib/api"
+import { AUTH_CONFIG } from "@/config/auth.config"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -39,6 +40,8 @@ import {
   Eye,
   Send,
   MessageSquare,
+  X,
+  Loader2,
 } from "lucide-react"
 
 interface OnboardingTask {
@@ -122,6 +125,12 @@ export default function OnboardingPage() {
   })
   const [selectedTask, setSelectedTask] = useState<OnboardingTask | null>(null)
   const [taskDetailsOpen, setTaskDetailsOpen] = useState(false)
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false)
+  const [uploadTask, setUploadTask] = useState<OnboardingTask | null>(null)
+  const [uploadFiles, setUploadFiles] = useState<File[]>([])
+  const [isUploading, setIsUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState<{ [key: string]: number }>({})
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     fetchOnboardingEmployees()
@@ -414,8 +423,163 @@ export default function OnboardingPage() {
   }
 
   const handleUploadDocument = (task: OnboardingTask) => {
-    // TODO: Implement upload document functionality
-    alert(`Upload document for task: ${task.title}`)
+    setUploadTask(task)
+    setUploadDialogOpen(true)
+  }
+
+  const uploadFileToServer = async (file: File): Promise<string> => {
+    const formData = new FormData()
+    formData.append('file', file)
+    
+    // Get authorization token
+    const token = typeof window !== 'undefined' ? localStorage.getItem(AUTH_CONFIG.tokenKey) : null
+    
+    // Prepare headers - don't set Content-Type for FormData (browser will set it with boundary)
+    const headers: HeadersInit = {}
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+    }
+    
+    try {
+      const response = await fetch(getEndpointUrl('UPLOAD'), {
+        method: 'POST',
+        headers,
+        body: formData,
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Upload failed')
+      }
+      
+      const result = await response.json()
+      return result.url || result.path
+    } catch (error) {
+      console.error('File upload error:', error)
+      throw error
+    }
+  }
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+    
+    // Reset input value so the same file can be selected again
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+    
+    if (files.length === 0) return
+
+    const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
+    const maxSize = 5 * 1024 * 1024 // 5MB
+    
+    const validFiles: File[] = []
+    const errors: string[] = []
+
+    files.forEach((file) => {
+      // Validate file type
+      if (!allowedTypes.includes(file.type)) {
+        errors.push(`${file.name}: Invalid file type. Only PDF and Word documents are allowed.`)
+        return
+      }
+      
+      // Validate file size (5MB limit)
+      if (file.size > maxSize) {
+        errors.push(`${file.name}: File size too large. Maximum size is 5MB.`)
+        return
+      }
+      
+      validFiles.push(file)
+    })
+
+    if (errors.length > 0) {
+      alert(errors.join('\n'))
+    }
+
+    if (validFiles.length > 0) {
+      setUploadFiles(prev => [...prev, ...validFiles])
+    }
+  }
+
+  const handleRemoveFile = (index: number) => {
+    setUploadFiles(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const handleConfirmUpload = async () => {
+    if (!uploadTask || uploadFiles.length === 0) return
+
+    setIsUploading(true)
+    setUploadProgress({})
+    
+    try {
+      const uploadedUrls: string[] = []
+      const errors: string[] = []
+
+      // Upload all files
+      for (let i = 0; i < uploadFiles.length; i++) {
+        const file = uploadFiles[i]
+        const fileKey = `${file.name}-${i}`
+        
+        try {
+          setUploadProgress(prev => ({ ...prev, [fileKey]: 0 }))
+          
+          // Upload the file
+          const documentUrl = await uploadFileToServer(file)
+          uploadedUrls.push(documentUrl)
+          
+          setUploadProgress(prev => ({ ...prev, [fileKey]: 100 }))
+        } catch (error: any) {
+          console.error(`Error uploading ${file.name}:`, error)
+          errors.push(`${file.name}: ${error?.message || 'Upload failed'}`)
+          setUploadProgress(prev => ({ ...prev, [fileKey]: -1 })) // -1 indicates error
+        }
+      }
+
+      if (uploadedUrls.length === 0) {
+        alert(`Failed to upload any documents:\n${errors.join('\n')}`)
+        setIsUploading(false)
+        return
+      }
+
+      // Get current documents array
+      const currentDocuments = uploadTask.documents || []
+      const updatedDocuments = [...currentDocuments, ...uploadedUrls]
+      
+      // Update the task with all new documents
+      await apiRequest(getApiUrl(`/onboarding_tasks/${uploadTask.id}`), {
+        method: 'PATCH',
+        body: JSON.stringify({
+          onboarding_task: {
+            documents: updatedDocuments.join(', ')
+          }
+        })
+      })
+      
+      // Refresh the data
+      await fetchOnboardingEmployees()
+      await fetchStats()
+      
+      // Reset state
+      setUploadFiles([])
+      setUploadTask(null)
+      setUploadDialogOpen(false)
+      setUploadProgress({})
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+      
+      const successMsg = uploadedUrls.length === uploadFiles.length
+        ? `Successfully uploaded ${uploadedUrls.length} document(s)!`
+        : `Uploaded ${uploadedUrls.length} of ${uploadFiles.length} document(s).\n\nErrors:\n${errors.join('\n')}`
+      
+      alert(successMsg)
+    } catch (error: any) {
+      console.error('Error uploading documents:', error)
+      alert(`Error uploading documents: ${error?.message || 'Please try again.'}`)
+    } finally {
+      setIsUploading(false)
+      setUploadProgress({})
+    }
   }
 
   const filteredEmployees = Array.isArray(employees) ? employees.filter(emp =>
@@ -1020,6 +1184,200 @@ export default function OnboardingPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setTaskDetailsOpen(false)}>
               Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Upload Document Dialog */}
+      <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
+        <DialogContent className="sm:max-w-[650px] max-h-[85vh] flex flex-col">
+          <DialogHeader className="flex-shrink-0">
+            <DialogTitle className="flex items-center gap-2">
+              <Upload className="w-5 h-5" />
+              Upload Documents
+            </DialogTitle>
+            <DialogDescription>
+              Upload one or more documents for task: <span className="font-medium">{uploadTask?.title}</span>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto min-h-0">
+            <div className="grid gap-4 py-4">
+              <div>
+                <Label htmlFor="documentFile" className="text-sm font-medium mb-3 block">
+                  Select Documents
+                  <span className="text-xs font-normal text-gray-500 ml-1">(Multiple files allowed)</span>
+                </Label>
+                {uploadFiles.length > 0 ? (
+                  <div className="space-y-3">
+                    <div className="max-h-[300px] overflow-y-auto space-y-2 pr-2">
+                      {uploadFiles.map((file, index) => {
+                        const fileKey = `${file.name}-${index}`
+                        const progress = uploadProgress[fileKey]
+                        const hasError = progress === -1
+                        const isUploadingFile = progress !== undefined && progress > 0 && progress < 100
+                        const isUploaded = progress === 100
+                        
+                        // Get file extension for icon color
+                        const fileExt = file.name.split('.').pop()?.toLowerCase()
+                        const isPdf = fileExt === 'pdf'
+                        const isWord = ['doc', 'docx'].includes(fileExt || '')
+                        
+                        return (
+                          <div 
+                            key={fileKey} 
+                            className={`flex items-center gap-3 p-3 border rounded-lg transition-colors ${
+                              hasError 
+                                ? 'bg-red-50 border-red-200' 
+                                : isUploaded 
+                                ? 'bg-green-50 border-green-200'
+                                : isUploadingFile
+                                ? 'bg-blue-50 border-blue-200'
+                                : 'bg-white border-gray-200 hover:border-gray-300'
+                            }`}
+                          >
+                            <div className={`flex-shrink-0 p-2 rounded ${
+                              isPdf ? 'bg-red-100' : isWord ? 'bg-blue-100' : 'bg-gray-100'
+                            }`}>
+                              <FileText className={`w-4 h-4 ${
+                                isPdf ? 'text-red-600' : isWord ? 'text-blue-600' : 'text-gray-600'
+                              }`} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-900 truncate mb-1">
+                                {file.name}
+                              </p>
+                              <div className="flex items-center gap-3">
+                                <span className="text-xs text-gray-500">
+                                  {(file.size / 1024).toFixed(2)} KB
+                                </span>
+                                {isUploadingFile && (
+                                  <div className="flex items-center gap-1.5">
+                                    <Loader2 className="w-3 h-3 text-blue-600 animate-spin" />
+                                    <span className="text-xs text-blue-600">Uploading...</span>
+                                  </div>
+                                )}
+                                {isUploaded && (
+                                  <div className="flex items-center gap-1.5">
+                                    <CheckCircle className="w-3 h-3 text-green-600" />
+                                    <span className="text-xs text-green-600 font-medium">Uploaded</span>
+                                  </div>
+                                )}
+                                {hasError && (
+                                  <div className="flex items-center gap-1.5">
+                                    <AlertCircle className="w-3 h-3 text-red-600" />
+                                    <span className="text-xs text-red-600 font-medium">Failed</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRemoveFile(index)}
+                              disabled={isUploading}
+                              className="flex-shrink-0 h-8 w-8 p-0 hover:bg-red-50 hover:text-red-600"
+                            >
+                              <X className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        )
+                      })}
+                    </div>
+                    <div className="pt-2 border-t">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isUploading}
+                        className="w-full"
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        Add More Files
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div 
+                    className="text-center border-2 border-dashed border-gray-300 rounded-lg p-12 hover:border-blue-400 hover:bg-blue-50/50 transition-all cursor-pointer"
+                    onClick={() => !isUploading && fileInputRef.current?.click()}
+                  >
+                    <div className="flex flex-col items-center">
+                      <div className="p-4 bg-blue-100 rounded-full mb-4">
+                        <Upload className="w-8 h-8 text-blue-600" />
+                      </div>
+                      <p className="text-sm font-medium text-gray-900 mb-1">
+                        Click to upload or drag and drop
+                      </p>
+                      <p className="text-xs text-gray-500 mb-2">
+                        PDF, DOC, DOCX files only
+                      </p>
+                      <p className="text-xs text-gray-400">
+                        Maximum file size: 5MB per file
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          fileInputRef.current?.click()
+                        }}
+                        disabled={isUploading}
+                        className="mt-4"
+                      >
+                        Choose Files
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                {/* File input - always rendered but hidden */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.doc,.docx"
+                  multiple
+                  className="hidden"
+                  onChange={handleFileSelect}
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="border-t pt-4 mt-4">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                if (!isUploading) {
+                  setUploadDialogOpen(false)
+                  setUploadFiles([])
+                  setUploadTask(null)
+                  setUploadProgress({})
+                  if (fileInputRef.current) {
+                    fileInputRef.current.value = ''
+                  }
+                }
+              }}
+              disabled={isUploading}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleConfirmUpload} 
+              disabled={uploadFiles.length === 0 || isUploading}
+              className="min-w-[140px]"
+            >
+              {isUploading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Uploading...
+                </>
+              ) : (
+                <>
+                  <Upload className="w-4 h-4 mr-2" />
+                  Upload {uploadFiles.length} {uploadFiles.length === 1 ? 'file' : 'files'}
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
