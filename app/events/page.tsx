@@ -159,6 +159,15 @@ export default function EventsPage() {
       return
     }
 
+    // Validate that end time is after start time
+    const startTime = new Date(newEvent.start_time)
+    const endTime = new Date(newEvent.end_time)
+    
+    if (endTime <= startTime) {
+      alert("End time must be after start time")
+      return
+    }
+
     setLoading(true)
     try {
       const url = selectedEvent 
@@ -172,8 +181,8 @@ export default function EventsPage() {
         body: JSON.stringify({
           event: {
             ...newEvent,
-            start_time: new Date(newEvent.start_time).toISOString(),
-            end_time: new Date(newEvent.end_time).toISOString()
+            start_time: startTime.toISOString(),
+            end_time: endTime.toISOString()
           }
         })
       })
@@ -184,7 +193,7 @@ export default function EventsPage() {
       fetchEvents()
     } catch (error) {
       console.error('Error saving event:', error)
-      alert("Failed to save event. Please try again.")
+      // Error message is already shown via toast in apiRequest
     } finally {
       setLoading(false)
     }
