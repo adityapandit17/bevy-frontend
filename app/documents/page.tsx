@@ -77,14 +77,42 @@ interface PolicyDocument {
   signedBy?: number
 }
 
+interface EmployeeDocument {
+  id: number
+  employee_id: number
+  employee_name?: string
+  name: string
+  document_type: string
+  upload_date: string
+  expiry_date: string | null
+  status: string
+  file_size: string
+  uploaded_by: string
+  file_path?: string
+}
+
 export default function DocumentsPage() {
   const { checkRole, roles } = useAuth()
   const [searchTerm, setSearchTerm] = useState("")
   const [categoryFilter, setCategoryFilter] = useState("all")
   const [statusFilter, setStatusFilter] = useState("all")
   const [policyDocuments, setPolicyDocuments] = useState<PolicyDocument[]>([])
+  const [employeeDocuments, setEmployeeDocuments] = useState<EmployeeDocument[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isLoadingEmployeeDocs, setIsLoadingEmployeeDocs] = useState(false)
   const [selectedDocument, setSelectedDocument] = useState<PolicyDocument | null>(null)
+  const [selectedEmployeeDoc, setSelectedEmployeeDoc] = useState<EmployeeDocument | null>(null)
+  const [showUploadDialog, setShowUploadDialog] = useState(false)
+  const [uploadFiles, setUploadFiles] = useState<File[]>([])
+  const [isUploading, setIsUploading] = useState(false)
+  const [uploadFormData, setUploadFormData] = useState({
+    employeeId: "",
+    documentType: "id_proof",
+    name: "",
+    expiryDate: "",
+  })
+  const [employees, setEmployees] = useState<any[]>([])
+  const employeeFileInputRef = useRef<HTMLInputElement>(null)
   const [showViewDialog, setShowViewDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
@@ -192,7 +220,20 @@ export default function DocumentsPage() {
   // Fetch policy documents from API
   useEffect(() => {
     fetchPolicyDocuments()
+    fetchEmployeeDocuments()
+    fetchEmployees()
   }, [])
+
+  const fetchEmployees = async () => {
+    try {
+      const data = await apiRequest<any[]>(getApiUrl('employees'))
+      if (data && Array.isArray(data)) {
+        setEmployees(data)
+      }
+    } catch (error) {
+      console.error("Error fetching employees:", error)
+    }
+  }
 
   const fetchPolicyDocuments = async () => {
     try {
@@ -216,6 +257,29 @@ export default function DocumentsPage() {
       })
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const fetchEmployeeDocuments = async () => {
+    try {
+      setIsLoadingEmployeeDocs(true)
+      const url = getApiUrl("employee_documents")
+      console.log("Fetching employee documents from:", url)
+      const data = await apiRequest<EmployeeDocument[]>(url)
+      if (data && Array.isArray(data)) {
+        setEmployeeDocuments(data)
+        console.log("Successfully fetched employee documents:", data.length)
+      } else {
+        console.warn("Employee documents data is not an array:", data)
+        setEmployeeDocuments([])
+      }
+    } catch (error: any) {
+      console.error("Error fetching employee documents:", error)
+      // Error toast is already shown by apiRequest, so we don't need to show another one
+      // Set empty array to prevent UI issues
+      setEmployeeDocuments([])
+    } finally {
+      setIsLoadingEmployeeDocs(false)
     }
   }
 
@@ -559,61 +623,174 @@ export default function DocumentsPage() {
   })
 
 
-  // Sample data for employee documents
-  const employeeDocuments = [
-    {
-      id: 1,
-      employeeName: "Sarah Johnson",
-      documentType: "KYC Documents",
-      title: "Aadhaar Card",
-      uploadDate: "2024-01-15",
-      expiryDate: "2030-01-15",
-      status: "verified",
-      size: "1.2 MB",
-      type: "image",
-      verifiedBy: "HR Team",
-      verificationDate: "2024-01-16"
-    },
-    {
-      id: 2,
-      employeeName: "Michael Chen",
-      documentType: "Medical Certificate",
-      title: "Health Checkup Report",
-      uploadDate: "2024-01-10",
-      expiryDate: "2024-07-10",
-      status: "pending",
-      size: "2.8 MB",
-      type: "pdf",
-      verifiedBy: null,
-      verificationDate: null
-    },
-    {
-      id: 3,
-      employeeName: "Emily Rodriguez",
-      documentType: "KYC Documents",
-      title: "PAN Card",
-      uploadDate: "2024-01-12",
-      expiryDate: "2029-01-12",
-      status: "verified",
-      size: "0.8 MB",
-      type: "image",
-      verifiedBy: "HR Team",
-      verificationDate: "2024-01-13"
-    },
-    {
-      id: 4,
-      employeeName: "David Wilson",
-      documentType: "Medical Certificate",
-      title: "Fitness Certificate",
-      uploadDate: "2024-01-08",
-      expiryDate: "2024-04-08",
-      status: "expiring",
-      size: "1.5 MB",
-      type: "pdf",
-      verifiedBy: "HR Team",
-      verificationDate: "2024-01-09"
+  // Upload file to server
+  const uploadFileToServer = async (file: File): Promise<string> => {
+    const formData = new FormData()
+    formData.append('file', file)
+    
+    const token = localStorage.getItem(AUTH_CONFIG.tokenKey)
+    if (!token) {
+      throw new Error("No authentication token found")
     }
-  ]
+    
+    const headers: HeadersInit = {
+      'Authorization': `Bearer ${token}`
+    }
+    
+    try {
+      const response = await fetch(getApiUrl("uploads"), {
+        method: 'POST',
+        headers,
+        body: formData,
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Upload failed')
+      }
+      
+      const result = await response.json()
+      return result.url || result.path
+    } catch (error) {
+      console.error('File upload error:', error)
+      throw error
+    }
+  }
+
+  // Handle file selection for employee document upload
+  const handleEmployeeFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+    if (files.length === 0) return
+
+    const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'image/jpeg', 'image/png']
+    const maxSize = 5 * 1024 * 1024 // 5MB
+    
+    const validFiles: File[] = []
+    const errors: string[] = []
+
+    files.forEach((file) => {
+      if (!allowedTypes.includes(file.type)) {
+        errors.push(`${file.name}: Invalid file type. Only PDF, Word, and images are allowed.`)
+        return
+      }
+      
+      if (file.size > maxSize) {
+        errors.push(`${file.name}: File size too large. Maximum size is 5MB.`)
+        return
+      }
+      
+      validFiles.push(file)
+    })
+
+    if (errors.length > 0) {
+      toast({
+        title: "Error",
+        description: errors.join('\n'),
+        variant: "destructive",
+      })
+    }
+
+    if (validFiles.length > 0) {
+      setUploadFiles(prev => [...prev, ...validFiles])
+    }
+  }
+
+  const handleRemoveUploadFile = (index: number) => {
+    setUploadFiles(prev => prev.filter((_, i) => i !== index))
+  }
+
+  // Handle upload document for employee
+  const handleUploadDocument = () => {
+    setUploadFormData({
+      employeeId: "",
+      documentType: "id_proof",
+      name: "",
+      expiryDate: "",
+    })
+    setUploadFiles([])
+    setShowUploadDialog(true)
+  }
+
+  const handleConfirmUpload = async () => {
+    if (!uploadFormData.employeeId || !uploadFormData.name || uploadFiles.length === 0) {
+      toast({
+        title: "Error",
+        description: "Please fill in all required fields and select at least one file",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsUploading(true)
+    
+    try {
+      const token = localStorage.getItem(AUTH_CONFIG.tokenKey)
+      if (!token) {
+        throw new Error("No authentication token found")
+      }
+
+      // Upload all files and create documents
+      for (const file of uploadFiles) {
+        const filePath = await uploadFileToServer(file)
+        
+        // Create employee document
+        const response = await fetch(getApiUrl("employee_documents.json"), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "Authorization": `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            employee_document: {
+              employee_id: parseInt(uploadFormData.employeeId),
+              name: uploadFormData.name,
+              document_type: uploadFormData.documentType,
+              upload_date: new Date().toISOString().split('T')[0],
+              expiry_date: uploadFormData.expiryDate || null,
+              status: "pending_review",
+              file_size: file.size.toString(),
+              uploaded_by: "System",
+              file_path: filePath,
+            }
+          }),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: "Request failed" }))
+          throw new Error(errorData.error || errorData.message || "Failed to create employee document")
+        }
+      }
+
+      toast({
+        title: "Success",
+        description: `Successfully uploaded ${uploadFiles.length} document(s)`,
+      })
+
+      setShowUploadDialog(false)
+      setUploadFiles([])
+      setUploadFormData({
+        employeeId: "",
+        documentType: "id_proof",
+        name: "",
+        expiryDate: "",
+      })
+      if (employeeFileInputRef.current) {
+        employeeFileInputRef.current.value = ''
+      }
+      
+      fetchEmployeeDocuments()
+    } catch (error: any) {
+      console.error("Error uploading document:", error)
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to upload document",
+        variant: "destructive",
+      })
+    } finally {
+      setIsUploading(false)
+    }
+  }
 
   // Sample data for digital signatures
   const digitalSignatures = [
@@ -682,6 +859,39 @@ export default function DocumentsPage() {
       status: "pending"
     }
   ]
+
+  // Helper function to parse dates from backend (handles dd/mm/yyyy format)
+  const parseDate = (dateString: string | null | undefined): Date | null => {
+    if (!dateString || dateString === 'N/A' || dateString === 'No expiry') {
+      return null
+    }
+    
+    // Try parsing as ISO8601 first (for employee documents)
+    const isoDate = new Date(dateString)
+    if (!isNaN(isoDate.getTime())) {
+      return isoDate
+    }
+    
+    // Try parsing as dd/mm/yyyy format (for policy documents)
+    const ddmmyyyyMatch = dateString.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+    if (ddmmyyyyMatch) {
+      const [, day, month, year] = ddmmyyyyMatch
+      const parsed = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
+      if (!isNaN(parsed.getTime())) {
+        return parsed
+      }
+    }
+    
+    return null
+  }
+
+  const formatDate = (dateString: string | null | undefined): string => {
+    const date = parseDate(dateString)
+    if (!date) {
+      return dateString === 'No expiry' ? 'No expiry' : 'N/A'
+    }
+    return date.toLocaleDateString()
+  }
 
   const getFileIcon = (type: string) => {
     switch (type) {
@@ -896,8 +1106,8 @@ export default function DocumentsPage() {
                         </TableCell>
                         <TableCell>{doc.category}</TableCell>
                         <TableCell>{doc.version || "N/A"}</TableCell>
-                        <TableCell>{new Date(doc.lastUpdated).toLocaleDateString()}</TableCell>
-                        <TableCell>{doc.expiryDate ? new Date(doc.expiryDate).toLocaleDateString() : "N/A"}</TableCell>
+                        <TableCell>{formatDate(doc.lastUpdated)}</TableCell>
+                        <TableCell>{formatDate(doc.expiryDate)}</TableCell>
                         <TableCell>{getStatusBadge(doc.status)}</TableCell>
                         <TableCell>{doc.downloads || 0}</TableCell>
                         <TableCell>
@@ -969,6 +1179,10 @@ export default function DocumentsPage() {
                   </CardDescription>
                 </div>
                 <div className="flex gap-2">
+                  <Button onClick={handleUploadDocument}>
+                    <Upload className="w-4 h-4 mr-2" />
+                    Upload Document
+                  </Button>
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                     <Input
@@ -983,9 +1197,9 @@ export default function DocumentsPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Status</SelectItem>
-                      <SelectItem value="verified">Verified</SelectItem>
-                      <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="expiring">Expiring</SelectItem>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="pending_review">Pending Review</SelectItem>
+                      <SelectItem value="expired">Expired</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1006,38 +1220,56 @@ export default function DocumentsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {employeeDocuments.map((doc) => (
-                    <TableRow key={doc.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-medium text-sm">
-                            {doc.employeeName.split(' ').map(n => n[0]).join('')}
-                          </div>
-                          <span className="font-medium text-gray-900">{doc.employeeName}</span>
-                        </div>
+                  {isLoadingEmployeeDocs ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center py-8">
+                        <Loader2 className="w-6 h-6 animate-spin mx-auto text-gray-400" />
+                        <p className="text-sm text-gray-500 mt-2">Loading documents...</p>
                       </TableCell>
-                      <TableCell>{doc.documentType}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          {getFileIcon(doc.type)}
-                          <span>{doc.title}</span>
-                        </div>
+                    </TableRow>
+                  ) : employeeDocuments.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center py-8 text-gray-500">
+                        No employee documents found
                       </TableCell>
-                      <TableCell>{new Date(doc.uploadDate).toLocaleDateString()}</TableCell>
-                      <TableCell>{new Date(doc.expiryDate).toLocaleDateString()}</TableCell>
-                      <TableCell>{getStatusBadge(doc.status)}</TableCell>
-                      <TableCell>
-                        {doc.verifiedBy ? (
-                          <div>
-                            <p className="text-sm font-medium">{doc.verifiedBy}</p>
-                            <p className="text-xs text-gray-500">
-                              {doc.verificationDate && new Date(doc.verificationDate).toLocaleDateString()}
-                            </p>
-                          </div>
-                        ) : (
-                          <span className="text-sm text-gray-500">Not verified</span>
-                        )}
-                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    employeeDocuments.map((doc) => {
+                      const employeeInitials = doc.employee_name 
+                        ? doc.employee_name.split(' ').map((n: string) => n[0]).join('').toUpperCase()
+                        : 'EE'
+                      const fileExt = doc.file_path?.split('.').pop()?.toLowerCase() || 'pdf'
+                      const fileType = fileExt === 'pdf' ? 'pdf' : fileExt.match(/jpg|jpeg|png|gif/) ? 'image' : 'doc'
+                      
+                      return (
+                        <TableRow key={doc.id}>
+                          <TableCell>
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-medium text-sm">
+                                {employeeInitials}
+                              </div>
+                              <span className="font-medium text-gray-900">{doc.employee_name || `Employee ${doc.employee_id}`}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>{doc.document_type?.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) || 'N/A'}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              {getFileIcon(fileType)}
+                              <span>{doc.name}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>{formatDate(doc.upload_date)}</TableCell>
+                          <TableCell>{doc.expiry_date ? formatDate(doc.expiry_date) : 'No expiry'}</TableCell>
+                          <TableCell>{getStatusBadge(doc.status)}</TableCell>
+                          <TableCell>
+                            {doc.uploaded_by ? (
+                              <div>
+                                <p className="text-sm font-medium">{doc.uploaded_by}</p>
+                              </div>
+                            ) : (
+                              <span className="text-sm text-gray-500">Not verified</span>
+                            )}
+                          </TableCell>
                       <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -1068,7 +1300,9 @@ export default function DocumentsPage() {
                         </DropdownMenu>
                       </TableCell>
                     </TableRow>
-                  ))}
+                      )
+                    })
+                  )}
                 </TableBody>
               </Table>
             </CardContent>
@@ -1132,7 +1366,7 @@ export default function DocumentsPage() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        {sig.signedDate ? new Date(sig.signedDate).toLocaleDateString() : 'Pending'}
+                        {sig.signedDate ? formatDate(sig.signedDate) : 'Pending'}
                       </TableCell>
                       <TableCell>{getStatusBadge(sig.status)}</TableCell>
                       <TableCell>
@@ -1231,7 +1465,7 @@ export default function DocumentsPage() {
                         </div>
                       </TableCell>
                       <TableCell>{alert.documentType}</TableCell>
-                      <TableCell>{new Date(alert.expiryDate).toLocaleDateString()}</TableCell>
+                      <TableCell>{formatDate(alert.expiryDate)}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <Clock className="w-4 h-4 text-orange-500" />
@@ -1541,6 +1775,153 @@ export default function DocumentsPage() {
                 </>
               ) : (
                 "Save Changes"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Upload Employee Document Dialog */}
+      <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Upload Employee Document</DialogTitle>
+            <DialogDescription>
+              Upload documents for an employee
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="upload-employee">Employee *</Label>
+              <Select
+                value={uploadFormData.employeeId}
+                onValueChange={(value) => setUploadFormData({ ...uploadFormData, employeeId: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select employee" />
+                </SelectTrigger>
+                <SelectContent>
+                  {employees.map((emp) => (
+                    <SelectItem key={emp.id} value={emp.id.toString()}>
+                      {emp.first_name} {emp.last_name} {emp.employee_id ? `(${emp.employee_id})` : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="upload-name">Document Name *</Label>
+              <Input
+                id="upload-name"
+                value={uploadFormData.name}
+                onChange={(e) => setUploadFormData({ ...uploadFormData, name: e.target.value })}
+                placeholder="e.g., Aadhaar Card, PAN Card"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="upload-type">Document Type *</Label>
+              <Select
+                value={uploadFormData.documentType}
+                onValueChange={(value) => setUploadFormData({ ...uploadFormData, documentType: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select document type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="id_proof">ID Proof</SelectItem>
+                  <SelectItem value="contract">Contract</SelectItem>
+                  <SelectItem value="resume">Resume</SelectItem>
+                  <SelectItem value="certificate">Certificate</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="upload-expiry">Expiry Date (Optional)</Label>
+              <Input
+                id="upload-expiry"
+                type="date"
+                value={uploadFormData.expiryDate}
+                onChange={(e) => setUploadFormData({ ...uploadFormData, expiryDate: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="upload-files">Document Files *</Label>
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                {uploadFiles.length > 0 ? (
+                  <div className="space-y-2">
+                    {uploadFiles.map((file, index) => (
+                      <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                        <div className="flex items-center gap-2">
+                          <FileText className="w-4 h-4 text-blue-500" />
+                          <span className="text-sm font-medium">{file.name}</span>
+                          <span className="text-xs text-gray-500">
+                            ({(file.size / 1024 / 1024).toFixed(2)} MB)
+                          </span>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleRemoveUploadFile(index)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div>
+                    <Upload className="w-8 h-8 mx-auto text-gray-400 mb-2" />
+                    <p className="text-sm text-gray-600 mb-2">
+                      Click to upload or drag and drop
+                    </p>
+                    <p className="text-xs text-gray-500 mb-4">
+                      PDF, DOC, DOCX, Images (Max 5MB each)
+                    </p>
+                  </div>
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => employeeFileInputRef.current?.click()}
+                >
+                  Choose Files
+                </Button>
+                <input
+                  ref={employeeFileInputRef}
+                  type="file"
+                  accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                  multiple
+                  className="hidden"
+                  onChange={handleEmployeeFileSelect}
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setShowUploadDialog(false)
+              setUploadFiles([])
+              setUploadFormData({
+                employeeId: "",
+                documentType: "id_proof",
+                name: "",
+                expiryDate: "",
+              })
+            }}>
+              Cancel
+            </Button>
+            <Button onClick={handleConfirmUpload} disabled={isUploading || uploadFiles.length === 0}>
+              {isUploading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Uploading...
+                </>
+              ) : (
+                "Upload Document"
               )}
             </Button>
           </DialogFooter>

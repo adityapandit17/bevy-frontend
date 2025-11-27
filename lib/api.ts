@@ -113,15 +113,30 @@ export const apiRequest = async <T>(
       }
 
       // Try to parse error response
-      let errorMessage = `Request failed with status ${response.status}`;
+      let errorMessage = `Request failed with status ${response.status || 'unknown'}`;
       
       try {
-        const errorText = await response.text();
-        if (errorText) {
-          if (isHTML || errorText.includes('<!DOCTYPE') || errorText.includes('<html')) {
+        // Clone response to read it safely (in case it was already read)
+        let responseClone: Response;
+        try {
+          responseClone = response.clone();
+        } catch {
+          // If cloning fails, try to read the original response
+          responseClone = response;
+        }
+        
+        const errorText = await responseClone.text();
+        
+        if (errorText && errorText.trim() && errorText.trim().length > 0) {
+          const trimmedText = errorText.trim();
+          
+          // Skip if the text is just "Request" or too short to be meaningful
+          if (trimmedText.length < 5 || trimmedText.toLowerCase() === 'request') {
+            errorMessage = `Request failed with status ${response.status}. ${response.statusText || 'No error details available'}`;
+          } else if (isHTML || trimmedText.includes('<!DOCTYPE') || trimmedText.includes('<html')) {
             // If response is HTML (like Rails error pages), extract meaningful message
-            const match = errorText.match(/<h2[^>]*>([^<]+)<\/h2>/i) || 
-                          errorText.match(/<title[^>]*>([^<]+)<\/title>/i);
+            const match = trimmedText.match(/<h2[^>]*>([^<]+)<\/h2>/i) || 
+                          trimmedText.match(/<title[^>]*>([^<]+)<\/title>/i);
             if (match && match[1]) {
               errorMessage = match[1].trim();
             } else {
@@ -129,17 +144,37 @@ export const apiRequest = async <T>(
             }
           } else {
             try {
-              const errorJson = JSON.parse(errorText);
-              errorMessage = errorJson.message || errorJson.error || errorJson.errors?.join(', ') || errorMessage;
+              const errorJson = JSON.parse(trimmedText);
+              const extractedMessage = errorJson.message || errorJson.error || errorJson.errors?.join(', ') || null;
+              if (extractedMessage && extractedMessage.trim().length > 0) {
+                errorMessage = extractedMessage.trim();
+              }
             } catch {
               // Use the text directly (but truncate if too long)
-              errorMessage = errorText.length > 200 ? errorText.substring(0, 200) + '...' : errorText;
+              errorMessage = trimmedText.length > 200 ? trimmedText.substring(0, 200) + '...' : trimmedText;
             }
           }
+        } else {
+          // If response is empty, provide a more descriptive message
+          errorMessage = `Request failed with status ${response.status}. ${response.statusText || 'No error details available'}`;
         }
       } catch (parseError) {
-        // If we can't parse the error, use default message
+        // If we can't parse the error, use default message with status
         console.error('Error parsing response:', parseError);
+        errorMessage = `Request failed with status ${response.status || 'unknown'}. ${response.statusText || 'Unable to parse error response'}`;
+      }
+      
+      // Ensure errorMessage is never empty, too short, or just "Request"
+      const finalErrorMessage = errorMessage.trim();
+      if (!finalErrorMessage || finalErrorMessage.length < 10 || finalErrorMessage.toLowerCase() === 'request') {
+        errorMessage = `Request failed with status ${response.status || 'unknown'}. ${response.statusText || 'Please try again'}`;
+      } else {
+        errorMessage = finalErrorMessage;
+      }
+
+      // Final validation - ensure errorMessage is meaningful
+      if (!errorMessage || errorMessage.trim().length < 10 || errorMessage.toLowerCase().trim() === 'request') {
+        errorMessage = `Request failed with status ${response.status || 'unknown'}. ${response.statusText || 'Please check your connection and try again'}`;
       }
 
       // Show toast notification for errors
