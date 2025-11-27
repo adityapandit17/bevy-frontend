@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { getApiUrl, apiRequest, getEndpointUrl } from "@/lib/api"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -83,6 +83,7 @@ interface Event {
 
 export default function EventsPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { user } = useAuth()
   const [events, setEvents] = useState<Event[]>([])
   const [loading, setLoading] = useState(false)
@@ -104,6 +105,14 @@ export default function EventsPage() {
     attendee_ids: [] as number[]
   })
 
+  // Check for filter query parameter on mount
+  useEffect(() => {
+    const filterParam = searchParams?.get('filter')
+    if (filterParam === 'upcoming') {
+      setFilterStatus('upcoming')
+    }
+  }, [searchParams])
+
   useEffect(() => {
     fetchEvents()
   }, [filterType, filterStatus])
@@ -123,6 +132,9 @@ export default function EventsPage() {
         params.append('past', 'true')
       } else if (filterStatus !== "all") {
         params.append('status', filterStatus)
+      } else {
+        // When "all" is selected, send show_all parameter to prevent default upcoming filter
+        params.append('show_all', 'true')
       }
       
       if (params.toString()) {

@@ -1027,7 +1027,7 @@ export default function Dashboard() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => router.push('/events')}
+                  onClick={() => router.push('/events?filter=upcoming')}
                 >
                   <Plus className="w-4 h-4 mr-2" />
                   Manage
