@@ -947,7 +947,7 @@ export default function DocumentsPage() {
         </div>
         {canEditPolicyDocuments && (
           <div className="flex gap-2">
-            <Button variant="outline">
+            <Button variant="outline" onClick={handleUploadDocument}>
               <Upload className="w-4 h-4 mr-2" />
               Upload Document
             </Button>
@@ -1179,10 +1179,6 @@ export default function DocumentsPage() {
                   </CardDescription>
                 </div>
                 <div className="flex gap-2">
-                  <Button onClick={handleUploadDocument}>
-                    <Upload className="w-4 h-4 mr-2" />
-                    Upload Document
-                  </Button>
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                     <Input
