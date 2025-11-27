@@ -1,13 +1,16 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { 
   DropdownMenu,
   DropdownMenuContent,
@@ -16,6 +19,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { 
   FileText, 
   Upload, 
@@ -39,16 +52,81 @@ import {
   Shield,
   Signature,
   Bell,
-  Archive
+  Archive,
+  Loader2
 } from "lucide-react"
+import { useAuth } from "@/lib/auth/auth.hooks"
+import { apiRequest, getApiUrl, getDocumentUrl } from "@/lib/api"
+import { DocumentPreview } from "@/components/ui/document-preview"
+import { toast } from "@/hooks/use-toast"
+import { AUTH_CONFIG } from "@/config/auth.config"
+
+interface PolicyDocument {
+  id: number
+  title: string
+  category: string
+  version: string
+  lastUpdated: string
+  expiryDate: string
+  status: string
+  downloads: number
+  size: string
+  type: string
+  requiresSignature: boolean
+  filePath?: string
+  signedBy?: number
+}
 
 export default function DocumentsPage() {
+  const { checkRole, roles } = useAuth()
   const [searchTerm, setSearchTerm] = useState("")
   const [categoryFilter, setCategoryFilter] = useState("all")
   const [statusFilter, setStatusFilter] = useState("all")
+  const [policyDocuments, setPolicyDocuments] = useState<PolicyDocument[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [selectedDocument, setSelectedDocument] = useState<PolicyDocument | null>(null)
+  const [showViewDialog, setShowViewDialog] = useState(false)
+  const [showEditDialog, setShowEditDialog] = useState(false)
+  const [showCreateDialog, setShowCreateDialog] = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [isCreating, setIsCreating] = useState(false)
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [editFormData, setEditFormData] = useState({
+    title: "",
+    category: "",
+    version: "",
+    expiryDate: "",
+    status: "active",
+    requiresSignature: false
+  })
+  const [createFormData, setCreateFormData] = useState({
+    title: "",
+    category: "",
+    version: "",
+    expiryDate: "",
+    status: "active",
+    requiresSignature: false
+  })
 
-  // Sample data for policy documents
-  const policyDocuments = [
+  // Check if user is Super Admin or HR Manager (can edit/delete)
+  // Handle both string and object formats for roles
+  const isSuperAdmin = checkRole("Super Admin") || 
+    roles?.some((r: any) => {
+      if (typeof r === 'string') return r === "Super Admin";
+      return r?.name === "Super Admin";
+    })
+  const isHRManager = checkRole("HR Manager") || 
+    roles?.some((r: any) => {
+      if (typeof r === 'string') return r === "HR Manager";
+      return r?.name === "HR Manager";
+    })
+  const canEditPolicyDocuments = isSuperAdmin || isHRManager
+
+  // Sample data for policy documents (fallback) - defined before use
+  const samplePolicyDocuments: PolicyDocument[] = [
     {
       id: 1,
       title: "Employee Handbook 2024",
@@ -61,7 +139,8 @@ export default function DocumentsPage() {
       size: "2.4 MB",
       type: "pdf",
       requiresSignature: true,
-      signedBy: 89
+      signedBy: 89,
+      filePath: "sample-handbook.pdf"
     },
     {
       id: 2,
@@ -75,7 +154,8 @@ export default function DocumentsPage() {
       size: "1.8 MB",
       type: "pdf",
       requiresSignature: true,
-      signedBy: 156
+      signedBy: 156,
+      filePath: "sample-conduct.pdf"
     },
     {
       id: 3,
@@ -89,7 +169,8 @@ export default function DocumentsPage() {
       size: "3.1 MB",
       type: "pdf",
       requiresSignature: true,
-      signedBy: 67
+      signedBy: 67,
+      filePath: "sample-data-protection.pdf"
     },
     {
       id: 4,
@@ -103,9 +184,380 @@ export default function DocumentsPage() {
       size: "1.5 MB",
       type: "pdf",
       requiresSignature: false,
-      signedBy: 0
+      signedBy: 0,
+      filePath: "sample-leave.pdf"
     }
   ]
+
+  // Fetch policy documents from API
+  useEffect(() => {
+    fetchPolicyDocuments()
+  }, [])
+
+  const fetchPolicyDocuments = async () => {
+    try {
+      setIsLoading(true)
+      const data = await apiRequest<PolicyDocument[]>(getApiUrl("policy_documents"))
+      // Use API data if available, otherwise use sample data as fallback
+      if (data && data.length > 0) {
+        setPolicyDocuments(data)
+      } else {
+        // Fallback to sample data if API returns empty
+        setPolicyDocuments(samplePolicyDocuments)
+      }
+    } catch (error) {
+      console.error("Error fetching policy documents:", error)
+      // On error, use sample data as fallback
+      setPolicyDocuments(samplePolicyDocuments)
+      toast({
+        title: "Warning",
+        description: "Using sample data. API connection failed.",
+        variant: "default",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Handle View action
+  const handleView = (doc: PolicyDocument) => {
+    setSelectedDocument(doc)
+    setShowViewDialog(true)
+  }
+
+  // Handle Download action
+  const handleDownload = async (doc: PolicyDocument) => {
+    try {
+      const downloadUrl = getApiUrl(`policy_documents/${doc.id}/download`)
+      
+      // Get token from localStorage
+      const token = localStorage.getItem(AUTH_CONFIG.tokenKey)
+      if (!token) {
+        throw new Error("No authentication token found. Please login again.")
+      }
+      
+      const response = await fetch(downloadUrl, {
+        headers: {
+          "Authorization": `Bearer ${token}`,
+        },
+      })
+
+      if (!response.ok) {
+        // Try to get error message from response
+        let errorMessage = "Download failed"
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.error || errorData.message || errorMessage
+        } catch {
+          // If response is not JSON, use status text
+          errorMessage = response.statusText || errorMessage
+        }
+        throw new Error(errorMessage)
+      }
+
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = url
+      link.download = doc.title
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+
+      toast({
+        title: "Success",
+        description: "Document downloaded successfully",
+      })
+
+      // Refresh documents to update download count
+      fetchPolicyDocuments()
+    } catch (error: any) {
+      console.error("Error downloading document:", error)
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to download document",
+        variant: "destructive",
+      })
+    }
+  }
+
+  // Handle Edit action
+  const handleEdit = (doc: PolicyDocument) => {
+    setSelectedDocument(doc)
+    setEditFormData({
+      title: doc.title,
+      category: doc.category,
+      version: doc.version || "",
+      expiryDate: doc.expiryDate ? doc.expiryDate.split("T")[0] : "",
+      status: doc.status,
+      requiresSignature: doc.requiresSignature || false
+    })
+    setShowEditDialog(true)
+  }
+
+  // Handle Save Edit
+  const handleSaveEdit = async () => {
+    if (!selectedDocument) return
+
+    try {
+      setIsSaving(true)
+      
+      const token = localStorage.getItem(AUTH_CONFIG.tokenKey)
+      if (!token) {
+        throw new Error("No authentication token found. Please login again.")
+      }
+
+      const response = await fetch(getApiUrl(`policy_documents/${selectedDocument.id}.json`), {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          policy_document: {
+            title: editFormData.title,
+            category: editFormData.category,
+            version: editFormData.version,
+            expiry_date: editFormData.expiryDate || null,
+            status: editFormData.status,
+            requires_signature: editFormData.requiresSignature,
+          }
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: "Request failed" }))
+        throw new Error(errorData.error || errorData.message || "Failed to update policy document")
+      }
+
+      await response.json()
+
+      toast({
+        title: "Success",
+        description: "Policy document updated successfully",
+      })
+
+      setShowEditDialog(false)
+      setSelectedDocument(null)
+      fetchPolicyDocuments()
+    } catch (error: any) {
+      console.error("Error updating document:", error)
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to update policy document",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  // Handle Delete action
+  const handleDelete = async () => {
+    if (!selectedDocument) return
+
+    try {
+      setIsDeleting(true)
+      
+      const token = localStorage.getItem(AUTH_CONFIG.tokenKey)
+      if (!token) {
+        throw new Error("No authentication token found. Please login again.")
+      }
+
+      const response = await fetch(getApiUrl(`policy_documents/${selectedDocument.id}.json`), {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: "Request failed" }))
+        throw new Error(errorData.error || errorData.message || "Failed to delete policy document")
+      }
+
+      toast({
+        title: "Success",
+        description: "Policy document deleted successfully",
+      })
+
+      setShowDeleteDialog(false)
+      setSelectedDocument(null)
+      fetchPolicyDocuments()
+    } catch (error: any) {
+      console.error("Error deleting document:", error)
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to delete policy document",
+        variant: "destructive",
+      })
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
+  // Handle Create New Policy
+  const handleCreateNew = () => {
+    setCreateFormData({
+      title: "",
+      category: "",
+      version: "",
+      expiryDate: "",
+      status: "active",
+      requiresSignature: false
+    })
+    setUploadedFile(null)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ""
+    }
+    setShowCreateDialog(true)
+  }
+
+  // Handle File Upload for Create
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      // Validate file type
+      const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
+      if (!allowedTypes.includes(file.type)) {
+        toast({
+          title: "Error",
+          description: "Please upload a PDF or Word document",
+          variant: "destructive",
+        })
+        return
+      }
+
+      // Validate file size (5MB limit)
+      if (file.size > 5 * 1024 * 1024) {
+        toast({
+          title: "Error",
+          description: "File size must be less than 5MB",
+          variant: "destructive",
+        })
+        return
+      }
+
+      setUploadedFile(file)
+    }
+  }
+
+  // Handle Save Create
+  const handleSaveCreate = async () => {
+    if (!uploadedFile) {
+      toast({
+        title: "Error",
+        description: "Please upload a document file",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (!createFormData.title || !createFormData.category) {
+      toast({
+        title: "Error",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      setIsCreating(true)
+
+      // First, upload the file
+      const formData = new FormData()
+      formData.append('file', uploadedFile)
+      
+      const token = localStorage.getItem(AUTH_CONFIG.tokenKey)
+      const uploadResponse = await fetch(getApiUrl("uploads"), {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token || ""}`,
+        },
+        body: formData,
+      })
+
+      if (!uploadResponse.ok) {
+        throw new Error("File upload failed")
+      }
+
+      const uploadData = await uploadResponse.json()
+
+      // Then create the policy document
+      // Convert camelCase to snake_case for backend
+      if (!token) {
+        throw new Error("No authentication token found. Please login again.")
+      }
+
+      const response = await fetch(getApiUrl("policy_documents.json"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          policy_document: {
+            title: createFormData.title,
+            category: createFormData.category,
+            version: createFormData.version,
+            expiry_date: createFormData.expiryDate || null,
+            status: createFormData.status,
+            requires_signature: createFormData.requiresSignature,
+            file_path: uploadData.path || uploadData.url,
+            file_size: uploadData.size || uploadedFile.size,
+          }
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: "Request failed" }))
+        throw new Error(errorData.error || errorData.message || "Failed to create policy document")
+      }
+
+      await response.json()
+
+      toast({
+        title: "Success",
+        description: "Policy document created successfully",
+      })
+
+      setShowCreateDialog(false)
+      setUploadedFile(null)
+      setCreateFormData({
+        title: "",
+        category: "",
+        version: "",
+        expiryDate: "",
+        status: "active",
+        requiresSignature: false
+      })
+      fetchPolicyDocuments()
+    } catch (error: any) {
+      console.error("Error creating document:", error)
+      const errorMessage = error?.message || error?.error || "Failed to create policy document"
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      })
+    } finally {
+      setIsCreating(false)
+    }
+  }
+
+  // Filter policy documents
+  const filteredDocuments = policyDocuments.filter((doc) => {
+    const matchesSearch = doc.title.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesCategory = categoryFilter === "all" || doc.category === categoryFilter
+    return matchesSearch && matchesCategory
+  })
+
 
   // Sample data for employee documents
   const employeeDocuments = [
@@ -283,16 +735,18 @@ export default function DocumentsPage() {
           <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Document Management</h1>
           <p className="text-gray-600">Manage policy documents, employee files, and digital signatures</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline">
-            <Upload className="w-4 h-4 mr-2" />
-            Upload Document
-          </Button>
-          <Button>
-            <Plus className="w-4 h-4 mr-2" />
-            New Policy
-          </Button>
-        </div>
+        {canEditPolicyDocuments && (
+          <div className="flex gap-2">
+            <Button variant="outline">
+              <Upload className="w-4 h-4 mr-2" />
+              Upload Document
+            </Button>
+            <Button onClick={handleCreateNew}>
+              <Plus className="w-4 h-4 mr-2" />
+              New Policy
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Stats Cards */}
@@ -415,64 +869,85 @@ export default function DocumentsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {policyDocuments.map((doc) => (
-                    <TableRow key={doc.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          {getFileIcon(doc.type)}
-                          <div>
-                            <p className="font-medium text-gray-900">{doc.title}</p>
-                            <p className="text-sm text-gray-500">{doc.size}</p>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>{doc.category}</TableCell>
-                      <TableCell>{doc.version}</TableCell>
-                      <TableCell>{new Date(doc.lastUpdated).toLocaleDateString()}</TableCell>
-                      <TableCell>{new Date(doc.expiryDate).toLocaleDateString()}</TableCell>
-                      <TableCell>{getStatusBadge(doc.status)}</TableCell>
-                      <TableCell>{doc.downloads}</TableCell>
-                      <TableCell>
-                        {doc.requiresSignature ? (
-                          <div className="flex items-center gap-2">
-                            <CheckCircle className="w-4 h-4 text-green-500" />
-                            <span className="text-sm">{doc.signedBy}/156</span>
-                          </div>
-                        ) : (
-                          <span className="text-sm text-gray-500">Not required</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm">
-                              <MoreHorizontal className="w-4 h-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                            <DropdownMenuItem>
-                              <Eye className="mr-2 h-4 w-4" />
-                              View
-                            </DropdownMenuItem>
-                            <DropdownMenuItem>
-                              <Download className="mr-2 h-4 w-4" />
-                              Download
-                            </DropdownMenuItem>
-                            <DropdownMenuItem>
-                              <Edit className="mr-2 h-4 w-4" />
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem className="text-red-600">
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                  {isLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={9} className="text-center py-8">
+                        <Loader2 className="w-6 h-6 animate-spin mx-auto text-gray-400" />
+                        <p className="text-sm text-gray-500 mt-2">Loading documents...</p>
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ) : filteredDocuments.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={9} className="text-center py-8 text-gray-500">
+                        No policy documents found
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredDocuments.map((doc) => (
+                      <TableRow key={doc.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            {getFileIcon(doc.type)}
+                            <div>
+                              <p className="font-medium text-gray-900">{doc.title}</p>
+                              <p className="text-sm text-gray-500">{doc.size}</p>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>{doc.category}</TableCell>
+                        <TableCell>{doc.version || "N/A"}</TableCell>
+                        <TableCell>{new Date(doc.lastUpdated).toLocaleDateString()}</TableCell>
+                        <TableCell>{doc.expiryDate ? new Date(doc.expiryDate).toLocaleDateString() : "N/A"}</TableCell>
+                        <TableCell>{getStatusBadge(doc.status)}</TableCell>
+                        <TableCell>{doc.downloads || 0}</TableCell>
+                        <TableCell>
+                          {doc.requiresSignature ? (
+                            <div className="flex items-center gap-2">
+                              <CheckCircle className="w-4 h-4 text-green-500" />
+                              <span className="text-sm">{doc.signedBy || 0}/156</span>
+                            </div>
+                          ) : (
+                            <span className="text-sm text-gray-500">Not required</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm">
+                                <MoreHorizontal className="w-4 h-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                              <DropdownMenuItem onClick={() => handleView(doc)}>
+                                <Eye className="mr-2 h-4 w-4" />
+                                View
+                              </DropdownMenuItem>
+                              {canEditPolicyDocuments && (
+                                <>
+                                  <DropdownMenuItem onClick={() => handleEdit(doc)}>
+                                    <Edit className="mr-2 h-4 w-4" />
+                                    Edit
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem 
+                                    className="text-red-600"
+                                    onClick={() => {
+                                      setSelectedDocument(doc)
+                                      setShowDeleteDialog(true)
+                                    }}
+                                  >
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Delete
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </CardContent>
@@ -805,6 +1280,302 @@ export default function DocumentsPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* View Document Dialog */}
+      {selectedDocument && (
+        <DocumentPreview
+          open={showViewDialog}
+          onOpenChange={setShowViewDialog}
+          documentUrl={selectedDocument.filePath ? getDocumentUrl(selectedDocument.filePath) : ""}
+          documentName={selectedDocument.title}
+          documentType={selectedDocument.type}
+        />
+      )}
+
+      {/* Create New Policy Dialog */}
+      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Create New Policy Document</DialogTitle>
+            <DialogDescription>
+              Upload and create a new policy document
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="create-title">Title *</Label>
+              <Input
+                id="create-title"
+                value={createFormData.title}
+                onChange={(e) => setCreateFormData({ ...createFormData, title: e.target.value })}
+                placeholder="Document title"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="create-category">Category *</Label>
+              <Select
+                value={createFormData.category}
+                onValueChange={(value) => setCreateFormData({ ...createFormData, category: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="HR Policies">HR Policies</SelectItem>
+                  <SelectItem value="Compliance">Compliance</SelectItem>
+                  <SelectItem value="Security">Security</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="create-version">Version</Label>
+                <Input
+                  id="create-version"
+                  value={createFormData.version}
+                  onChange={(e) => setCreateFormData({ ...createFormData, version: e.target.value })}
+                  placeholder="e.g., v1.0"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="create-expiryDate">Expiry Date</Label>
+                <Input
+                  id="create-expiryDate"
+                  type="date"
+                  value={createFormData.expiryDate}
+                  onChange={(e) => setCreateFormData({ ...createFormData, expiryDate: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="create-status">Status</Label>
+              <Select
+                value={createFormData.status}
+                onValueChange={(value) => setCreateFormData({ ...createFormData, status: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="expiring">Expiring Soon</SelectItem>
+                  <SelectItem value="expired">Expired</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="create-requiresSignature"
+                checked={createFormData.requiresSignature}
+                onChange={(e) => setCreateFormData({ ...createFormData, requiresSignature: e.target.checked })}
+                className="rounded border-gray-300"
+              />
+              <Label htmlFor="create-requiresSignature">Requires Signature</Label>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="create-file">Document File *</Label>
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                {uploadedFile ? (
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <FileText className="w-5 h-5 text-blue-500" />
+                      <span className="text-sm font-medium">{uploadedFile.name}</span>
+                      <span className="text-xs text-gray-500">
+                        ({(uploadedFile.size / 1024 / 1024).toFixed(2)} MB)
+                      </span>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setUploadedFile(null)
+                        if (fileInputRef.current) {
+                          fileInputRef.current.value = ""
+                        }
+                      }}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div>
+                    <Upload className="w-8 h-8 mx-auto text-gray-400 mb-2" />
+                    <p className="text-sm text-gray-600 mb-2">
+                      Click to upload or drag and drop
+                    </p>
+                    <p className="text-xs text-gray-500 mb-4">
+                      PDF, DOC, DOCX files only (Max 5MB)
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      Choose File
+                    </Button>
+                  </div>
+                )}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.doc,.docx"
+                  className="hidden"
+                  onChange={handleFileSelect}
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveCreate} disabled={isCreating || !uploadedFile}>
+              {isCreating ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                "Create Policy"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Document Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit Policy Document</DialogTitle>
+            <DialogDescription>
+              Update the policy document details
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="title">Title</Label>
+              <Input
+                id="title"
+                value={editFormData.title}
+                onChange={(e) => setEditFormData({ ...editFormData, title: e.target.value })}
+                placeholder="Document title"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="category">Category</Label>
+              <Select
+                value={editFormData.category}
+                onValueChange={(value) => setEditFormData({ ...editFormData, category: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="HR Policies">HR Policies</SelectItem>
+                  <SelectItem value="Compliance">Compliance</SelectItem>
+                  <SelectItem value="Security">Security</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="version">Version</Label>
+                <Input
+                  id="version"
+                  value={editFormData.version}
+                  onChange={(e) => setEditFormData({ ...editFormData, version: e.target.value })}
+                  placeholder="e.g., v1.0"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="expiryDate">Expiry Date</Label>
+                <Input
+                  id="expiryDate"
+                  type="date"
+                  value={editFormData.expiryDate}
+                  onChange={(e) => setEditFormData({ ...editFormData, expiryDate: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="status">Status</Label>
+              <Select
+                value={editFormData.status}
+                onValueChange={(value) => setEditFormData({ ...editFormData, status: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="expiring">Expiring Soon</SelectItem>
+                  <SelectItem value="expired">Expired</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="requiresSignature"
+                checked={editFormData.requiresSignature}
+                onChange={(e) => setEditFormData({ ...editFormData, requiresSignature: e.target.checked })}
+                className="rounded border-gray-300"
+              />
+              <Label htmlFor="requiresSignature">Requires Signature</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEditDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveEdit} disabled={isSaving}>
+              {isSaving ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save Changes"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the policy document
+              "{selectedDocument?.title}".
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={isDeleting}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 } 

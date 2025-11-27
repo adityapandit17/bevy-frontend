@@ -46,10 +46,15 @@ export function useAuth() {
       if (token && userData) {
         const user = JSON.parse(userData);
         
+        // Transform roles from strings to objects if needed
+        const transformedRoles = (user.roles || []).map((r: any) => 
+          typeof r === 'string' ? { id: 0, name: r, description: '' } : r
+        );
+        
         setState(prev => ({
           ...prev,
           user,
-          roles: user.roles || [],
+          roles: transformedRoles,
           permissions: user.permissions || [],
           token,
           isAuthenticated: true,
@@ -91,10 +96,15 @@ export function useAuth() {
             try {
               const user = JSON.parse(userData);
               
+              // Transform roles from strings to objects if needed
+              const transformedRoles = (user.roles || []).map((r: any) => 
+                typeof r === 'string' ? { id: 0, name: r, description: '' } : r
+              );
+              
               setState(prev => ({
                 ...prev,
                 user,
-                roles: user.roles || [],
+                roles: transformedRoles,
                 permissions: user.permissions || [],
                 token: e.newValue,
                 isAuthenticated: true,
@@ -127,12 +137,18 @@ export function useAuth() {
         typeof p === 'string' ? { id: 0, name: p, display_name: p } : p
       ) || [];
       
-      // Store in localStorage with transformed permissions
+      // Transform roles from strings to objects if needed
+      const transformedRoles = (authData.user.roles || []).map((r: any) => 
+        typeof r === 'string' ? { id: 0, name: r, description: '' } : r
+      );
+      
+      // Store in localStorage with transformed permissions and roles
       const authDataToStore = {
         ...authData,
         user: {
           ...authData.user,
-          permissions: transformedPermissions
+          permissions: transformedPermissions,
+          roles: transformedRoles
         }
       };
       authService.current.storeAuthData(authDataToStore);
@@ -140,7 +156,7 @@ export function useAuth() {
       setState(prev => ({
         ...prev,
         user: authData.user,
-        roles: authData.user.roles,
+        roles: transformedRoles,
         permissions: transformedPermissions,
         token: authData.token,
         isAuthenticated: true,
@@ -191,7 +207,13 @@ export function useAuth() {
   }, [state.permissions]);
 
   const checkRole = useCallback((role: string): boolean => {
-    return state.roles.some(r => r.name === role);
+    return state.roles.some(r => {
+      // Handle both string and object formats
+      if (typeof r === 'string') {
+        return r === role;
+      }
+      return r.name === role;
+    });
   }, [state.roles]);
 
   return {
