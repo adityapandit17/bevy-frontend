@@ -248,10 +248,10 @@ export default function Dashboard() {
         setBreakEndTime(null)
         setIsOnBreak(false)
       }
-      
+
       // Save current date
       localStorage.setItem(lastDateKey, today)
-      
+
       // Load today's sessions
       const savedSessions = localStorage.getItem(storageKey)
       if (savedSessions) {
@@ -267,7 +267,7 @@ export default function Dashboard() {
           console.error("Failed to load saved sessions:", error)
         }
       }
-      
+
       fetchTodayAttendance()
     }
   }, [user])
@@ -280,7 +280,7 @@ export default function Dashboard() {
       const today = new Date().toISOString().split('T')[0]
       const lastDateKey = `last_attendance_date_${user.employee_id}`
       const lastDate = localStorage.getItem(lastDateKey)
-      
+
       if (lastDate && lastDate !== today) {
         // New day detected - reset everything
         Object.keys(localStorage).forEach(key => {
@@ -288,14 +288,14 @@ export default function Dashboard() {
             localStorage.removeItem(key)
           }
         })
-        
+
         // Reset state
         setAttendanceSessions([])
         setCurrentPunchIn(null)
         setBreakStartTime(null)
         setBreakEndTime(null)
         setIsOnBreak(false)
-        
+
         // Update last date
         localStorage.setItem(lastDateKey, today)
       }
@@ -303,10 +303,10 @@ export default function Dashboard() {
 
     // Check immediately
     checkNewDay()
-    
+
     // Check every minute
     const interval = setInterval(checkNewDay, 60000)
-    
+
     return () => clearInterval(interval)
   }, [user])
 
@@ -316,7 +316,7 @@ export default function Dashboard() {
       setAttendanceSessions(prevSessions => {
         // Check if there are any active sessions
         const hasActiveSession = prevSessions.some(s => !s.punchOut)
-        
+
         if (!hasActiveSession) {
           // No active sessions, ensure currentPunchIn is cleared
           if (currentPunchIn) {
@@ -324,7 +324,7 @@ export default function Dashboard() {
           }
           return prevSessions
         }
-        
+
         const updated = prevSessions.map(session => {
           // Update any active session (no punchOut)
           if (!session.punchOut) {
@@ -336,26 +336,26 @@ export default function Dashboard() {
           }
           return session
         })
-        
+
         // Find the most recent active session and set currentPunchIn
         const activeSessions = updated.filter(s => !s.punchOut)
         if (activeSessions.length > 0) {
           const mostRecentActive = activeSessions.sort((a, b) => 
             new Date(b.punchIn).getTime() - new Date(a.punchIn).getTime()
           )[0]
-          
+
           if (mostRecentActive.punchIn !== currentPunchIn) {
             setCurrentPunchIn(mostRecentActive.punchIn)
           }
         }
-        
+
         // Update total hours
         const total = calculateTotalWorkingHours(updated)
         setTotalHoursToday(total)
-        
+
         // Force re-render by updating tick counter
         setTimerTick(prev => prev + 1)
-        
+
         saveSessionsToStorage(updated)
         return updated
       })
@@ -376,7 +376,7 @@ export default function Dashboard() {
 
   const fetchTodayAttendance = async () => {
     if (!user?.employee_id) return
-    
+
     try {
       const employeeId = Number(user.employee_id)
       if (isNaN(employeeId)) {
@@ -403,7 +403,7 @@ export default function Dashboard() {
         }>
         attendance_records?: TodayAttendance[]
       }>(url)
-      
+
       // Process sessions from backend (these are attendance_sessions)
       if (data.sessions && Array.isArray(data.sessions)) {
         const sessions: AttendanceSession[] = data.sessions
@@ -424,7 +424,7 @@ export default function Dashboard() {
                 workingHours = s.session_hours
               }
             }
-            
+
             return {
               id: `session_${s.id}`,
               punchIn: s.check_in,
@@ -432,27 +432,27 @@ export default function Dashboard() {
               workingHours: workingHours
             }
           })
-        
+
         // Find active session (no check_out) - use the most recent one
         const activeSessions = sessions.filter(s => !s.punchOut)
-        const activeSession = activeSessions.length > 0 
+        const activeSession = activeSessions.length > 0
           ? activeSessions.sort((a, b) => new Date(b.punchIn).getTime() - new Date(a.punchIn).getTime())[0]
           : null
-        
+
         if (activeSession) {
           setCurrentPunchIn(activeSession.punchIn)
         } else {
           setCurrentPunchIn(null)
         }
-        
+
         setAttendanceSessions(sessions)
         saveSessionsToStorage(sessions)
-        
+
         // Calculate and set total hours from sessions (including active session)
         const calculatedTotal = calculateTotalWorkingHours(sessions)
         setTotalHoursToday(calculatedTotal)
       }
-      
+
       // Set today's attendance status
       if (data.check_in) {
         setTodayAttendance({
