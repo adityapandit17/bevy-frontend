@@ -141,6 +141,8 @@ export default function AttendanceLeavePage() {
   const [loadingPreviousRecords, setLoadingPreviousRecords] = useState(false)
   const [selectedLeaveRequest, setSelectedLeaveRequest] = useState<LeaveRequest | null>(null)
   const [showLeaveDetails, setShowLeaveDetails] = useState(false)
+  const [leaveCurrentPage, setLeaveCurrentPage] = useState<number>(1)
+  const [leavePageSize, setLeavePageSize] = useState<number>(10)
 
   useEffect(() => {
     // Check for query parameters
@@ -596,8 +598,25 @@ export default function AttendanceLeavePage() {
     return true;
   });
 
+  // Pagination for leave requests
+  const leaveTotalPages = Math.max(1, Math.ceil(filteredLeaveRequests.length / leavePageSize));
+  const leaveCurrentPageSafe = Math.min(leaveCurrentPage, leaveTotalPages);
+  const leavePageStartIndex = (leaveCurrentPageSafe - 1) * leavePageSize;
+  const leavePageEndIndex = leavePageStartIndex + leavePageSize;
+  const paginatedLeaveRequests = filteredLeaveRequests.slice(leavePageStartIndex, leavePageEndIndex);
+
+  const handleLeavePageChange = (page: number) => {
+    const nextPage = Math.min(Math.max(page, 1), leaveTotalPages);
+    setLeaveCurrentPage(nextPage);
+  };
+
   // Calendar styling is now handled through CSS
   const calendarClassNames = {};
+
+  // Reset leave pagination when filters, data, or page size change
+  useEffect(() => {
+    setLeaveCurrentPage(1);
+  }, [leaveSearchTerm, leaveStatusFilter, leaveRequests, leavePageSize]);
 
   // Generate month options
   const months = [
@@ -972,7 +991,7 @@ export default function AttendanceLeavePage() {
                   </div>
 
                   <div className="rounded-md border overflow-hidden">
-                    <div className="max-h-[500px] overflow-y-auto overflow-x-auto">
+                    <div className="overflow-x-auto">
                       <Table>
                         <TableHeader className="sticky top-0 bg-white z-10">
                           <TableRow>
@@ -993,7 +1012,7 @@ export default function AttendanceLeavePage() {
                               </TableCell>
                             </TableRow>
                           ) : (
-                            filteredLeaveRequests.map((request) => (
+                            paginatedLeaveRequests.map((request) => (
                             <TableRow key={request.id}>
                               <TableCell>
                                 <div>
@@ -1071,6 +1090,81 @@ export default function AttendanceLeavePage() {
                       </Table>
                     </div>
                   </div>
+
+                  {/* Leave pagination (matching Leave Management style) */}
+                  {filteredLeaveRequests.length > 0 && (
+                    <div className="flex flex-col md:flex-row items-center justify-between gap-4 mt-4 text-sm text-gray-600">
+                      {/* Showing text */}
+                      <div>
+                        {filteredLeaveRequests.length === 0 ? (
+                          <span>Showing 0 results</span>
+                        ) : (
+                          <span>
+                            Showing {leavePageStartIndex + 1} to{" "}
+                            {Math.min(leavePageEndIndex, filteredLeaveRequests.length)} of{" "}
+                            {filteredLeaveRequests.length} leave requests
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Per-page selector + numbered pagination */}
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2 text-sm text-gray-700">
+                          <span>Per page:</span>
+                          <Select
+                            value={leavePageSize.toString()}
+                            onValueChange={(value) => {
+                              setLeavePageSize(Number(value))
+                            }}
+                          >
+                            <SelectTrigger className="w-20">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="5">5</SelectItem>
+                              <SelectItem value="10">10</SelectItem>
+                              <SelectItem value="20">20</SelectItem>
+                              <SelectItem value="50">50</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleLeavePageChange(leaveCurrentPageSafe - 1)}
+                            disabled={leaveCurrentPageSafe === 1}
+                          >
+                            ‹ Previous
+                          </Button>
+
+                          {Array.from({ length: leaveTotalPages }, (_, index) => {
+                            const page = index + 1
+                            return (
+                              <Button
+                                key={page}
+                                variant={page === leaveCurrentPageSafe ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => handleLeavePageChange(page)}
+                              >
+                                {page}
+                              </Button>
+                            )
+                          })}
+
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleLeavePageChange(leaveCurrentPageSafe + 1)}
+                            disabled={leaveCurrentPageSafe === leaveTotalPages}
+                          >
+                            Next ›
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
