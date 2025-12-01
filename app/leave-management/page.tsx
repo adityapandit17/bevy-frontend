@@ -116,6 +116,8 @@ export default function LeaveManagementPage() {
   const [showLeaveForm, setShowLeaveForm] = useState(false)
   const [employees, setEmployees] = useState<any[]>([])
   const [departments, setDepartments] = useState<any[]>([])
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
 
   // Determine if user can apply on behalf of others
   const isHRManager = checkRole("HR Manager") || roles?.some((r: any) => r?.name === "HR Manager")
@@ -216,6 +218,23 @@ export default function LeaveManagementPage() {
 
     return matchesSearch && matchesStatus && matchesDepartment
   })
+
+  // Reset to first page when filters or data change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm, filterStatus, filterDepartment, leaveRequests.length])
+
+  // Pagination calculations
+  const totalPages = Math.max(1, Math.ceil(filteredRequests.length / pageSize))
+  const paginatedRequests = filteredRequests.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  )
+
+  const handlePageChange = (page: number) => {
+    if (page < 1 || page > totalPages) return
+    setCurrentPage(page)
+  }
 
   // Get status badge variant
   const getStatusBadgeVariant = (status: string) => {
@@ -419,21 +438,21 @@ export default function LeaveManagementPage() {
               Loading leave requests...
             </div>
           ) : (
-            <div className="max-h-[500px] overflow-y-auto overflow-x-auto">
+            <div className="overflow-x-auto">
               <Table>
-                  <TableHeader className="sticky top-0 bg-white z-10">
-                    <TableRow>
-                      <TableHead>Employee</TableHead>
-                      <TableHead>Leave Type</TableHead>
-                      <TableHead>Duration</TableHead>
-                      <TableHead>Dates</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Applied</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                {filteredRequests.map((request) => (
+                <TableHeader className="sticky top-0 bg-white z-10">
+                  <TableRow>
+                    <TableHead>Employee</TableHead>
+                    <TableHead>Leave Type</TableHead>
+                    <TableHead>Duration</TableHead>
+                    <TableHead>Dates</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Applied</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                {paginatedRequests.map((request) => (
                   <TableRow key={request.id}>
                     <TableCell>
                       <div>
@@ -537,8 +556,82 @@ export default function LeaveManagementPage() {
                     </TableCell>
                   </TableRow>
                 ))}
-                  </TableBody>
-                </Table>
+                </TableBody>
+              </Table>
+
+              {/* Pagination controls */}
+              <div className="flex flex-col md:flex-row items-center justify-between gap-4 mt-4">
+                {/* Showing text */}
+                <div className="text-sm text-gray-700">
+                  {filteredRequests.length === 0 ? (
+                    <span>Showing 0 results</span>
+                  ) : (
+                    <span>
+                      Showing {(currentPage - 1) * pageSize + 1} to{" "}
+                      {Math.min(currentPage * pageSize, filteredRequests.length)} of{" "}
+                      {filteredRequests.length} leave requests
+                    </span>
+                  )}
+                </div>
+
+                {/* Per-page selector + numbered pagination */}
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2 text-sm text-gray-700">
+                    <span>Per page:</span>
+                    <Select
+                      value={pageSize.toString()}
+                      onValueChange={(value) => {
+                        setPageSize(Number(value))
+                        setCurrentPage(1)
+                      }}
+                    >
+                      <SelectTrigger className="w-20">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="5">5</SelectItem>
+                        <SelectItem value="10">10</SelectItem>
+                        <SelectItem value="20">20</SelectItem>
+                        <SelectItem value="50">50</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handlePageChange(currentPage - 1)}
+                      disabled={currentPage === 1}
+                    >
+                      ‹ Previous
+                    </Button>
+
+                    {Array.from({ length: totalPages }, (_, index) => {
+                      const page = index + 1
+                      return (
+                        <Button
+                          key={page}
+                          variant={page === currentPage ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => handlePageChange(page)}
+                        >
+                          {page}
+                        </Button>
+                      )
+                    })}
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handlePageChange(currentPage + 1)}
+                      disabled={currentPage === totalPages}
+                    >
+                      Next ›
+                    </Button>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </CardContent>
