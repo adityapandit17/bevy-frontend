@@ -15,11 +15,17 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Users, Search, Filter, Plus, MoreHorizontal, Mail, Phone, MapPin, Calendar, Download, UserPlus, UserMinus, UserCheck, Network } from "lucide-react"
+import { Users, Search, Filter, Plus, MoreHorizontal, Mail, Phone, MapPin, Calendar, Download, UserPlus, UserMinus, UserCheck, Network, ChevronLeft, ChevronRight } from "lucide-react"
 import { EmployeeForm } from "@/components/forms/employee-form"
 import { useRouter } from "next/navigation"
 import { getEndpointUrl, getApiUrl, apiRequest } from "@/lib/api"
 import { ResourceGuard } from "@/lib/auth/auth.guards"
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+} from "@/components/ui/pagination"
 
 interface Employee {
   id: number
@@ -44,33 +50,86 @@ interface Department {
   updated_at: string
 }
 
+interface PaginatedResponse {
+  data: Employee[]
+  pagination: {
+    current_page: number
+    per_page: number
+    total_count: number
+    total_pages: number
+  }
+}
+
 export default function EmployeesPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [departmentFilter, setDepartmentFilter] = useState("all")
   const [employees, setEmployees] = useState<Employee[]>([])
+  const [allEmployees, setAllEmployees] = useState<Employee[]>([]) // For department stats
   const [departments, setDepartments] = useState<Department[]>([])
   const [showForm, setShowForm] = useState(false)
   const [loading, setLoading] = useState(false)
   const [editEmployee, setEditEmployee] = useState<Employee | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [perPage, setPerPage] = useState(10)
+  const [totalCount, setTotalCount] = useState(0)
+  const [totalPages, setTotalPages] = useState(0)
   const router = useRouter()
 
-  // Fetch employees and departments from backend
+  // Fetch departments on mount
   useEffect(() => {
-    fetchEmployees()
     fetchDepartments()
+    fetchAllEmployeesForStats()
   }, [])
+
+  // Fetch paginated employees when filters or page change
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      fetchEmployees()
+    }, searchTerm ? 300 : 0) // Debounce search
+
+    return () => clearTimeout(timeoutId)
+  }, [searchTerm, departmentFilter, currentPage, perPage])
+
+  // Reset to page 1 when filters or perPage change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm, departmentFilter, perPage])
 
   const fetchEmployees = async () => {
     setLoading(true)
     try {
-      const data = await apiRequest<Employee[]>(getApiUrl('employees'), {
+      const params = new URLSearchParams({
+        page: currentPage.toString(),
+        per_page: perPage.toString(),
+      })
+      if (searchTerm) {
+        params.append('search', searchTerm)
+      }
+      if (departmentFilter !== 'all') {
+        params.append('department', departmentFilter)
+      }
+
+      const response = await apiRequest<PaginatedResponse>(`${getApiUrl('employees')}?${params.toString()}`, {
         method: "GET"
       })
-      setEmployees(data)
+      setEmployees(response.data)
+      setTotalCount(response.pagination.total_count)
+      setTotalPages(response.pagination.total_pages)
     } catch (err) {
       console.error('Error fetching employees:', err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchAllEmployeesForStats = async () => {
+    try {
+      const response = await apiRequest<PaginatedResponse>(`${getApiUrl('employees')}?page=1&per_page=1000`, {
+        method: "GET"
+      })
+      setAllEmployees(response.data)
+    } catch (err) {
+      console.error('Error fetching all employees for stats:', err)
     }
   }
 
@@ -126,7 +185,8 @@ export default function EmployeesPage() {
         body: JSON.stringify({ employee: { status: newStatus } }),
       });
 
-    fetchEmployees();
+    fetchEmployees()
+    fetchAllEmployeesForStats()
     } catch (err) {
       console.error("Error updating employee status:", err);
     }
@@ -134,7 +194,7 @@ export default function EmployeesPage() {
 
   // Generate dynamic department stats from real data
   const departmentStats = departments.map((dept, index) => {
-    const count = employees.filter(emp => emp.department_id === dept.id).length
+    const count = allEmployees.filter(emp => emp.department_id === dept.id).length
     const colors = [
       "bg-blue-500", "bg-green-500", "bg-purple-500",
       "bg-orange-500", "bg-pink-500", "bg-indigo-500",
@@ -145,20 +205,6 @@ export default function EmployeesPage() {
       count: count,
       color: colors[index % colors.length]
     }
-  })
-
-  const filteredEmployees = employees.filter((employee) => {
-    const matchesSearch =
-      (employee.first_name?.toLowerCase() + ' ' + employee.last_name?.toLowerCase()).includes(searchTerm.toLowerCase()) ||
-      employee.email?.toLowerCase().includes(searchTerm.toLowerCase())
-
-    const matchesDepartment = departmentFilter === "all" ||
-      (() => {
-        const department = departments.find(dept => dept.id === employee.department_id)
-        return department && department.name === departmentFilter
-      })()
-
-    return matchesSearch && matchesDepartment
   })
 
   return (
@@ -226,7 +272,7 @@ export default function EmployeesPage() {
             Employee Directory
           </CardTitle>
           <CardDescription>
-            Total {employees.length} employees • {filteredEmployees.length} showing
+            Total {totalCount} employees • Showing {employees.length} on page {currentPage} of {totalPages}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -271,7 +317,20 @@ export default function EmployeesPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredEmployees.map((employee) => (
+                {loading ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-8 text-gray-500">
+                      Loading employees...
+                    </TableCell>
+                  </TableRow>
+                ) : employees.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-8 text-gray-500">
+                      No employees found
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  employees.map((employee) => (
                   <TableRow key={employee.id}>
                     <TableCell>
                       <div className="flex items-center gap-3">
@@ -350,10 +409,103 @@ export default function EmployeesPage() {
                       </DropdownMenu>
                     </TableCell>
                   </TableRow>
-                ))}
+                  ))
+                )}
               </TableBody>
             </Table>
           </div>
+
+          {/* Pagination */}
+          {totalCount > 0 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-6 border-t">
+              <div className="text-sm text-gray-600">
+                Showing {((currentPage - 1) * perPage) + 1} to {Math.min(currentPage * perPage, totalCount)} of {totalCount} employees
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-600">Per page:</span>
+                  <Select value={perPage.toString()} onValueChange={(value) => setPerPage(Number(value))}>
+                    <SelectTrigger className="w-20">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="5">5</SelectItem>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="25">25</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                      <SelectItem value="100">100</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {totalPages > 1 && (
+                <Pagination>
+                <PaginationContent>
+                  <PaginationItem>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        setCurrentPage((prev) => Math.max(1, prev - 1))
+                      }}
+                      disabled={currentPage === 1}
+                      className="gap-1"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                      <span>Previous</span>
+                    </Button>
+                  </PaginationItem>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                    if (
+                      page === 1 ||
+                      page === totalPages ||
+                      (page >= currentPage - 1 && page <= currentPage + 1)
+                    ) {
+                      return (
+                        <PaginationItem key={page}>
+                          <Button
+                            variant={currentPage === page ? "default" : "outline"}
+                            size="sm"
+                            onClick={(e) => {
+                              e.preventDefault()
+                              setCurrentPage(page)
+                            }}
+                            className="w-10"
+                          >
+                            {page}
+                          </Button>
+                        </PaginationItem>
+                      )
+                    } else if (page === currentPage - 2 || page === currentPage + 2) {
+                      return (
+                        <PaginationItem key={page}>
+                          <PaginationEllipsis />
+                        </PaginationItem>
+                      )
+                    }
+                    return null
+                  })}
+                  <PaginationItem>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        setCurrentPage((prev) => Math.min(totalPages, prev + 1))
+                      }}
+                      disabled={currentPage === totalPages}
+                      className="gap-1"
+                    >
+                      <span>Next</span>
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+              )}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
       {showForm && (
