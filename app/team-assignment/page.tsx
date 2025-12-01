@@ -81,11 +81,13 @@ export default function TeamAssignmentPage() {
   const fetchEmployees = async () => {
     setLoading(true)
     try {
-      const data = await apiRequest<Employee[]>(getApiUrl('employees'), {
+      const response = await apiRequest<{ data: Employee[], pagination: any } | Employee[]>(`${getApiUrl('employees')}?page=1&per_page=1000`, {
         method: "GET"
       })
+      // Handle paginated response or direct array
+      const employees = Array.isArray(response) ? response : (response as any).data || []
       // Enrich with manager and department names
-      const enriched = data.map((emp: any) => ({
+      const enriched = employees.map((emp: any) => ({
         ...emp,
         manager_name: emp.manager ? `${emp.manager.first_name} ${emp.manager.last_name}` : null,
         department_name: emp.department?.name || "",
