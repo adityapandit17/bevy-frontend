@@ -336,6 +336,11 @@ export const API_ENDPOINTS = {
 
   // Events
   EVENTS: '/events',
+
+  // Notifications
+  NOTIFICATIONS: '/notifications',
+  NOTIFICATIONS_MARK_ALL_READ: '/notifications/mark_all_read',
+  NOTIFICATIONS_DESTROY_ALL: '/notifications/destroy_all',
 } as const;
 
 /**

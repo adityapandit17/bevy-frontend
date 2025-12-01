@@ -9,141 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Bell, CheckCheck, Trash2, Search, Filter, Clock, ArrowLeft, ArrowRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Notification } from "@/components/notifications-dropdown"
-
-// Mock notifications data - replace with API call later
-const mockNotifications: Notification[] = [
-  {
-    id: "1",
-    type: "leave",
-    title: "Leave Request Approved",
-    message: "Your leave request for Dec 15-20 has been approved by your manager.",
-    read: false,
-    createdAt: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
-    actionUrl: "/attendance",
-  },
-  {
-    id: "2",
-    type: "attendance",
-    title: "Attendance Reminder",
-    message: "Don't forget to mark your attendance for today.",
-    read: false,
-    createdAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
-    actionUrl: "/attendance",
-  },
-  {
-    id: "3",
-    type: "payroll",
-    title: "Payroll Processed",
-    message: "Your salary for November has been processed and credited to your account.",
-    read: false,
-    createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-    actionUrl: "/payroll",
-  },
-  {
-    id: "4",
-    type: "system",
-    title: "System Maintenance",
-    message: "Scheduled maintenance will occur on Dec 10 from 2:00 AM to 4:00 AM.",
-    read: true,
-    createdAt: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: "5",
-    type: "announcement",
-    title: "Company Holiday",
-    message: "The office will be closed on Dec 25 for Christmas holiday.",
-    read: true,
-    createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: "6",
-    type: "reminder",
-    title: "Performance Review Due",
-    message: "Your quarterly performance review is due next week. Please complete it.",
-    read: false,
-    createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-    actionUrl: "/performance",
-  },
-  {
-    id: "7",
-    type: "leave",
-    title: "Leave Request Pending",
-    message: "Your leave request for Dec 22-24 is pending approval from your manager.",
-    read: true,
-    createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-    actionUrl: "/attendance",
-  },
-  {
-    id: "8",
-    type: "attendance",
-    title: "Late Attendance Alert",
-    message: "You marked your attendance late today. Please ensure timely attendance.",
-    read: true,
-    createdAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
-    actionUrl: "/attendance",
-  },
-  {
-    id: "9",
-    type: "payroll",
-    title: "Payslip Available",
-    message: "Your payslip for October is now available. You can download it from the payroll section.",
-    read: true,
-    createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-    actionUrl: "/payroll",
-  },
-  {
-    id: "10",
-    type: "system",
-    title: "Password Reset Required",
-    message: "For security reasons, please reset your password. It's been 90 days since your last password change.",
-    read: false,
-    createdAt: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString(),
-    actionUrl: "/user-settings",
-  },
-  {
-    id: "11",
-    type: "announcement",
-    title: "Team Meeting Scheduled",
-    message: "A team meeting has been scheduled for Dec 12 at 2:00 PM. Please confirm your attendance.",
-    read: true,
-    createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: "12",
-    type: "reminder",
-    title: "Document Submission Reminder",
-    message: "Please submit your updated insurance documents by Dec 15.",
-    read: true,
-    createdAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: "13",
-    type: "leave",
-    title: "Leave Balance Update",
-    message: "Your leave balance has been updated. You now have 12 days of annual leave remaining.",
-    read: false,
-    createdAt: new Date(Date.now() - 9 * 24 * 60 * 60 * 1000).toISOString(),
-    actionUrl: "/attendance",
-  },
-  {
-    id: "14",
-    type: "attendance",
-    title: "Attendance Regularized",
-    message: "Your attendance for Nov 28 has been regularized by HR.",
-    read: true,
-    createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
-    actionUrl: "/attendance",
-  },
-  {
-    id: "15",
-    type: "payroll",
-    title: "Tax Document Available",
-    message: "Your tax documents for the financial year are now available for download.",
-    read: false,
-    createdAt: new Date(Date.now() - 11 * 24 * 60 * 60 * 1000).toISOString(),
-    actionUrl: "/payroll",
-  },
-]
+import { apiRequest, getEndpointUrl, API_ENDPOINTS } from "@/lib/api"
 
 const getNotificationIcon = (type: Notification["type"]) => {
   switch (type) {
@@ -214,13 +80,31 @@ const formatFullDate = (dateString: string) => {
 }
 
 export default function NotificationsPage() {
-  const [notifications, setNotifications] = useState<Notification[]>(mockNotifications)
-  const [filteredNotifications, setFilteredNotifications] = useState<Notification[]>(mockNotifications)
+  const [notifications, setNotifications] = useState<Notification[]>([])
+  const [filteredNotifications, setFilteredNotifications] = useState<Notification[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [filterType, setFilterType] = useState<string>("all")
   const [filterRead, setFilterRead] = useState<string>("all")
   const [currentPage, setCurrentPage] = useState(1)
+  const [isLoading, setIsLoading] = useState(false)
   const itemsPerPage = 10
+
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      setIsLoading(true)
+      try {
+        const data = await apiRequest<Notification[]>(getEndpointUrl("NOTIFICATIONS"))
+        setNotifications(data)
+        setFilteredNotifications(data)
+      } catch (error) {
+        console.error("Failed to fetch notifications", error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchNotifications()
+  }, [])
 
   useEffect(() => {
     let filtered = [...notifications]
@@ -255,23 +139,58 @@ export default function NotificationsPage() {
 
   const unreadCount = notifications.filter((n) => !n.read).length
 
-  const handleMarkAsRead = (id: string) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
-    )
+  const handleMarkAsRead = async (id: string) => {
+    // Optimistic update
+    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)))
+
+    try {
+      await apiRequest<Notification>(`${getEndpointUrl("NOTIFICATIONS")}/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ notification: { read: true } }),
+      })
+    } catch (error) {
+      console.error("Failed to mark notification as read", error)
+    }
   }
 
-  const handleMarkAllAsRead = () => {
+  const handleMarkAllAsRead = async () => {
+    // Optimistic update
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
+
+    try {
+      await apiRequest<void>(getEndpointUrl("NOTIFICATIONS_MARK_ALL_READ"), {
+        method: "PATCH",
+      })
+    } catch (error) {
+      console.error("Failed to mark all notifications as read", error)
+    }
   }
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
+    // Optimistic update
     setNotifications((prev) => prev.filter((n) => n.id !== id))
+
+    try {
+      await apiRequest<void>(`${getEndpointUrl("NOTIFICATIONS")}/${id}`, {
+        method: "DELETE",
+      })
+    } catch (error) {
+      console.error("Failed to delete notification", error)
+    }
   }
 
-  const handleDeleteAll = () => {
-    if (confirm("Are you sure you want to delete all notifications?")) {
-      setNotifications([])
+  const handleDeleteAll = async () => {
+    if (!confirm("Are you sure you want to delete all notifications?")) return
+
+    // Optimistic update
+    setNotifications([])
+
+    try {
+      await apiRequest<void>(getEndpointUrl("NOTIFICATIONS_DESTROY_ALL"), {
+        method: "DELETE",
+      })
+    } catch (error) {
+      console.error("Failed to delete all notifications", error)
     }
   }
 
@@ -350,7 +269,11 @@ export default function NotificationsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {paginatedNotifications.length > 0 ? (
+          {isLoading ? (
+            <div className="text-center py-12">
+              <p className="text-sm text-gray-500">Loading notifications...</p>
+            </div>
+          ) : paginatedNotifications.length > 0 ? (
             <div className="space-y-3">
               {paginatedNotifications.map((notification) => (
                 <div

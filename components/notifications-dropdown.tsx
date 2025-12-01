@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import {
   DropdownMenu,
@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Bell, CheckCheck, ArrowRight, Clock } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { apiRequest, getEndpointUrl, API_ENDPOINTS } from "@/lib/api"
 
 export interface Notification {
   id: string
@@ -144,27 +145,70 @@ const formatTimeAgo = (dateString: string) => {
 
 export function NotificationsDropdown({ children }: NotificationsDropdownProps) {
   const router = useRouter()
-  const [notifications, setNotifications] = useState<Notification[]>(mockNotifications)
+  const [notifications, setNotifications] = useState<Notification[]>([])
   const [open, setOpen] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      setIsLoading(true)
+      try {
+        const data = await apiRequest<Notification[]>(
+          getEndpointUrl("NOTIFICATIONS")
+        )
+        setNotifications(data)
+      } catch (error) {
+        console.error("Failed to fetch notifications", error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    // Always refresh notifications whenever the dropdown is opened
+    if (open && !isLoading) {
+      fetchNotifications()
+    }
+  }, [open])
 
   const unreadCount = notifications.filter((n) => !n.read).length
   const topNotifications = notifications.slice(0, 5) // Top 5 notifications
 
-  const handleNotificationClick = (notification: Notification) => {
-    // Mark as read
+  const handleNotificationClick = async (notification: Notification) => {
+    // Optimistically mark this notification as read locally
     setNotifications((prev) =>
       prev.map((n) => (n.id === notification.id ? { ...n, read: true } : n))
     )
 
-    // Navigate if action URL exists
-    if (notification.actionUrl) {
-      router.push(notification.actionUrl)
-      setOpen(false)
+    // Persist read state to backend – stay on the same page
+    if (notification.id && !notification.read) {
+      try {
+        await apiRequest<Notification>(
+          `${getEndpointUrl("NOTIFICATIONS")}/${String(notification.id)}`,
+          {
+            method: "PATCH",
+            body: JSON.stringify({
+              notification: { read: true },
+            }),
+          }
+        )
+      } catch (error) {
+        // Don't show a toast or break UX; just log for debugging
+        console.error("Failed to mark notification as read", error)
+      }
     }
   }
 
-  const handleMarkAllAsRead = () => {
+  const handleMarkAllAsRead = async () => {
+    // Optimistic update
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
+
+    try {
+      await apiRequest<void>(getEndpointUrl("NOTIFICATIONS_MARK_ALL_READ"), {
+        method: "PATCH",
+      })
+    } catch (error) {
+      console.error("Failed to mark all notifications as read", error)
+    }
   }
 
   const handleViewAll = () => {
@@ -175,7 +219,14 @@ export function NotificationsDropdown({ children }: NotificationsDropdownProps) 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
-        {children}
+        <div className="relative inline-flex">
+          {children}
+          {unreadCount > 0 && (
+            <Badge className="absolute -top-1 -right-1 w-5 h-5 p-0 flex items-center justify-center text-xs bg-red-500">
+              {unreadCount}
+            </Badge>
+          )}
+        </div>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-80 p-0" sideOffset={5}>
         <div className="flex items-center justify-between px-4 py-3 border-b">
