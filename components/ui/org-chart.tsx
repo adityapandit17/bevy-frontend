@@ -196,7 +196,21 @@ const OrgChartLevel: React.FC<{
   onEditEmployee?: (employee: Employee) => void
   onViewProfile?: (employee: Employee) => void
 }> = ({ employees, level, onEmployeeClick, onEditEmployee, onViewProfile }) => {
-  const [expandedEmployees, setExpandedEmployees] = useState<Set<string>>(new Set())
+  // Auto-expand all employees with subordinates by default for better visibility
+  const [expandedEmployees, setExpandedEmployees] = useState<Set<string>>(() => {
+    const initial = new Set<string>()
+    // Recursively add all employees with subordinates to expanded set
+    const addAllWithSubordinates = (emps: Employee[]) => {
+      emps.forEach(emp => {
+        if (emp.subordinates && emp.subordinates.length > 0) {
+          initial.add(emp.id)
+          addAllWithSubordinates(emp.subordinates)
+        }
+      })
+    }
+    addAllWithSubordinates(employees)
+    return initial
+  })
 
   const toggleEmployee = (employeeId: string) => {
     const newExpanded = new Set(expandedEmployees)

@@ -80,12 +80,22 @@ export default function OrgChartPage() {
   const fetchEmployees = async () => {
     setLoading(true)
     try {
-      const data = await apiRequest<Employee[]>(getApiUrl('employees'), {
-        method: "GET"
-      })
-      setEmployees(data)
+      // The employees index API returns a wrapped response:
+      // { data: Employee[], pagination: { ... } }
+      // For org chart, we need ALL employees, so request a high per_page value
+      const response = await apiRequest<{ data: Employee[]; pagination: any }>(
+        `${getApiUrl('employees')}?page=1&per_page=1000`,
+        {
+          method: "GET"
+        }
+      )
+
+      const employeesData = Array.isArray(response?.data) ? response.data : []
+      setEmployees(employeesData)
     } catch (err) {
       console.error('Error fetching employees:', err)
+      // Ensure we don't keep stale non-array state on error
+      setEmployees([])
     } finally {
       setLoading(false)
     }
