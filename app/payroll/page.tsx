@@ -30,6 +30,8 @@ export default function PayrollPage() {
   const [departments, setDepartments] = useState([])
   const [showForm, setShowForm] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [currentPage, setCurrentPage] = useState<number>(1)
+  const [pageSize, setPageSize] = useState<number>(10)
 
   useEffect(() => {
     fetchPayrollRecords()
@@ -97,6 +99,34 @@ export default function PayrollPage() {
     const dept = departments.find(d => String(d.id) === String(id))
     return dept ? dept.name : id
   }
+
+  // Filter payroll records by search term (employee name or ID)
+  const filteredPayrollRecords = Array.isArray(payrollRecords)
+    ? payrollRecords.filter((record: any) => {
+        if (!searchTerm) return true
+        const term = searchTerm.toLowerCase()
+        const employeeName = String(getEmployeeName(record.employee_id) || "").toLowerCase()
+        const employeeId = String(record.employee_id || "").toLowerCase()
+        return employeeName.includes(term) || employeeId.includes(term)
+      })
+    : []
+
+  // Pagination calculations for payroll records
+  const totalPages = Math.max(1, Math.ceil(filteredPayrollRecords.length / pageSize))
+  const currentPageSafe = Math.min(currentPage, totalPages)
+  const pageStartIndex = (currentPageSafe - 1) * pageSize
+  const pageEndIndex = pageStartIndex + pageSize
+  const paginatedPayrollRecords = filteredPayrollRecords.slice(pageStartIndex, pageEndIndex)
+
+  const handlePageChange = (page: number) => {
+    const nextPage = Math.min(Math.max(page, 1), totalPages)
+    setCurrentPage(nextPage)
+  }
+
+  // Reset pagination when filters, data, or page size change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm, monthFilter, payrollRecords, pageSize])
 
   const handleAddSalaryStructure = async (formData) => {
     try {
@@ -267,53 +297,136 @@ export default function PayrollPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {Array.isArray(payrollRecords) && payrollRecords.map((record) => (
-                      <TableRow key={record.id}>
-                        <TableCell>
-                          <div>
-                            <p className="font-medium text-gray-900">{getEmployeeName(record.employee_id)}</p>
-                            <p className="text-sm text-gray-500">
-                              {record.employee_id} • {getDepartmentName(record.department_id)}
-                            </p>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <span className="font-medium">{formatCurrency(record.basicSalary)}</span>
-                        </TableCell>
-                        <TableCell>
-                          <span className="text-green-600">{formatCurrency(record.allowances)}</span>
-                        </TableCell>
-                        <TableCell>
-                          <span className="text-red-600">{formatCurrency(record.deductions)}</span>
-                        </TableCell>
-                        <TableCell>
-                          <span className="font-bold text-gray-900">{formatCurrency(record.netSalary)}</span>
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={getStatusColor(record.status)}>{record.status}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm">
-                                <MoreHorizontal className="w-4 h-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                              <DropdownMenuItem>View Payslip</DropdownMenuItem>
-                              <DropdownMenuItem>Edit Salary</DropdownMenuItem>
-                              <DropdownMenuItem>Download PDF</DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem>Reprocess Payment</DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                    {paginatedPayrollRecords.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center text-gray-500 py-8">
+                          No payroll records found.
                         </TableCell>
                       </TableRow>
-                    ))}
+                    ) : (
+                      paginatedPayrollRecords.map((record: any) => (
+                        <TableRow key={record.id}>
+                          <TableCell>
+                            <div>
+                              <p className="font-medium text-gray-900">{getEmployeeName(record.employee_id)}</p>
+                              <p className="text-sm text-gray-500">
+                                {record.employee_id} • {getDepartmentName(record.department_id)}
+                              </p>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <span className="font-medium">{formatCurrency(record.basicSalary)}</span>
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-green-600">{formatCurrency(record.allowances)}</span>
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-red-600">{formatCurrency(record.deductions)}</span>
+                          </TableCell>
+                          <TableCell>
+                            <span className="font-bold text-gray-900">{formatCurrency(record.netSalary)}</span>
+                          </TableCell>
+                          <TableCell>
+                            <Badge className={getStatusColor(record.status)}>{record.status}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm">
+                                  <MoreHorizontal className="w-4 h-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                <DropdownMenuItem>View Payslip</DropdownMenuItem>
+                                <DropdownMenuItem>Edit Salary</DropdownMenuItem>
+                                <DropdownMenuItem>Download PDF</DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem>Reprocess Payment</DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
                   </TableBody>
                 </Table>
               </div>
+
+              {/* Pagination controls matching other pages */}
+              {filteredPayrollRecords.length > 0 && (
+                <div className="flex flex-col md:flex-row items-center justify-between gap-4 mt-4 text-sm text-gray-600">
+                  {/* Showing text */}
+                  <div>
+                    {filteredPayrollRecords.length === 0 ? (
+                      <span>Showing 0 results</span>
+                    ) : (
+                      <span>
+                        Showing {pageStartIndex + 1} to{" "}
+                        {Math.min(pageEndIndex, filteredPayrollRecords.length)} of{" "}
+                        {filteredPayrollRecords.length} payroll records
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Per-page selector + numbered pagination */}
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2 text-sm text-gray-700">
+                      <span>Per page:</span>
+                      <Select
+                        value={pageSize.toString()}
+                        onValueChange={(value) => {
+                          setPageSize(Number(value))
+                        }}
+                      >
+                        <SelectTrigger className="w-20">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="5">5</SelectItem>
+                          <SelectItem value="10">10</SelectItem>
+                          <SelectItem value="20">20</SelectItem>
+                          <SelectItem value="50">50</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handlePageChange(currentPageSafe - 1)}
+                        disabled={currentPageSafe === 1}
+                      >
+                        ‹ Previous
+                      </Button>
+
+                      {Array.from({ length: totalPages }, (_, index) => {
+                        const page = index + 1
+                        return (
+                          <Button
+                            key={page}
+                            variant={page === currentPageSafe ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => handlePageChange(page)}
+                          >
+                            {page}
+                          </Button>
+                        )
+                      })}
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handlePageChange(currentPageSafe + 1)}
+                        disabled={currentPageSafe === totalPages}
+                      >
+                        Next ›
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
