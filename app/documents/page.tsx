@@ -92,7 +92,7 @@ interface EmployeeDocument {
 }
 
 export default function DocumentsPage() {
-  const { checkRole, roles } = useAuth()
+  const { checkRole, roles, user } = useAuth()
   const [searchTerm, setSearchTerm] = useState("")
   const [categoryFilter, setCategoryFilter] = useState("all")
   const [statusFilter, setStatusFilter] = useState("all")
@@ -117,7 +117,11 @@ export default function DocumentsPage() {
   const [showEditDialog, setShowEditDialog] = useState(false)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [showEmployeeDocViewDialog, setShowEmployeeDocViewDialog] = useState(false)
+  const [showEmployeeDocDeleteDialog, setShowEmployeeDocDeleteDialog] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isDeletingEmployeeDoc, setIsDeletingEmployeeDoc] = useState(false)
+  const [isVerifyingEmployeeDoc, setIsVerifyingEmployeeDoc] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
@@ -461,6 +465,175 @@ export default function DocumentsPage() {
       })
     } finally {
       setIsDeleting(false)
+    }
+  }
+
+  // Handle View Employee Document
+  const handleViewEmployeeDoc = (doc: EmployeeDocument) => {
+    if (!doc.file_path) {
+      toast({
+        title: "Error",
+        description: "Document file path is missing. Cannot view document.",
+        variant: "destructive",
+      })
+      return
+    }
+    setSelectedEmployeeDoc(doc)
+    setShowEmployeeDocViewDialog(true)
+  }
+
+  // Handle Download Employee Document
+  const handleDownloadEmployeeDoc = async (doc: EmployeeDocument) => {
+    try {
+      if (!doc.file_path) {
+        toast({
+          title: "Error",
+          description: "Document file path not found",
+          variant: "destructive",
+        })
+        return
+      }
+
+      const downloadUrl = getDocumentUrl(doc.file_path, true)
+      
+      // Get token from localStorage
+      const token = localStorage.getItem(AUTH_CONFIG.tokenKey)
+      if (!token) {
+        throw new Error("No authentication token found. Please login again.")
+      }
+      
+      const response = await fetch(downloadUrl, {
+        headers: {
+          "Authorization": `Bearer ${token}`,
+        },
+      })
+
+      if (!response.ok) {
+        let errorMessage = "Download failed"
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.error || errorData.message || errorMessage
+        } catch {
+          errorMessage = response.statusText || errorMessage
+        }
+        throw new Error(errorMessage)
+      }
+
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = url
+      link.download = doc.name || "document"
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+
+      toast({
+        title: "Success",
+        description: "Document downloaded successfully",
+      })
+    } catch (error: any) {
+      console.error("Error downloading document:", error)
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to download document",
+        variant: "destructive",
+      })
+    }
+  }
+
+  // Handle Verify Employee Document
+  const handleVerifyEmployeeDoc = async (doc: EmployeeDocument) => {
+    try {
+      setIsVerifyingEmployeeDoc(true)
+      
+      const token = localStorage.getItem(AUTH_CONFIG.tokenKey)
+      if (!token) {
+        throw new Error("No authentication token found. Please login again.")
+      }
+
+      const response = await fetch(getApiUrl(`employee_documents/${doc.id}.json`), {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          employee_document: {
+            status: "active",
+            uploaded_by: user?.name || user?.first_name || "HR Manager",
+          }
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: "Request failed" }))
+        throw new Error(errorData.error || errorData.message || "Failed to verify document")
+      }
+
+      toast({
+        title: "Success",
+        description: "Document verified successfully",
+      })
+
+      fetchEmployeeDocuments()
+    } catch (error: any) {
+      console.error("Error verifying document:", error)
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to verify document",
+        variant: "destructive",
+      })
+    } finally {
+      setIsVerifyingEmployeeDoc(false)
+    }
+  }
+
+  // Handle Delete Employee Document
+  const handleDeleteEmployeeDoc = async () => {
+    if (!selectedEmployeeDoc) return
+
+    try {
+      setIsDeletingEmployeeDoc(true)
+      
+      const token = localStorage.getItem(AUTH_CONFIG.tokenKey)
+      if (!token) {
+        throw new Error("No authentication token found. Please login again.")
+      }
+
+      const response = await fetch(getApiUrl(`employee_documents/${selectedEmployeeDoc.id}.json`), {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: "Request failed" }))
+        throw new Error(errorData.error || errorData.message || "Failed to delete employee document")
+      }
+
+      toast({
+        title: "Success",
+        description: "Employee document deleted successfully",
+      })
+
+      setShowEmployeeDocDeleteDialog(false)
+      setSelectedEmployeeDoc(null)
+      fetchEmployeeDocuments()
+    } catch (error: any) {
+      console.error("Error deleting document:", error)
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to delete employee document",
+        variant: "destructive",
+      })
+    } finally {
+      setIsDeletingEmployeeDoc(false)
     }
   }
 
@@ -1289,20 +1462,35 @@ export default function DocumentsPage() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                            <DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleViewEmployeeDoc(doc)}>
                               <Eye className="mr-2 h-4 w-4" />
                               View
                             </DropdownMenuItem>
-                            <DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleDownloadEmployeeDoc(doc)}>
                               <Download className="mr-2 h-4 w-4" />
                               Download
                             </DropdownMenuItem>
-                            <DropdownMenuItem>
-                              <CheckCircle className="mr-2 h-4 w-4" />
-                              Verify
-                            </DropdownMenuItem>
+                            {doc.status !== "active" && (
+                              <DropdownMenuItem 
+                                onClick={() => handleVerifyEmployeeDoc(doc)}
+                                disabled={isVerifyingEmployeeDoc}
+                              >
+                                {isVerifyingEmployeeDoc ? (
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                ) : (
+                                  <CheckCircle className="mr-2 h-4 w-4" />
+                                )}
+                                Verify
+                              </DropdownMenuItem>
+                            )}
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem className="text-red-600">
+                            <DropdownMenuItem 
+                              className="text-red-600"
+                              onClick={() => {
+                                setSelectedEmployeeDoc(doc)
+                                setShowEmployeeDocDeleteDialog(true)
+                              }}
+                            >
                               <Trash2 className="mr-2 h-4 w-4" />
                               Delete
                             </DropdownMenuItem>
@@ -1938,6 +2126,22 @@ export default function DocumentsPage() {
         </DialogContent>
       </Dialog>
 
+      {/* View Employee Document Dialog */}
+      {selectedEmployeeDoc && selectedEmployeeDoc.file_path && (() => {
+        const fileExt = selectedEmployeeDoc.file_path?.split('.').pop()?.toLowerCase() || 'pdf'
+        const fileType = fileExt === 'pdf' ? 'pdf' : fileExt.match(/jpg|jpeg|png|gif/) ? 'image' : 'doc'
+        const documentUrl = getDocumentUrl(selectedEmployeeDoc.file_path)
+        return (
+          <DocumentPreview
+            open={showEmployeeDocViewDialog}
+            onOpenChange={setShowEmployeeDocViewDialog}
+            documentUrl={documentUrl}
+            documentName={selectedEmployeeDoc.name}
+            documentType={fileType}
+          />
+        )
+      })()}
+
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
@@ -1956,6 +2160,36 @@ export default function DocumentsPage() {
               className="bg-red-600 hover:bg-red-700"
             >
               {isDeleting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Employee Document Confirmation Dialog */}
+      <AlertDialog open={showEmployeeDocDeleteDialog} onOpenChange={setShowEmployeeDocDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the employee document
+              "{selectedEmployeeDoc?.name}" for {selectedEmployeeDoc?.employee_name || `Employee ${selectedEmployeeDoc?.employee_id}`}.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeletingEmployeeDoc}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteEmployeeDoc}
+              disabled={isDeletingEmployeeDoc}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {isDeletingEmployeeDoc ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   Deleting...

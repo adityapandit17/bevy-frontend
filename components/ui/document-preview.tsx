@@ -170,7 +170,7 @@ export function DocumentPreview({
                 </Button>
               </div>
             </div>
-          ) : (
+          ) : documentUrl ? (
             <iframe
               key={documentUrl}
               src={documentUrl}
@@ -179,6 +179,14 @@ export function DocumentPreview({
               className="w-full h-full border-none"
               title={documentName}
             />
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full text-center p-6">
+              <AlertCircle className="w-12 h-12 text-red-500 mb-4" />
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                Document Not Available
+              </h3>
+              <p className="text-gray-600 mb-4">The document file path is missing or invalid.</p>
+            </div>
           )}
         </div>
       </DialogContent>
