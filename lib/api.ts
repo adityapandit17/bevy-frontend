@@ -188,6 +188,8 @@ export const apiRequest = async <T>(
       const error = new Error(errorMessage);
       (error as any).toastShown = true;
       (error as any).statusCode = response.status;
+      // Mark as handled to prevent Next.js error overlay
+      (error as any).isHandled = true;
       throw error;
     }
 
@@ -230,8 +232,12 @@ export const apiRequest = async <T>(
     
     // Only log to console if we haven't shown a toast (for debugging purposes)
     // Errors that have shown toasts are still thrown for calling code to handle
+    // But we suppress console.error for handled errors to prevent Next.js overlay
     if (!(error instanceof Error) || !(error as any).toastShown) {
       console.error('API request error:', error);
+    } else if ((error as any).isHandled) {
+      // Suppress console.error for handled errors to prevent Next.js error overlay
+      // The error is still thrown so calling code can handle it, but Next.js won't show overlay
     }
     
     throw error;

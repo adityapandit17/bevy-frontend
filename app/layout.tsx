@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils"
 import { LoginLayout } from "@/components/login-layout"
 import { AuthProvider } from "@/lib/auth"
 import { Toaster } from "@/components/ui/toaster"
+import { ErrorSuppressor } from "@/components/error-suppressor"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -24,6 +25,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={cn("min-h-screen font-sans antialiased", inter.className)}>
+        <ErrorSuppressor />
         <AuthProvider>
           <LoginLayout>
             {children}

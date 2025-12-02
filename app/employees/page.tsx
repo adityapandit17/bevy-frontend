@@ -153,7 +153,10 @@ export default function EmployeesPage() {
       fetchEmployees()
       setShowForm(false)
     } catch (err) {
-      console.error('Error adding employee:', err)
+      // Error is already shown via toast in apiRequest
+      // Silently handle to prevent Next.js error overlay
+      // Don't re-throw or log to console to avoid Next.js detecting it
+      return
     }
   }
 
@@ -508,9 +511,12 @@ export default function EmployeesPage() {
           )}
         </CardContent>
       </Card>
-      {showForm && (
-        <EmployeeForm onClose={() => { setShowForm(false); setEditEmployee(null); }} onSubmit={editEmployee ? handleUpdateEmployee : handleAddEmployee} initialData={editEmployee} />
-      )}
+      <EmployeeForm 
+        open={showForm} 
+        onClose={() => { setShowForm(false); setEditEmployee(null); }} 
+        onSubmit={editEmployee ? handleUpdateEmployee : handleAddEmployee} 
+        initialData={editEmployee} 
+      />
     </div>
     </ResourceGuard>
   )
