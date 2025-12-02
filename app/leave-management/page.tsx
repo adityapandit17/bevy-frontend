@@ -147,10 +147,12 @@ export default function LeaveManagementPage() {
 
   const fetchEmployees = async () => {
     try {
-      const data = await apiRequest<any[]>(getEndpointUrl('EMPLOYEES'))
-      setEmployees(data)
+      const response = await apiRequest<any>(`${getEndpointUrl('EMPLOYEES')}?per_page=1000`)
+      const employeesData = Array.isArray(response) ? response : response?.data
+      setEmployees(Array.isArray(employeesData) ? employeesData : [])
     } catch (e) {
-      // ignore
+      // ignore for now – employee selector will show a friendly loading state
+      setEmployees([])
     }
   }
 
