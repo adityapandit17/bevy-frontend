@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
-import { getApiUrl, getEndpointUrl } from "@/lib/api"
+import { apiRequest, getApiUrl, getEndpointUrl } from "@/lib/api"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -86,11 +86,10 @@ export function AttendanceMarking({ isOpen, onClose, onSuccess }: AttendanceMark
 
   const fetchEmployees = async () => {
     try {
-      const response = await fetch(getEndpointUrl('EMPLOYEES'))
-      if (response.ok) {
-        const data = await response.json()
-        setEmployees(data)
-      }
+      // Use authenticated API helper and handle paginated response shape
+      const url = `${getEndpointUrl('EMPLOYEES')}?per_page=1000`
+      const data = await apiRequest<{ data: Employee[] }>(url)
+      setEmployees(data?.data || [])
     } catch (error) {
       console.error('Error fetching employees:', error)
       setError('Failed to load employees')
