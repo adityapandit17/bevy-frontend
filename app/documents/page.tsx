@@ -230,12 +230,14 @@ export default function DocumentsPage() {
 
   const fetchEmployees = async () => {
     try {
-      const data = await apiRequest<any[]>(getApiUrl('employees'))
-      if (data && Array.isArray(data)) {
-        setEmployees(data)
-      }
+      // Use the shared EMPLOYEES endpoint helper and handle paginated response
+      const response = await apiRequest<any>(`${getApiUrl('/employees')}?per_page=1000`)
+      const employeesData = Array.isArray(response) ? response : response?.data
+      setEmployees(Array.isArray(employeesData) ? employeesData : [])
     } catch (error) {
       console.error("Error fetching employees:", error)
+      // On error, ensure we reset employees to an empty array so the Select still works
+      setEmployees([])
     }
   }
 
