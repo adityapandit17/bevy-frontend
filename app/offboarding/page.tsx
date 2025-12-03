@@ -232,11 +232,43 @@ export default function OffboardingPage() {
 
   const fetchEmployees = async () => {
     try {
-      const data = await apiRequest<Employee[]>(getEndpointUrl('EMPLOYEES'))
-      const employeesArray = Array.isArray(data) ? data : []
+      // Fetch all employees across pages so the dropdown can see every available employee
+      const allEmployees: Employee[] = []
+      let page = 1
+      const perPage = 100
+      let totalPages = 1
+
+      do {
+        const params = new URLSearchParams({
+          page: page.toString(),
+          per_page: perPage.toString(),
+        })
+
+        const data = await apiRequest<any>(`${getApiUrl('employees')}?${params.toString()}`)
+
+        // Support both plain arrays and paginated responses (with `data` key)
+        const employeesPage: Employee[] = Array.isArray(data)
+          ? data
+          : (Array.isArray(data?.data) ? data.data : [])
+
+        allEmployees.push(...employeesPage)
+
+        // Read total pages from pagination metadata when available
+        if (!Array.isArray(data) && data?.pagination?.total_pages) {
+          totalPages = data.pagination.total_pages
+        } else {
+          totalPages = 1
+        }
+
+        page += 1
+      } while (page <= totalPages)
+
       // Filter out employees who are already in offboarding
-      const offboardingEmployeeIds = Array.isArray(offboardingEmployees) ? offboardingEmployees.map(oe => oe.employeeId) : []
-      const availableEmployees = employeesArray.filter((employee: Employee) => 
+      const offboardingEmployeeIds = Array.isArray(offboardingEmployees)
+        ? offboardingEmployees.map(oe => oe.employeeId)
+        : []
+
+      const availableEmployees = allEmployees.filter((employee: Employee) =>
         !offboardingEmployeeIds.includes(employee.id)
       )
       setEmployees(availableEmployees)
