@@ -97,6 +97,14 @@ export default function Dashboard() {
     priority: string
     dueDate: string
   }>>([])
+  const [recentActivities, setRecentActivities] = useState<Array<{
+    id: string
+    type: string
+    description: string
+    time: string
+    status: string
+  }>>([])
+  const [recentActivitiesLoading, setRecentActivitiesLoading] = useState(true)
   const [pendingTasksLoading, setPendingTasksLoading] = useState(true)
 
   // Helper functions for calculating hours (must be defined before any useEffect that uses them)
@@ -185,45 +193,6 @@ export default function Dashboard() {
       bgColor: "bg-purple-50",
     },
   ]
-
-  const recentActivities = [
-    {
-      id: 1,
-      type: "New Employee",
-      description: "Priya Sharma joined as Software Developer",
-      time: "2 hours ago",
-      status: "success",
-    },
-    {
-      id: 2,
-      type: "Leave Request",
-      description: "Rahul Kumar requested 3 days leave",
-      time: "4 hours ago",
-      status: "pending",
-    },
-    {
-      id: 3,
-      type: "Payroll",
-      description: "October payroll processed successfully",
-      time: "1 day ago",
-      status: "success",
-    },
-    {
-      id: 4,
-      type: "Interview",
-      description: "Interview scheduled with Anjali Patel",
-      time: "2 days ago",
-      status: "info",
-    },
-    {
-      id: 5,
-      type: "Performance Review",
-      description: "Q3 reviews completed for Engineering team",
-      time: "3 days ago",
-      status: "success",
-    },
-  ]
-
 
   // Load sessions from localStorage on mount and check for new day
   useEffect(() => {
@@ -578,7 +547,6 @@ export default function Dashboard() {
     setPendingTasksLoading(true)
     try {
       const data = await apiRequest<{
-        stats?: any
         pending_tasks?: Array<{
           id: number
           title: string
@@ -590,14 +558,9 @@ export default function Dashboard() {
         method: "GET"
       })
       
-      // Debug logging
-      console.log('Dashboard API response:', data)
-      
       if (data.pending_tasks && Array.isArray(data.pending_tasks)) {
-        console.log('Pending tasks found:', data.pending_tasks)
         setPendingTasks(data.pending_tasks)
       } else {
-        console.log('No pending_tasks in response or not an array')
         setPendingTasks([])
       }
     } catch (error) {
@@ -608,16 +571,54 @@ export default function Dashboard() {
     }
   }
 
+  const fetchRecentActivities = async () => {
+    setRecentActivitiesLoading(true)
+    try {
+      const data = await apiRequest<{
+        recent_activities?: Array<{
+          id: string
+          type: string
+          description: string
+          time: string
+          status: string
+        }>
+      }>(getApiUrl('dashboard'), {
+        method: "GET"
+      })
+
+      if (data.recent_activities && Array.isArray(data.recent_activities)) {
+        setRecentActivities(data.recent_activities)
+      } else {
+        setRecentActivities([])
+      }
+    } catch (error) {
+      console.error("Failed to fetch recent activities:", error)
+      setRecentActivities([])
+    } finally {
+      setRecentActivitiesLoading(false)
+    }
+  }
+
   useEffect(() => {
     fetchDashboardStats()
     fetchUpcomingEvents()
     fetchPendingTasks()
+    fetchRecentActivities()
   }, [])
 
   // Refresh pending tasks periodically (every 30 seconds) to catch new leave requests
   useEffect(() => {
     const interval = setInterval(() => {
       fetchPendingTasks()
+    }, 30000) // Refresh every 30 seconds
+
+    return () => clearInterval(interval)
+  }, [])
+
+  // Refresh recent activities periodically (every 30 seconds) to catch new employees and activities
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchRecentActivities()
     }, 30000) // Refresh every 30 seconds
 
     return () => clearInterval(interval)
@@ -988,26 +989,45 @@ export default function Dashboard() {
             <CardDescription>Latest updates from your organization</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {recentActivities.map((activity) => (
-                <div key={activity.id} className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50">
-                  <div
-                    className={`w-2 h-2 rounded-full mt-2 ${
-                      activity.status === "success"
-                        ? "bg-green-500"
-                        : activity.status === "pending"
-                          ? "bg-orange-500"
-                          : "bg-blue-500"
-                    }`}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900">{activity.type}</p>
-                    <p className="text-sm text-gray-600">{activity.description}</p>
-                    <p className="text-xs text-gray-500 mt-1">{activity.time}</p>
+            {recentActivitiesLoading ? (
+              <div className="space-y-3">
+                {Array.from({ length: 4 }).map((_, index) => (
+                  <div key={index} className="flex items-start gap-3 p-3 rounded-lg">
+                    <div className="w-2 h-2 rounded-full mt-2 bg-gray-200" />
+                    <div className="flex-1 min-w-0 space-y-2">
+                      <div className="h-4 bg-gray-200 rounded w-32" />
+                      <div className="h-3 bg-gray-200 rounded w-48" />
+                      <div className="h-3 bg-gray-200 rounded w-24" />
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : recentActivities.length > 0 ? (
+              <div className="space-y-4">
+                {recentActivities.map((activity) => (
+                  <div key={activity.id} className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50">
+                    <div
+                      className={`w-2 h-2 rounded-full mt-2 ${
+                        activity.status === "success"
+                          ? "bg-green-500"
+                          : activity.status === "pending"
+                            ? "bg-orange-500"
+                            : "bg-blue-500"
+                      }`}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900">{activity.type}</p>
+                      <p className="text-sm text-gray-600">{activity.description}</p>
+                      <p className="text-xs text-gray-500 mt-1">{activity.time}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-6 text-gray-500 text-sm">
+                No recent activities found
+              </div>
+            )}
           </CardContent>
         </Card>
 
