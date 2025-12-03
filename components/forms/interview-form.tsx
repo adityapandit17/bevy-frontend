@@ -98,10 +98,15 @@ export function InterviewForm({
 
   const fetchEmployees = async () => {
     try {
-      const data = await apiRequest<Employee[]>(getEndpointUrl('EMPLOYEES'))
-      setEmployees(data)
+      // The employees API returns a paginated response: { data: Employee[], pagination: {...} }
+      const response = await apiRequest<{ data: Employee[]; pagination: any }>(
+        `${getEndpointUrl('EMPLOYEES')}?page=1&per_page=1000`
+      )
+      setEmployees(Array.isArray(response?.data) ? response.data : [])
     } catch (error) {
       console.error("Error fetching employees:", error)
+      // Ensure employees is always an array even on error
+      setEmployees([])
     }
   }
 
