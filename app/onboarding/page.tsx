@@ -156,15 +156,54 @@ export default function OnboardingPage() {
   const fetchOnboardingEmployees = async () => {
     setLoading(true)
     try {
-      const data = await apiRequest<OnboardingEmployee[]>(getEndpointUrl('ONBOARDING_EMPLOYEES'))
-      const employeesArray = Array.isArray(data) ? data : []
+      const endpointUrl = getEndpointUrl('ONBOARDING_EMPLOYEES')
+      console.log('Fetching onboarding employees from:', endpointUrl)
+      const data = await apiRequest<OnboardingEmployee[]>(endpointUrl)
+      console.log('Fetched onboarding employees data:', data)
+      console.log('Data type:', typeof data, 'Is array:', Array.isArray(data))
+      
+      // Handle different response formats
+      let employeesArray: OnboardingEmployee[] = []
+      if (Array.isArray(data)) {
+        employeesArray = data
+      } else if (data && typeof data === 'object' && 'data' in data && Array.isArray((data as any).data)) {
+        // Handle paginated response
+        employeesArray = (data as any).data
+      } else if (data && typeof data === 'object') {
+        // Try to extract array from object
+        const keys = Object.keys(data)
+        const arrayKey = keys.find(key => Array.isArray((data as any)[key]))
+        if (arrayKey) {
+          employeesArray = (data as any)[arrayKey]
+        }
+      }
+      
+      console.log('Processed employees array:', employeesArray, 'Length:', employeesArray.length)
+      
+      // Validate and clean the data
+      employeesArray = employeesArray.filter((emp: any) => {
+        const isValid = emp && typeof emp === 'object' && emp.id !== undefined
+        if (!isValid) {
+          console.warn('Invalid employee data:', emp)
+        }
+        return isValid
+      })
+      
       // Store all onboarding employees for duplicate checking
       setAllOnboardingEmployees(employeesArray)
       // Filter out completed employees by default for display
-      const filteredData = showCompleted ? employeesArray : employeesArray.filter((emp: OnboardingEmployee) => emp.status !== 'completed')
+      const filteredData = showCompleted 
+        ? employeesArray 
+        : employeesArray.filter((emp: OnboardingEmployee) => emp.status !== 'completed')
+      console.log('Filtered employees:', filteredData, 'Length:', filteredData.length)
       setEmployees(filteredData)
     } catch (error) {
       console.error('Error fetching onboarding employees:', error)
+      // Log more details about the error
+      if (error instanceof Error) {
+        console.error('Error message:', error.message)
+        console.error('Error stack:', error.stack)
+      }
       setAllOnboardingEmployees([])
       setEmployees([])
     } finally {
@@ -193,10 +232,34 @@ export default function OnboardingPage() {
 
   const fetchAllEmployees = async () => {
     try {
-      const data = await apiRequest<any[]>(getEndpointUrl('EMPLOYEES'))
-      setAllEmployees(Array.isArray(data) ? data : [])
+      // Employees endpoint returns paginated response, so request a high per_page value
+      const response = await apiRequest<any>(`${getApiUrl('employees')}?page=1&per_page=1000`, {
+        method: "GET"
+      })
+      console.log('Fetched all employees response:', response)
+      
+      // Handle paginated response or direct array
+      let employeesData: any[] = []
+      if (Array.isArray(response)) {
+        employeesData = response
+      } else if (response && typeof response === 'object' && 'data' in response && Array.isArray(response.data)) {
+        employeesData = response.data
+      } else if (response && typeof response === 'object') {
+        // Try to find array in response
+        const keys = Object.keys(response)
+        const arrayKey = keys.find(key => Array.isArray((response as any)[key]))
+        if (arrayKey) {
+          employeesData = (response as any)[arrayKey]
+        }
+      }
+      
+      console.log('Processed all employees:', employeesData, 'Length:', employeesData.length)
+      setAllEmployees(employeesData)
     } catch (error) {
       console.error('Error fetching all employees:', error)
+      if (error instanceof Error) {
+        console.error('Error message:', error.message)
+      }
       setAllEmployees([])
     }
   }
@@ -686,7 +749,7 @@ export default function OnboardingPage() {
                     <div className="h-3 bg-gray-200 rounded w-1/4"></div>
                   </div>
                 ))
-              ) : (
+              ) : filteredEmployees.length > 0 ? (
                 filteredEmployees.map((employee) => (
                 <div
                   key={employee.id}
@@ -723,6 +786,20 @@ export default function OnboardingPage() {
                   </div>
                 </div>
                 ))
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <Users className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                  <p className="text-sm font-medium text-gray-900 mb-1">
+                    {searchTerm ? 'No employees found' : showCompleted ? 'No onboarding employees' : 'No active onboarding employees'}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {searchTerm 
+                      ? 'Try adjusting your search terms' 
+                      : showCompleted 
+                        ? 'No employees have been added to onboarding yet' 
+                        : 'All employees have completed onboarding or no employees are in progress'}
+                  </p>
+                </div>
               )}
             </div>
           </CardContent>
@@ -938,30 +1015,51 @@ export default function OnboardingPage() {
           <div className="grid gap-4 py-4">
             <div>
               <Label htmlFor="employeeId">Select Employee *</Label>
-              <select
-                id="employeeId"
+              <Select
                 value={formData.employeeId}
-                onChange={(e) => handleInputChange('employeeId', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                onValueChange={(value) => handleInputChange('employeeId', value)}
               >
-                <option value="">Select an employee to add to onboarding</option>
-                {Array.isArray(allEmployees) && allEmployees
-                  .filter(emp => {
-                    // Filter out employees who have ever been in onboarding (any status)
-                    const hasBeenOnboarded = Array.isArray(allOnboardingEmployees) && allOnboardingEmployees.some(oe => 
-                      oe.employee_id === emp.id
-                    )
-                    return !hasBeenOnboarded
-                  })
-                  .map((emp) => {
-                    const department = Array.isArray(departments) ? departments.find(dept => dept.id === emp.department_id) : null
-                    return (
-                      <option key={emp.id} value={emp.id}>
-                        {emp.first_name} {emp.last_name} - {emp.designation} ({department?.name || 'Unknown Department'})
-                      </option>
-                    )
-                  })}
-              </select>
+                <SelectTrigger id="employeeId" className="w-full">
+                  <SelectValue placeholder="Select an employee to add to onboarding" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(() => {
+                    const availableEmployees = Array.isArray(allEmployees) 
+                      ? allEmployees.filter(emp => {
+                          // Filter out employees who have ever been in onboarding (any status)
+                          const hasBeenOnboarded = Array.isArray(allOnboardingEmployees) && allOnboardingEmployees.some(oe => 
+                            oe.employee_id === emp.id
+                          )
+                          return !hasBeenOnboarded
+                        })
+                      : []
+                    
+                    console.log('Available employees for dropdown:', availableEmployees.length, 'out of', Array.isArray(allEmployees) ? allEmployees.length : 0)
+                    
+                    if (availableEmployees.length > 0) {
+                      return availableEmployees.map((emp) => {
+                        const department = Array.isArray(departments) ? departments.find(dept => dept.id === emp.department_id) : null
+                        const displayName = `${emp.first_name || ''} ${emp.last_name || ''} - ${emp.designation || emp.position || 'Employee'} (${department?.name || 'Unknown Department'})`
+                        return (
+                          <SelectItem key={emp.id} value={emp.id.toString()}>
+                            {displayName}
+                          </SelectItem>
+                        )
+                      })
+                    } else {
+                      return (
+                        <div className="p-2 text-sm text-gray-500 text-center">
+                          {Array.isArray(allEmployees) && allEmployees.length === 0 
+                            ? "No employees available. Please add employees first."
+                            : Array.isArray(allEmployees) && allEmployees.length > 0
+                            ? "All employees are already in onboarding."
+                            : "Loading employees..."}
+                        </div>
+                      )
+                    }
+                  })()}
+                </SelectContent>
+              </Select>
               <p className="text-xs text-gray-500 mt-1">
                 Only employees who have never been in onboarding are shown. Once an employee completes onboarding, they cannot be added again.
               </p>

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import {
   DropdownMenu,
@@ -31,6 +32,7 @@ import {
 } from "lucide-react"
 import { JobOpeningForm } from "@/components/forms/job-opening-form"
 import { InterviewFormUI } from "@/components/forms/interview-form-ui"
+import { EmployeeForm } from "@/components/forms/employee-form"
 import { useRouter } from "next/navigation"
 
 export default function RecruitmentPage() {
@@ -39,7 +41,9 @@ export default function RecruitmentPage() {
   const [jobOpenings, setJobOpenings] = useState([])
   const [allJobOpenings, setAllJobOpenings] = useState([]) // For stats calculation
   const [candidates, setCandidates] = useState([])
+  const [archivedCandidates, setArchivedCandidates] = useState([])
   const [candidateSearchTerm, setCandidateSearchTerm] = useState("")
+  const [candidateFilter, setCandidateFilter] = useState("active") // "all", "active", "archived"
   const [interviews, setInterviews] = useState([])
   const [stats, setStats] = useState({
     activeJobOpenings: 0,
@@ -52,6 +56,8 @@ export default function RecruitmentPage() {
   const [editJob, setEditJob] = useState(null)
   const [showInterviewForm, setShowInterviewForm] = useState(false)
   const [selectedCandidate, setSelectedCandidate] = useState(null)
+  const [showEmployeeForm, setShowEmployeeForm] = useState(false)
+  const [candidateForEmployee, setCandidateForEmployee] = useState(null)
   const router = useRouter()
 
   useEffect(() => {
@@ -59,6 +65,7 @@ export default function RecruitmentPage() {
     fetchAllJobOpenings() // Fetch all for stats
     fetchJobOpenings() // Fetch for display (may be filtered)
     fetchCandidates()
+    fetchArchivedCandidates()
     fetchInterviews()
   }, [])
 
@@ -97,14 +104,35 @@ export default function RecruitmentPage() {
     }
   }
 
-  const filteredCandidates = candidates.filter((candidate) => {
-    const term = candidateSearchTerm.toLowerCase();
+  const getCandidateDisplayName = (candidate: any) => {
+    return candidate.name || `${candidate.first_name || ''} ${candidate.last_name || ''}`.trim() || "Unknown Candidate"
+  }
+
+  // Get candidates based on filter (all, active, archived)
+  const getCandidatesByFilter = () => {
+    let candidatesToShow: any[] = []
+    
+    if (candidateFilter === "all") {
+      candidatesToShow = [...candidates, ...archivedCandidates]
+    } else if (candidateFilter === "active") {
+      candidatesToShow = candidates
+    } else if (candidateFilter === "archived") {
+      candidatesToShow = archivedCandidates
+    }
+    
+    return candidatesToShow
+  }
+
+  // Filter candidates by search term
+  const filteredCandidates = getCandidatesByFilter().filter((candidate) => {
+    const term = candidateSearchTerm.toLowerCase()
+    const displayName = getCandidateDisplayName(candidate)
     return (
-      candidate.name?.toLowerCase().includes(term) ||
+      displayName.toLowerCase().includes(term) ||
       candidate.email?.toLowerCase().includes(term) ||
       candidate.position?.toLowerCase().includes(term)
-    );
-  });
+    )
+  })
   
   const fetchJobOpenings = async (query = "") => {
     try {
@@ -131,6 +159,15 @@ export default function RecruitmentPage() {
       setCandidates(res as any)
     } catch (err) {
       console.error('Error fetching candidates:', err)
+    }
+  }
+
+  const fetchArchivedCandidates = async () => {
+    try {
+      const res = await apiRequest<any[]>(`${getEndpointUrl('CANDIDATES')}?archived=true`)
+      setArchivedCandidates(res as any)
+    } catch (err) {
+      console.error('Error fetching archived candidates:', err)
     }
   }
 
@@ -279,6 +316,58 @@ export default function RecruitmentPage() {
       fetchCandidates()
     } catch (err) {
       console.error('Error rejecting application:', err)
+    }
+  }
+
+  const handleMoveToNextStage = (candidate: any) => {
+    setCandidateForEmployee(candidate)
+    setShowEmployeeForm(true)
+  }
+
+  const getEmployeeInitialData = () => {
+    if (!candidateForEmployee) return null
+    
+    // Find department by name
+    const department = (departments as any[]).find((dept: any) => 
+      dept.name.toLowerCase() === (candidateForEmployee.department || "").toLowerCase()
+    )
+    
+    // Map candidate data to employee form data
+    return {
+      first_name: candidateForEmployee.first_name || "",
+      last_name: candidateForEmployee.last_name || "",
+      email: candidateForEmployee.email || "",
+      phone: candidateForEmployee.phone || "",
+      department_id: department ? department.id : "",
+      designation: candidateForEmployee.position || "",
+      date_of_joining: new Date().toISOString().split('T')[0], // Today's date
+      status: "onboarding"
+    }
+  }
+
+  const handleCreateEmployeeFromCandidate = async (formData: any) => {
+    try {
+      // Create the employee
+      await apiRequest(getApiUrl('employees'), {
+        method: "POST",
+        body: JSON.stringify({ employee: formData })
+      })
+      
+      // Archive the candidate after successful employee creation
+      if (candidateForEmployee) {
+        await apiRequest<any>(getApiUrl(`candidates/${candidateForEmployee.id}/archive`), {
+          method: 'PATCH',
+        })
+      }
+      
+      // Refresh candidates lists
+      fetchCandidates()
+      fetchArchivedCandidates()
+      setShowEmployeeForm(false)
+      setCandidateForEmployee(null)
+    } catch (err) {
+      console.error('Error creating employee from candidate:', err)
+      throw err // Re-throw to let EmployeeForm handle the error display
     }
   }
 
@@ -565,6 +654,16 @@ export default function RecruitmentPage() {
                     className="pl-10"
                   />
                 </div>
+                <Select value={candidateFilter} onValueChange={setCandidateFilter}>
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder="Filter candidates" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Candidates</SelectItem>
+                    <SelectItem value="active">Active Candidates</SelectItem>
+                    <SelectItem value="archived">Archived Candidates</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="rounded-md border">
@@ -581,70 +680,79 @@ export default function RecruitmentPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {candidates.length === 0 ? (
+                    {filteredCandidates.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={7} className="text-center py-8 text-gray-500">
                           No candidates found
                         </TableCell>
                       </TableRow>
                     ) : (
-                        filteredCandidates.map((candidate) => (
-                        <TableRow key={candidate.id}>
-                          <TableCell>
-                            <div>
-                              <p className="font-medium text-gray-900">{candidate.name}</p>
-                              <p className="text-sm text-gray-500">{candidate.email}</p>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <span className="text-sm text-gray-600">{candidate.position || "N/A"}</span>
-                          </TableCell>
-                          <TableCell>
-                            <span className="text-sm text-gray-600">{candidate.experience || "N/A"}</span>
-                          </TableCell>
-                          <TableCell>
-                            <span className="text-sm text-gray-600">{candidate.status || "N/A"}</span>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2 text-sm text-gray-600">
-                              <Clock className="w-3 h-3" />
-                              <span>
-                                {candidate.applied_date 
-                                  ? new Date(candidate.applied_date).toLocaleDateString()
-                                  : "N/A"}
-                              </span>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge className={getStatusColor(candidate.status || "")}>
-                              {candidate.status || "Unknown"}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="sm">
-                                  <MoreHorizontal className="w-4 h-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                <DropdownMenuItem onClick={() => router.push(`/candidates/${candidate.id}`)}>View Profile</DropdownMenuItem>
-                                <DropdownMenuItem 
-                                  onClick={() => handleScheduleInterview(candidate)}
-                                  disabled={candidate.status === "rejected"}
-                                >
-                                  Schedule Interview
-                                </DropdownMenuItem>
-                                <DropdownMenuItem>Send Message</DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem>Move to Next Stage</DropdownMenuItem>
-                                <DropdownMenuItem className="text-red-600" onClick={() => handleRejectApplication(candidate)}>Reject Application</DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </TableCell>
-                        </TableRow>
-                      ))
+                        filteredCandidates.map((candidate) => {
+                          const isArchived = archivedCandidates.some(ac => ac.id === candidate.id)
+                          return (
+                            <TableRow key={candidate.id}>
+                              <TableCell>
+                                <div>
+                                  <p className="font-medium text-gray-900">{getCandidateDisplayName(candidate)}</p>
+                                  <p className="text-sm text-gray-500">{candidate.email}</p>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <span className="text-sm text-gray-600">{candidate.position || "N/A"}</span>
+                              </TableCell>
+                              <TableCell>
+                                <span className="text-sm text-gray-600">{candidate.experience || "N/A"}</span>
+                              </TableCell>
+                              <TableCell>
+                                <span className="text-sm text-gray-600">{candidate.status || "N/A"}</span>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-2 text-sm text-gray-600">
+                                  <Clock className="w-3 h-3" />
+                                  <span>
+                                    {candidate.applied_date 
+                                      ? new Date(candidate.applied_date).toLocaleDateString()
+                                      : "N/A"}
+                                  </span>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <Badge className={getStatusColor(candidate.status || "")}>
+                                  {candidate.status || "Unknown"}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="sm">
+                                      <MoreHorizontal className="w-4 h-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                    <DropdownMenuItem onClick={() => router.push(`/candidates/${candidate.id}`)}>View Profile</DropdownMenuItem>
+                                    {!isArchived && (
+                                      <>
+                                        <DropdownMenuItem 
+                                          onClick={() => handleScheduleInterview(candidate)}
+                                          disabled={candidate.status === "rejected"}
+                                        >
+                                          Schedule Interview
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem>Send Message</DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        {candidate.status === "hired" && (
+                                          <DropdownMenuItem onClick={() => handleMoveToNextStage(candidate)}>Move to Next Stage</DropdownMenuItem>
+                                        )}
+                                        <DropdownMenuItem className="text-red-600" onClick={() => handleRejectApplication(candidate)}>Reject Application</DropdownMenuItem>
+                                      </>
+                                    )}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </TableCell>
+                            </TableRow>
+                          )
+                        })
                     )}
                   </TableBody>
                 </Table>
@@ -667,11 +775,21 @@ export default function RecruitmentPage() {
         onOpenChange={setShowInterviewForm}
         candidate={selectedCandidate ? {
           id: selectedCandidate.id,
-          name: selectedCandidate.name,
+          name: getCandidateDisplayName(selectedCandidate),
           email: selectedCandidate.email,
           position: selectedCandidate.position
         } : undefined}
         onSuccess={handleInterviewSuccess}
+      />
+
+      <EmployeeForm
+        open={showEmployeeForm}
+        onClose={() => {
+          setShowEmployeeForm(false)
+          setCandidateForEmployee(null)
+        }}
+        onSubmit={handleCreateEmployeeFromCandidate}
+        initialData={getEmployeeInitialData()}
       />
     </div>
   )

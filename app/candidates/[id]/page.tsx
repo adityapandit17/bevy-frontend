@@ -43,7 +43,10 @@ import { toast } from "@/hooks/use-toast"
 
 interface Candidate {
   id: string
-  name: string
+  first_name: string
+  last_name: string
+  date_of_birth?: string
+  name?: string // Computed field from backend for display
   email: string
   phone: string
   position: string
@@ -160,13 +163,18 @@ export default function CandidateProfilePage() {
     setShowEditCandidate(false)
   }
 
-  const getInitials = (name: string) => {
+  const getInitials = (name?: string) => {
+    if (!name) return "??"
     return name
       .split(" ")
       .map((n) => n[0])
       .join("")
       .toUpperCase()
       .slice(0, 2)
+  }
+
+  const getDisplayName = (candidate: Candidate) => {
+    return candidate.name || `${candidate.first_name} ${candidate.last_name}`.trim() || "Unknown"
   }
 
   const formatDate = (dateString?: string) => {
@@ -292,14 +300,14 @@ export default function CandidateProfilePage() {
         <CardContent className="p-6">
           <div className="flex flex-col md:flex-row gap-6">
             <Avatar className="h-24 w-24">
-              <AvatarImage src={undefined} alt={candidate.name} />
+              <AvatarImage src={undefined} alt={getDisplayName(candidate)} />
               <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white text-2xl font-semibold">
-                {getInitials(candidate.name)}
+                {getInitials(getDisplayName(candidate))}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 space-y-4">
               <div>
-                <h2 className="text-2xl font-bold text-gray-900">{candidate.name}</h2>
+                <h2 className="text-2xl font-bold text-gray-900">{getDisplayName(candidate)}</h2>
                 <p className="text-gray-600">{candidate.position}</p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

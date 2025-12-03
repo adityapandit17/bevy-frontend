@@ -60,7 +60,10 @@ import { DocumentPreview } from "@/components/ui/document-preview"
 
 interface Candidate {
   id: string
-  name: string
+  first_name: string
+  last_name: string
+  date_of_birth?: string
+  name?: string // Computed field from backend for display
   email: string
   phone: string
   position: string
@@ -157,6 +160,11 @@ export default function ATSPage() {
   const [isChangingStatus, setIsChangingStatus] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
   const [filterStatus, setFilterStatus] = useState<string>("all")
+
+  // Helper function to get display name
+  const getCandidateDisplayName = (candidate: Candidate) => {
+    return candidate.name || `${candidate.first_name || ''} ${candidate.last_name || ''}`.trim() || "Unknown Candidate"
+  }
   const [filterDepartment, setFilterDepartment] = useState<string>("all")
   const [isLoading, setIsLoading] = useState(false)
   const [stats, setStats] = useState({
@@ -341,7 +349,8 @@ export default function ATSPage() {
   }
 
   const filteredCandidates = candidates.filter(candidate => {
-    const matchesSearch = candidate.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    const displayName = getCandidateDisplayName(candidate)
+    const matchesSearch = displayName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          candidate.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          candidate.position.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesStatus = filterStatus === "all" || candidate.status === filterStatus
@@ -475,7 +484,7 @@ export default function ATSPage() {
     const defaultSubject = `Update on Your Application - ${selectedCandidate.position}`
     setEmailFormData({
       subject: defaultSubject,
-      message: `Dear ${selectedCandidate.name},\n\n`,
+      message: `Dear ${getCandidateDisplayName(selectedCandidate)},\n\n`,
       sender_name: ""
     })
     setShowEmailDialog(true)
@@ -506,7 +515,7 @@ export default function ATSPage() {
       const interviewTime = interview.scheduled_time
 
       // Create reminder message
-      const reminderMessage = `Dear ${selectedCandidate.name},
+      const reminderMessage = `Dear ${getCandidateDisplayName(selectedCandidate)},
 
 This is a reminder about your upcoming interview:
 
@@ -788,7 +797,7 @@ HR Team`
                   }}
                 >
                   <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-medium text-gray-900">{candidate.name}</h3>
+                    <h3 className="font-medium text-gray-900">{getCandidateDisplayName(candidate)}</h3>
                     <div className="flex items-center gap-2">
                       <Badge className={getStatusColor(candidate.status)}>
                         {candidate.status.charAt(0).toUpperCase() + candidate.status.slice(1)}
@@ -850,7 +859,7 @@ HR Team`
                   Candidate Profile
                 </CardTitle>
                 <CardDescription>
-                  {selectedCandidate ? `${selectedCandidate.name} - ${selectedCandidate.position}` : "Select a candidate to view their profile"}
+                  {selectedCandidate ? `${getCandidateDisplayName(selectedCandidate)} - ${selectedCandidate.position}` : "Select a candidate to view their profile"}
                 </CardDescription>
               </div>
               {selectedCandidate && (
@@ -1285,7 +1294,7 @@ HR Team`
         onOpenChange={setShowScheduleInterview}
         candidate={selectedCandidate ? {
           id: selectedCandidate.id,
-          name: selectedCandidate.name,
+          name: getCandidateDisplayName(selectedCandidate),
           email: selectedCandidate.email,
           position: selectedCandidate.position
         } : undefined}
@@ -1318,7 +1327,7 @@ HR Team`
         }}
         candidate={selectedCandidate ? {
           id: selectedCandidate.id,
-          name: selectedCandidate.name,
+          name: getCandidateDisplayName(selectedCandidate),
           email: selectedCandidate.email,
           position: selectedCandidate.position
         } : undefined}
@@ -1407,7 +1416,7 @@ HR Team`
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <span className="text-gray-600">Name:</span>
-                    <p className="font-medium">{selectedCandidate.name}</p>
+                    <p className="font-medium">{getCandidateDisplayName(selectedCandidate)}</p>
                   </div>
                   <div>
                     <span className="text-gray-600">Position:</span>
@@ -1562,7 +1571,7 @@ HR Team`
           <DialogHeader>
             <DialogTitle>Send Email to Candidate</DialogTitle>
             <DialogDescription>
-              Send an email to {selectedCandidate?.name} ({selectedCandidate?.email})
+              Send an email to {selectedCandidate ? getCandidateDisplayName(selectedCandidate) : 'candidate'} ({selectedCandidate?.email})
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">

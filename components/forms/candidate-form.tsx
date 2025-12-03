@@ -15,7 +15,10 @@ import { AUTH_CONFIG } from "@/config/auth.config"
 
 interface Candidate {
   id?: string
-  name: string
+  first_name: string
+  last_name: string
+  date_of_birth?: string
+  name?: string // Computed field from backend for display
   email: string
   phone: string
   position: string
@@ -68,7 +71,9 @@ const departmentOptions = [
 
 export function CandidateForm({ candidate, onSave, onCancel, isLoading = false }: CandidateFormProps) {
   const [formData, setFormData] = useState<Candidate>({
-    name: "",
+    first_name: "",
+    last_name: "",
+    date_of_birth: "",
     email: "",
     phone: "",
     position: "",
@@ -118,9 +123,21 @@ export function CandidateForm({ candidate, onSave, onCancel, isLoading = false }
 
   useEffect(() => {
     if (candidate) {
+      // Handle backward compatibility: if name exists but first_name/last_name don't, split name
+      let first_name = candidate.first_name || ""
+      let last_name = candidate.last_name || ""
+      if ((!first_name || !last_name) && candidate.name) {
+        const nameParts = candidate.name.split(' ', 2)
+        first_name = first_name || nameParts[0] || ""
+        last_name = last_name || nameParts[1] || ""
+      }
+
       setFormData(prev => ({
         ...prev,
         ...candidate,
+        first_name,
+        last_name,
+        date_of_birth: candidate.date_of_birth || prev.date_of_birth,
         skills: Array.isArray(candidate.skills)
           ? candidate.skills
           : (candidate.skills || "")
@@ -145,7 +162,8 @@ export function CandidateForm({ candidate, onSave, onCancel, isLoading = false }
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {}
 
-    if (!formData.name.trim()) newErrors.name = "Name is required"
+    if (!formData.first_name.trim()) newErrors.first_name = "First name is required"
+    if (!formData.last_name.trim()) newErrors.last_name = "Last name is required"
     if (!formData.email.trim()) newErrors.email = "Email is required"
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) newErrors.email = "Invalid email format"
     if (!formData.phone.trim()) newErrors.phone = "Phone is required"
@@ -305,15 +323,27 @@ export function CandidateForm({ candidate, onSave, onCancel, isLoading = false }
           {/* Basic Information */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="name">Full Name *</Label>
+              <Label htmlFor="first_name">First Name *</Label>
               <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => handleInputChange("name", e.target.value)}
-                placeholder="Enter full name"
-                className={errors.name ? "border-red-500" : ""}
+                id="first_name"
+                value={formData.first_name}
+                onChange={(e) => handleInputChange("first_name", e.target.value)}
+                placeholder="Enter first name"
+                className={errors.first_name ? "border-red-500" : ""}
               />
-              {errors.name && <p className="text-sm text-red-500">{errors.name}</p>}
+              {errors.first_name && <p className="text-sm text-red-500">{errors.first_name}</p>}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="last_name">Last Name *</Label>
+              <Input
+                id="last_name"
+                value={formData.last_name}
+                onChange={(e) => handleInputChange("last_name", e.target.value)}
+                placeholder="Enter last name"
+                className={errors.last_name ? "border-red-500" : ""}
+              />
+              {errors.last_name && <p className="text-sm text-red-500">{errors.last_name}</p>}
             </div>
 
             <div className="space-y-2">
@@ -327,6 +357,18 @@ export function CandidateForm({ candidate, onSave, onCancel, isLoading = false }
                 className={errors.email ? "border-red-500" : ""}
               />
               {errors.email && <p className="text-sm text-red-500">{errors.email}</p>}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="date_of_birth">Date of Birth</Label>
+              <Input
+                id="date_of_birth"
+                type="date"
+                value={formData.date_of_birth || ""}
+                onChange={(e) => handleInputChange("date_of_birth", e.target.value)}
+                className={errors.date_of_birth ? "border-red-500" : ""}
+              />
+              {errors.date_of_birth && <p className="text-sm text-red-500">{errors.date_of_birth}</p>}
             </div>
 
             <div className="space-y-2">

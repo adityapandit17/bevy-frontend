@@ -17,7 +17,7 @@ export default function JobShowPage() {
   const [job, setJob] = useState(null)
   const [status, setStatus] = useState("")
   const [candidates, setCandidates] = useState([])
-  const [newCandidate, setNewCandidate] = useState({ name: "", email: "", phone: "" })
+  const [newCandidate, setNewCandidate] = useState({ first_name: "", last_name: "", email: "", phone: "" })
   const [isLoadingCandidates, setIsLoadingCandidates] = useState(false)
   const [isAddingCandidate, setIsAddingCandidate] = useState(false)
 
@@ -85,7 +85,8 @@ export default function JobShowPage() {
     setIsAddingCandidate(true)
     try {
       const candidateData = {
-        name: newCandidate.name,
+        first_name: newCandidate.first_name,
+        last_name: newCandidate.last_name,
         email: newCandidate.email,
         phone: newCandidate.phone,
         position: job.title, // Link to job opening via position
@@ -105,7 +106,7 @@ export default function JobShowPage() {
       await fetchCandidates()
       
       // Clear form
-      setNewCandidate({ name: "", email: "", phone: "" })
+      setNewCandidate({ first_name: "", last_name: "", email: "", phone: "" })
     } catch (err) {
       console.error("Error adding candidate:", err)
     } finally {
@@ -195,9 +196,15 @@ export default function JobShowPage() {
               <form className="space-y-2 mb-4" onSubmit={handleAddCandidate}>
                 <div className="flex flex-col gap-2">
                   <Input
-                    placeholder="Candidate Name"
-                    value={newCandidate.name}
-                    onChange={e => setNewCandidate({ ...newCandidate, name: e.target.value })}
+                    placeholder="First Name"
+                    value={newCandidate.first_name}
+                    onChange={e => setNewCandidate({ ...newCandidate, first_name: e.target.value })}
+                    required
+                  />
+                  <Input
+                    placeholder="Last Name"
+                    value={newCandidate.last_name}
+                    onChange={e => setNewCandidate({ ...newCandidate, last_name: e.target.value })}
                     required
                   />
                   <Input
@@ -227,7 +234,7 @@ export default function JobShowPage() {
                     <li key={c.id} className="flex flex-col gap-1 p-2 border rounded-md">
                       <div className="flex items-center gap-2">
                         <Users className="w-4 h-4 text-muted-foreground" />
-                        <span className="font-medium">{c.name}</span>
+                        <span className="font-medium">{c.name || `${c.first_name || ''} ${c.last_name || ''}`.trim() || "Unknown"}</span>
                       </div>
                       <div className="text-sm text-gray-500 ml-6">{c.email}</div>
                       {c.phone && (
