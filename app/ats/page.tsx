@@ -110,6 +110,7 @@ interface JobPosition {
 
 export default function ATSPage() {
   const [candidates, setCandidates] = useState<Candidate[]>([])
+  const [archivedCandidates, setArchivedCandidates] = useState<Candidate[]>([])
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null)
   const [showAddCandidate, setShowAddCandidate] = useState(false)
   
@@ -183,6 +184,7 @@ export default function ATSPage() {
       documentName: '',
       documentType: ''
     })
+  const [candidateFilter, setCandidateFilter] = useState<"all" | "active" | "archived">("active")
 
   const handleClosePreview = (open: boolean) => {
     setPreviewState(prev => ({ ...prev, open }))
@@ -190,6 +192,7 @@ export default function ATSPage() {
 
   useEffect(() => {
     fetchCandidates()
+    fetchArchivedCandidates()
     fetchStats()
     fetchInterviews()
   }, [])
@@ -218,6 +221,15 @@ export default function ATSPage() {
       restoreSelectedCandidate(res as any)
     } catch (error) {
       console.error('Error fetching candidates:', error)
+    }
+  }
+
+  const fetchArchivedCandidates = async () => {
+    try {
+      const res = await apiRequest<any[]>(`${getEndpointUrl('CANDIDATES')}?archived=true`)
+      setArchivedCandidates(res as any)
+    } catch (error) {
+      console.error('Error fetching archived candidates:', error)
     }
   }
 
@@ -348,7 +360,20 @@ export default function ATSPage() {
     }
   }
 
-  const filteredCandidates = candidates.filter(candidate => {
+  const getCandidatesByFilter = () => {
+    if (candidateFilter === "all") {
+      return [...candidates, ...archivedCandidates]
+    }
+
+    if (candidateFilter === "archived") {
+      return archivedCandidates
+    }
+
+    // Default to active candidates
+    return candidates
+  }
+
+  const filteredCandidates = getCandidatesByFilter().filter(candidate => {
     const displayName = getCandidateDisplayName(candidate)
     const matchesSearch = displayName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          candidate.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -727,7 +752,7 @@ HR Team`
               Candidates
             </CardTitle>
             <CardDescription>All candidates in the recruitment pipeline</CardDescription>
-            <div className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                 <Input
@@ -737,37 +762,48 @@ HR Team`
                   className="pl-10"
                 />
               </div>
-              <div className="flex gap-2">
-                <Select value={filterStatus} onValueChange={setFilterStatus}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Filter by status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="applied">Applied</SelectItem>
-                    <SelectItem value="screening">Screening</SelectItem>
-                    <SelectItem value="interview">Interview</SelectItem>
-                    <SelectItem value="technical">Technical</SelectItem>
-                    <SelectItem value="final">Final</SelectItem>
-                    <SelectItem value="offered">Offered</SelectItem>
-                    <SelectItem value="hired">Hired</SelectItem>
-                    <SelectItem value="rejected">Rejected</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={filterDepartment} onValueChange={setFilterDepartment}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Filter by department" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Departments</SelectItem>
-                    <SelectItem value="Engineering">Engineering</SelectItem>
-                    <SelectItem value="Product">Product</SelectItem>
-                    <SelectItem value="Design">Design</SelectItem>
-                    <SelectItem value="Marketing">Marketing</SelectItem>
-                    <SelectItem value="Sales">Sales</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              <Select
+                value={candidateFilter}
+                onValueChange={(value) => setCandidateFilter(value as typeof candidateFilter)}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Candidates</SelectItem>
+                  <SelectItem value="active">Active Candidates</SelectItem>
+                  <SelectItem value="archived">Archived Candidates</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={filterStatus} onValueChange={setFilterStatus}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Filter by status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="applied">Applied</SelectItem>
+                  <SelectItem value="screening">Screening</SelectItem>
+                  <SelectItem value="interview">Interview</SelectItem>
+                  <SelectItem value="technical">Technical</SelectItem>
+                  <SelectItem value="final">Final</SelectItem>
+                  <SelectItem value="offered">Offered</SelectItem>
+                  <SelectItem value="hired">Hired</SelectItem>
+                  <SelectItem value="rejected">Rejected</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={filterDepartment} onValueChange={setFilterDepartment}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Filter by department" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Departments</SelectItem>
+                  <SelectItem value="Engineering">Engineering</SelectItem>
+                  <SelectItem value="Product">Product</SelectItem>
+                  <SelectItem value="Design">Design</SelectItem>
+                  <SelectItem value="Marketing">Marketing</SelectItem>
+                  <SelectItem value="Sales">Sales</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </CardHeader>
           <CardContent className="max-h-[calc(100vh-300px)] overflow-y-auto">
