@@ -174,6 +174,24 @@ export default function AssetsPage() {
     notes: ""
   })
   const [submitting, setSubmitting] = useState(false)
+  const [employees, setEmployees] = useState<Array<{ id: string; name: string; department?: string }>>([])
+  const [employeesLoading, setEmployeesLoading] = useState(false)
+  const [editingAsset, setEditingAsset] = useState<Asset | null>(null)
+  const [showEditAsset, setShowEditAsset] = useState(false)
+  const [allocatingAsset, setAllocatingAsset] = useState<Asset | null>(null)
+  const [maintenanceAsset, setMaintenanceAsset] = useState<Asset | null>(null)
+  const [retiringAsset, setRetiringAsset] = useState<Asset | null>(null)
+  const [actionLoading, setActionLoading] = useState(false)
+  const [allocationForm, setAllocationForm] = useState({
+    employeeId: "",
+    assignedDate: new Date().toISOString().split("T")[0],
+    notes: ""
+  })
+  const [maintenanceForm, setMaintenanceForm] = useState({
+    maintenanceType: "routine",
+    scheduledDate: new Date().toISOString().split("T")[0],
+    notes: ""
+  })
 
   // Transform backend data from snake_case to camelCase
   const transformAsset = (asset: any): Asset => {
@@ -421,6 +439,28 @@ export default function AssetsPage() {
           console.error('Error fetching maintenance:', error)
           setMaintenanceRecords([])
         }
+
+        // Fetch employees for allocation dropdown
+        setEmployeesLoading(true)
+        try {
+          const employeesResponse = await apiRequest<any>(`${getApiUrl('employees')}?page=1&per_page=1000`)
+          const employeesArray = Array.isArray(employeesResponse)
+            ? employeesResponse
+            : Array.isArray(employeesResponse?.data)
+              ? employeesResponse.data
+              : []
+          const formatted = employeesArray.map((emp: any) => ({
+            id: emp.id?.toString() || "",
+            name: [emp.first_name, emp.last_name].filter(Boolean).join(" "),
+            department: emp.department?.name || emp.department || ""
+          })).filter((emp: any) => emp.id)
+          setEmployees(formatted)
+        } catch (error) {
+          console.error('Error fetching employees:', error)
+          setEmployees([])
+        } finally {
+          setEmployeesLoading(false)
+        }
       } catch (error: any) {
         console.error('Error fetching asset data:', error)
         console.error('Error details:', {
@@ -441,6 +481,22 @@ export default function AssetsPage() {
 
     fetchAllData()
   }, [])
+
+  const refreshAssets = async () => {
+    try {
+      const assetsData = await apiRequest<any>(getApiUrl('api/assets'))
+      const assetsArray = Array.isArray(assetsData) ? assetsData : (assetsData?.assets || assetsData?.data || [])
+      if (Array.isArray(assetsArray)) {
+        setAssets(assetsArray.map(transformAsset))
+      }
+      const allocationsData = await apiRequest<{ allocations: any[] }>(getApiUrl('api/assets/allocations'))
+      setAllocations(allocationsData.allocations?.map(transformAllocation) || [])
+      const maintenanceData = await apiRequest<any>(getApiUrl('api/assets/maintenance'))
+      setMaintenanceRecords(maintenanceData.recent_maintenance?.map(transformMaintenanceRecord) || [])
+    } catch (error) {
+      console.error('Error refreshing assets data:', error)
+    }
+  }
 
   // Handle asset selection - fetch details if needed
   const handleViewAsset = async (asset: Asset) => {
@@ -583,9 +639,7 @@ export default function AssetsPage() {
       console.log('Asset created successfully:', response)
 
       // Refresh assets list and stats
-      const assetsData = await apiRequest<{ assets: any[] }>(getApiUrl('api/assets'))
-      const transformedAssets = assetsData.assets.map(transformAsset)
-      setAssets(transformedAssets)
+      await refreshAssets()
 
       // Reset form
       setFormData({
@@ -607,6 +661,146 @@ export default function AssetsPage() {
       console.error('Error adding asset:', error)
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  const handleOpenEditAsset = (asset: Asset) => {
+    setEditingAsset(asset)
+    setFormData({
+      name: asset.name,
+      assetType: asset.assetType,
+      serialNumber: asset.serialNumber,
+      brand: asset.brand,
+      model: asset.model,
+      purchaseCost: asset.purchaseCost.toString(),
+      purchaseDate: asset.purchaseDate,
+      warrantyExpiry: asset.warrantyExpiry || "",
+      location: asset.location,
+      department: asset.department,
+      condition: asset.condition,
+      notes: asset.notes
+    })
+    setShowEditAsset(true)
+  }
+
+  const handleUpdateAsset = async () => {
+    if (!editingAsset) return
+    setActionLoading(true)
+    try {
+      const payload = {
+        asset: {
+          name: formData.name,
+          asset_type: formData.assetType,
+          serial_number: formData.serialNumber,
+          brand: formData.brand,
+          model: formData.model,
+          purchase_cost: parseFloat(formData.purchaseCost),
+          purchase_date: formData.purchaseDate,
+          warranty_expiry: formData.warrantyExpiry || null,
+          location: formData.location,
+          department: formData.department,
+          condition: formData.condition,
+          notes: formData.notes,
+          current_value: parseFloat(formData.purchaseCost)
+        }
+      }
+      await apiRequest(getApiUrl(`api/assets/${editingAsset.id}`), {
+        method: 'PUT',
+        body: JSON.stringify(payload)
+      })
+      await refreshAssets()
+      setShowEditAsset(false)
+      setEditingAsset(null)
+    } catch (error) {
+      console.error('Error updating asset:', error)
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleOpenAllocate = (asset: Asset) => {
+    setAllocatingAsset(asset)
+    setShowAllocateAsset(true)
+  }
+
+  const handleAllocateAsset = async () => {
+    if (!allocatingAsset) return
+    setActionLoading(true)
+    try {
+      const payload = {
+        asset_allocation: {
+          asset_id: allocatingAsset.id,
+          employee_id: allocationForm.employeeId,
+          assigned_date: allocationForm.assignedDate || new Date().toISOString().split("T")[0],
+          notes: allocationForm.notes,
+          status: "active"
+        }
+      }
+      await apiRequest(getApiUrl('asset_allocations'), {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      })
+      await refreshAssets()
+      setShowAllocateAsset(false)
+      setAllocatingAsset(null)
+      setAllocationForm({
+        employeeId: "",
+        assignedDate: new Date().toISOString().split("T")[0],
+        notes: ""
+      })
+    } catch (error) {
+      console.error('Error allocating asset:', error)
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleOpenMaintenance = (asset: Asset) => {
+    setMaintenanceAsset(asset)
+    setMaintenanceForm({
+      maintenanceType: "routine",
+      scheduledDate: new Date().toISOString().split("T")[0],
+      notes: ""
+    })
+  }
+
+  const handleScheduleMaintenance = async () => {
+    if (!maintenanceAsset) return
+    setActionLoading(true)
+    try {
+      const payload = {
+        asset_id: maintenanceAsset.id,
+        maintenance_type: maintenanceForm.maintenanceType,
+        scheduled_date: maintenanceForm.scheduledDate,
+        notes: maintenanceForm.notes
+      }
+      await apiRequest(getApiUrl('maintenance_records/schedule'), {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      })
+      await refreshAssets()
+      setMaintenanceAsset(null)
+    } catch (error) {
+      console.error('Error scheduling maintenance:', error)
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleRetireAsset = async () => {
+    if (!retiringAsset) return
+    setActionLoading(true)
+    try {
+      await apiRequest(getApiUrl(`api/assets/${retiringAsset.id}`), {
+        method: 'PUT',
+        body: JSON.stringify({ asset: { status: "retired" } })
+      })
+      await refreshAssets()
+      setRetiringAsset(null)
+    } catch (error) {
+      console.error('Error retiring asset:', error)
+    } finally {
+      setActionLoading(false)
     }
   }
 
@@ -880,20 +1074,20 @@ export default function AssetsPage() {
                                     <Eye className="w-4 h-4 mr-2" />
                                     View Details
                                   </DropdownMenuItem>
-                                  <DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleOpenEditAsset(asset)}>
                                     <Edit className="w-4 h-4 mr-2" />
                                     Edit Asset
                                   </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => setShowAllocateAsset(true)}>
+                                  <DropdownMenuItem onClick={() => handleOpenAllocate(asset)}>
                                     <User className="w-4 h-4 mr-2" />
                                     Allocate
                                   </DropdownMenuItem>
                                   <DropdownMenuSeparator />
-                                  <DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleOpenMaintenance(asset)}>
                                     <Wrench className="w-4 h-4 mr-2" />
                                     Schedule Maintenance
                                   </DropdownMenuItem>
-                                  <DropdownMenuItem className="text-red-600">
+                                  <DropdownMenuItem className="text-red-600" onClick={() => setRetiringAsset(asset)}>
                                     <Trash2 className="w-4 h-4 mr-2" />
                                     Retire Asset
                                   </DropdownMenuItem>
@@ -1363,6 +1557,306 @@ export default function AssetsPage() {
             </Button>
             <Button onClick={handleAddAsset} disabled={submitting}>
               {submitting ? "Adding..." : "Add Asset"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Asset Dialog */}
+      <Dialog open={showEditAsset} onOpenChange={(open) => {
+        setShowEditAsset(open)
+        if (!open) setEditingAsset(null)
+      }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit Asset</DialogTitle>
+            <DialogDescription>Update asset details</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit-name">Asset Name *</Label>
+                <Input
+                  id="edit-name"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-assetType">Asset Type *</Label>
+                <Select value={formData.assetType} onValueChange={(value) => setFormData({ ...formData, assetType: value })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select asset type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="laptop">Laptop</SelectItem>
+                    <SelectItem value="desktop">Desktop</SelectItem>
+                    <SelectItem value="mobile">Mobile Device</SelectItem>
+                    <SelectItem value="printer">Printer</SelectItem>
+                    <SelectItem value="server">Server</SelectItem>
+                    <SelectItem value="network">Network Equipment</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit-serialNumber">Serial Number *</Label>
+                <Input
+                  id="edit-serialNumber"
+                  value={formData.serialNumber}
+                  onChange={(e) => setFormData({ ...formData, serialNumber: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-brand">Brand *</Label>
+                <Input
+                  id="edit-brand"
+                  value={formData.brand}
+                  onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit-model">Model *</Label>
+                <Input
+                  id="edit-model"
+                  value={formData.model}
+                  onChange={(e) => setFormData({ ...formData, model: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-purchaseCost">Purchase Cost *</Label>
+                <Input
+                  id="edit-purchaseCost"
+                  type="number"
+                  value={formData.purchaseCost}
+                  onChange={(e) => setFormData({ ...formData, purchaseCost: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit-purchaseDate">Purchase Date *</Label>
+                <Input
+                  id="edit-purchaseDate"
+                  type="date"
+                  value={formData.purchaseDate}
+                  onChange={(e) => setFormData({ ...formData, purchaseDate: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-warrantyExpiry">Warranty Expiry</Label>
+                <Input
+                  id="edit-warrantyExpiry"
+                  type="date"
+                  value={formData.warrantyExpiry}
+                  onChange={(e) => setFormData({ ...formData, warrantyExpiry: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit-location">Location *</Label>
+                <Input
+                  id="edit-location"
+                  value={formData.location}
+                  onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-department">Department *</Label>
+                <Select value={formData.department} onValueChange={(value) => setFormData({ ...formData, department: value })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select department" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Engineering">Engineering</SelectItem>
+                    <SelectItem value="Marketing">Marketing</SelectItem>
+                    <SelectItem value="HR">HR</SelectItem>
+                    <SelectItem value="Finance">Finance</SelectItem>
+                    <SelectItem value="IT">IT</SelectItem>
+                    <SelectItem value="Sales">Sales</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit-condition">Condition *</Label>
+                <Select value={formData.condition} onValueChange={(value) => setFormData({ ...formData, condition: value })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select condition" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="excellent">Excellent</SelectItem>
+                    <SelectItem value="good">Good</SelectItem>
+                    <SelectItem value="fair">Fair</SelectItem>
+                    <SelectItem value="poor">Poor</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="edit-notes">Notes</Label>
+              <Textarea
+                id="edit-notes"
+                value={formData.notes}
+                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setShowEditAsset(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleUpdateAsset} disabled={actionLoading}>
+              {actionLoading ? "Saving..." : "Save Changes"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Allocate Asset Dialog */}
+      <Dialog open={showAllocateAsset} onOpenChange={(open) => {
+        setShowAllocateAsset(open)
+        if (!open) {
+          setAllocatingAsset(null)
+        }
+      }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Allocate Asset</DialogTitle>
+            <DialogDescription>Assign {allocatingAsset?.name}</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="employeeId">Employee</Label>
+                <Select
+                  value={allocationForm.employeeId}
+                  onValueChange={(value) => setAllocationForm({ ...allocationForm, employeeId: value })}
+                  disabled={employeesLoading}
+                >
+                  <SelectTrigger id="employeeId">
+                    <SelectValue placeholder={employeesLoading ? "Loading employees..." : "Select employee"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {employees.length === 0 ? (
+                      <SelectItem value="none" disabled>No employees found</SelectItem>
+                    ) : (
+                      employees.map((emp) => (
+                        <SelectItem key={emp.id} value={emp.id}>
+                          {emp.name}{emp.department ? ` • ${emp.department}` : ""}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="assignedDate">Assigned Date</Label>
+                <Input
+                  id="assignedDate"
+                  type="date"
+                  value={allocationForm.assignedDate}
+                  onChange={(e) => setAllocationForm({ ...allocationForm, assignedDate: e.target.value })}
+                />
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="allocationNotes">Notes</Label>
+              <Textarea
+                id="allocationNotes"
+                placeholder="Allocation notes"
+                value={allocationForm.notes}
+                onChange={(e) => setAllocationForm({ ...allocationForm, notes: e.target.value })}
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => {
+              setShowAllocateAsset(false)
+              setAllocatingAsset(null)
+            }}>
+              Cancel
+            </Button>
+            <Button onClick={handleAllocateAsset} disabled={actionLoading || !allocationForm.employeeId}>
+              {actionLoading ? "Allocating..." : "Allocate"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Maintenance Dialog */}
+      <Dialog open={!!maintenanceAsset} onOpenChange={(open) => !open && setMaintenanceAsset(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Schedule Maintenance</DialogTitle>
+            <DialogDescription>Schedule work for {maintenanceAsset?.name}</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="maintenanceType">Maintenance Type</Label>
+                <Select value={maintenanceForm.maintenanceType} onValueChange={(value) => setMaintenanceForm({ ...maintenanceForm, maintenanceType: value })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="routine">Routine</SelectItem>
+                    <SelectItem value="repair">Repair</SelectItem>
+                    <SelectItem value="upgrade">Upgrade</SelectItem>
+                    <SelectItem value="replacement">Replacement</SelectItem>
+                    <SelectItem value="inspection">Inspection</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="scheduledDate">Scheduled Date</Label>
+                <Input
+                  id="scheduledDate"
+                  type="date"
+                  value={maintenanceForm.scheduledDate}
+                  onChange={(e) => setMaintenanceForm({ ...maintenanceForm, scheduledDate: e.target.value })}
+                />
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="maintenanceNotes">Notes</Label>
+              <Textarea
+                id="maintenanceNotes"
+                placeholder="Maintenance notes"
+                value={maintenanceForm.notes}
+                onChange={(e) => setMaintenanceForm({ ...maintenanceForm, notes: e.target.value })}
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setMaintenanceAsset(null)}>
+              Cancel
+            </Button>
+            <Button onClick={handleScheduleMaintenance} disabled={actionLoading || !maintenanceForm.scheduledDate}>
+              {actionLoading ? "Scheduling..." : "Schedule"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Retire Asset Dialog */}
+      <Dialog open={!!retiringAsset} onOpenChange={(open) => !open && setRetiringAsset(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Retire Asset</DialogTitle>
+            <DialogDescription>Mark {retiringAsset?.name} as retired</DialogDescription>
+          </DialogHeader>
+          <p className="text-sm text-gray-600">This will update the asset status to retired.</p>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setRetiringAsset(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleRetireAsset} disabled={actionLoading}>
+              {actionLoading ? "Retiring..." : "Retire"}
             </Button>
           </div>
         </DialogContent>
