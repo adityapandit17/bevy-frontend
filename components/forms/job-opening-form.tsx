@@ -35,6 +35,7 @@ export function JobOpeningForm({ onClose, onSubmit, initialData }: JobOpeningFor
     applications: 0
   })
   const [departments, setDepartments] = useState([])
+  const [errors, setErrors] = useState<{ description?: string }>({})
 
   useEffect(() => {
     fetchDepartments()
@@ -70,6 +71,13 @@ export function JobOpeningForm({ onClose, onSubmit, initialData }: JobOpeningFor
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (formData.description.trim().length < 20) {
+      setErrors(prev => ({ ...prev, description: "Description must be at least 20 characters." }))
+      return
+    }
+
+    setErrors(prev => ({ ...prev, description: undefined }))
     
     // Transform the form data to match backend expectations
     const transformedData = {
@@ -85,6 +93,13 @@ export function JobOpeningForm({ onClose, onSubmit, initialData }: JobOpeningFor
   }
 
   const handleSaveAsDraft = () => {
+    if (formData.description.trim().length < 20) {
+      setErrors(prev => ({ ...prev, description: "Description must be at least 20 characters." }))
+      return
+    }
+
+    setErrors(prev => ({ ...prev, description: undefined }))
+
     // Transform the form data to match backend expectations and set status to draft
     const transformedData = {
       ...formData,
@@ -254,8 +269,13 @@ export function JobOpeningForm({ onClose, onSubmit, initialData }: JobOpeningFor
                   onChange={(e) => handleChange("description", e.target.value)}
                   rows={4}
                   placeholder="Describe the role, responsibilities, and what the candidate will be working on..."
+                  minLength={20}
                   required
                 />
+                <p className="text-sm text-gray-500 mt-1">Minimum 20 characters.</p>
+                {errors.description && (
+                  <p className="text-sm text-red-600 mt-1">{errors.description}</p>
+                )}
               </div>
               <div>
                 <Label htmlFor="requirements">Requirements *</Label>
