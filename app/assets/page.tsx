@@ -113,6 +113,8 @@ interface AssetAllocation {
 
 export default function AssetsPage() {
   const [assets, setAssets] = useState<Asset[]>([])
+  const [allocations, setAllocations] = useState<AssetAllocation[]>([])
+  const [maintenanceRecords, setMaintenanceRecords] = useState<any[]>([])
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null)
   const [showAddAsset, setShowAddAsset] = useState(false)
   const [showAllocateAsset, setShowAllocateAsset] = useState(false)
@@ -120,102 +122,6 @@ export default function AssetsPage() {
   const [filterType, setFilterType] = useState<string>("all")
   const [filterStatus, setFilterStatus] = useState<string>("all")
   const [filterDepartment, setFilterDepartment] = useState<string>("all")
-
-  useEffect(() => {
-    const fetchAssets = async () => {
-      try {
-        const data = await apiRequest<{ assets: any[] }>(getEndpointUrl('ASSETS'))
-        setAssets(data.assets)
-      } catch (error) {
-        console.error('Error fetching assets:', error)
-        // Fallback to mock data if API fails
-        setAssets([
-          {
-            id: "1",
-            name: "MacBook Pro 16-inch",
-            assetType: "laptop",
-            serialNumber: "MBP2024001",
-            model: "MacBook Pro 16-inch M3",
-            brand: "Apple",
-            purchaseDate: "2024-01-15",
-            warrantyExpiry: "2027-01-15",
-            purchaseCost: 2499,
-            currentValue: 2200,
-            status: "assigned",
-            location: "Engineering Department",
-            department: "Engineering",
-            condition: "excellent",
-            notes: "High-performance laptop for software development",
-            lastMaintenance: "2024-10-15",
-            nextMaintenance: "2025-01-15",
-            assignedTo: {
-              id: "1",
-              name: "John Doe",
-              email: "john.doe@company.com",
-              department: "Engineering"
-            },
-            maintenanceHistory: [
-              {
-                id: "1",
-                date: "2024-10-15",
-                type: "Routine Check",
-                description: "Software updates and hardware inspection",
-                cost: 0,
-                performedBy: "IT Team"
-              }
-            ]
-          }
-        ])
-      }
-    }
-
-    const fetchAssetStats = async () => {
-      try {
-        const data = await apiRequest<any>(getApiUrl('assets/stats'))
-
-        setAssetStats([
-          {
-            title: "Total Assets",
-            value: data.overview.total_assets.toString(),
-            change: `${data.overview.utilization_rate}% utilization`,
-            icon: Package,
-            color: "text-blue-600",
-            bgColor: "bg-blue-50",
-          },
-          {
-            title: "Assigned Assets",
-            value: data.overview.assigned_assets.toString(),
-            change: `${data.overview.utilization_rate}% utilization`,
-            icon: User,
-            color: "text-green-600",
-            bgColor: "bg-green-50",
-          },
-          {
-            title: "Available Assets",
-            value: data.overview.available_assets.toString(),
-            change: "Ready for allocation",
-            icon: CheckCircle,
-            color: "text-purple-600",
-            bgColor: "bg-purple-50",
-          },
-          {
-            title: "Under Maintenance",
-            value: data.overview.maintenance_assets.toString(),
-            change: "Requires attention",
-            icon: Wrench,
-            color: "text-orange-600",
-            bgColor: "bg-orange-50",
-          },
-        ])
-      } catch (error) {
-        console.error('Error fetching asset stats:', error)
-      }
-    }
-
-    fetchAssets()
-    fetchAssetStats()
-  }, [])
-
   const [assetStats, setAssetStats] = useState([
     {
       title: "Total Assets",
@@ -250,15 +156,305 @@ export default function AssetsPage() {
       bgColor: "bg-orange-50",
     },
   ])
+  const [assetTypes, setAssetTypes] = useState<Array<{ type: string; label: string; icon: any; count: number; color: string }>>([])
+  const [statsData, setStatsData] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [formData, setFormData] = useState({
+    name: "",
+    assetType: "",
+    serialNumber: "",
+    brand: "",
+    model: "",
+    purchaseCost: "",
+    purchaseDate: "",
+    warrantyExpiry: "",
+    location: "",
+    department: "",
+    condition: "good",
+    notes: ""
+  })
+  const [submitting, setSubmitting] = useState(false)
 
-  const assetTypes = [
-    { type: "laptop", label: "Laptops", icon: Laptop, count: 45, color: "bg-blue-100 text-blue-800" },
-    { type: "desktop", label: "Desktops", icon: Monitor, count: 32, color: "bg-green-100 text-green-800" },
-    { type: "mobile", label: "Mobile Devices", icon: Smartphone, count: 28, color: "bg-purple-100 text-purple-800" },
-    { type: "printer", label: "Printers", icon: Printer, count: 15, color: "bg-orange-100 text-orange-800" },
-    { type: "server", label: "Servers", icon: Server, count: 8, color: "bg-red-100 text-red-800" },
-    { type: "network", label: "Network Equipment", icon: Network, count: 18, color: "bg-indigo-100 text-indigo-800" },
-  ]
+  // Transform backend data from snake_case to camelCase
+  const transformAsset = (asset: any): Asset => {
+    if (!asset || typeof asset !== 'object') {
+      console.error('Invalid asset data:', asset)
+      return {
+        id: "",
+        name: "",
+        assetType: "",
+        serialNumber: "",
+        model: "",
+        brand: "",
+        purchaseDate: "",
+        warrantyExpiry: "",
+        purchaseCost: 0,
+        currentValue: 0,
+        status: "available",
+        location: "",
+        department: "",
+        notes: "",
+        condition: "good",
+        maintenanceHistory: []
+      }
+    }
+    
+    return {
+      id: asset.id?.toString() || "",
+      name: asset.name || "",
+      assetType: asset.asset_type || asset.assetType || "",
+      serialNumber: asset.serial_number || asset.serialNumber || "",
+      model: asset.model || "",
+      brand: asset.brand || "",
+      purchaseDate: asset.purchase_date || asset.purchaseDate || "",
+      warrantyExpiry: asset.warranty_expiry || asset.warrantyExpiry || "",
+      purchaseCost: parseFloat(asset.purchase_cost || asset.purchaseCost || 0) || 0,
+      currentValue: parseFloat(asset.current_value || asset.currentValue || 0) || 0,
+      status: asset.status || "available",
+      location: asset.location || "",
+      department: asset.department || "",
+      notes: asset.notes || "",
+      lastMaintenance: asset.last_maintenance || asset.lastMaintenance || "",
+      nextMaintenance: asset.next_maintenance || asset.nextMaintenance || "",
+      condition: asset.condition || "good",
+      assignedTo: asset.assigned_to ? {
+        id: asset.assigned_to.id?.toString() || "",
+        name: asset.assigned_to.name || "",
+        email: asset.assigned_to.email || "",
+        department: asset.assigned_to.department || ""
+      } : undefined,
+      maintenanceHistory: Array.isArray(asset.maintenance_history || asset.maintenanceHistory) 
+        ? (asset.maintenance_history || asset.maintenanceHistory) 
+        : []
+    }
+  }
+
+  // Transform maintenance record
+  const transformMaintenanceRecord = (record: any) => {
+    if (!record || typeof record !== 'object') {
+      console.error('Invalid maintenance record:', record)
+      return {
+        id: "",
+        date: "",
+        type: "",
+        description: "",
+        cost: 0,
+        performedBy: "",
+        nextMaintenance: ""
+      }
+    }
+    
+    return {
+      id: record.id?.toString() || "",
+      date: record.maintenance_date || record.date || "",
+      type: record.maintenance_type || record.type || "",
+      description: record.description || "",
+      cost: parseFloat(record.cost || 0) || 0,
+      performedBy: record.performed_by || record.performedBy || "",
+      nextMaintenance: record.next_maintenance || record.nextMaintenance || ""
+    }
+  }
+
+  // Transform allocation
+  const transformAllocation = (allocation: any): AssetAllocation => {
+    if (!allocation || typeof allocation !== 'object') {
+      console.error('Invalid allocation data:', allocation)
+      return {
+        id: "",
+        assetId: "",
+        employeeId: "",
+        employeeName: "",
+        assignedDate: "",
+        notes: "",
+        status: "active"
+      }
+    }
+    
+    return {
+      id: allocation.id?.toString() || "",
+      assetId: allocation.asset_id?.toString() || allocation.assetId?.toString() || "",
+      employeeId: allocation.employee_id?.toString() || allocation.employeeId?.toString() || "",
+      employeeName: allocation.employee_name || allocation.employeeName || "",
+      assignedDate: allocation.assigned_date || allocation.assignedDate || "",
+      returnDate: allocation.return_date || allocation.returnDate,
+      notes: allocation.notes || "",
+      status: allocation.status || "active"
+    }
+  }
+
+  // Get asset type label
+  const getAssetTypeLabel = (type: string) => {
+    const labels: Record<string, string> = {
+      laptop: "Laptops",
+      desktop: "Desktops",
+      mobile: "Mobile Devices",
+      printer: "Printers",
+      server: "Servers",
+      network: "Network Equipment",
+      other: "Other"
+    }
+    return labels[type] || type.charAt(0).toUpperCase() + type.slice(1)
+  }
+
+  // Get asset type color
+  const getAssetTypeColor = (type: string) => {
+    const colors: Record<string, string> = {
+      laptop: "bg-blue-100 text-blue-800",
+      desktop: "bg-green-100 text-green-800",
+      mobile: "bg-purple-100 text-purple-800",
+      printer: "bg-orange-100 text-orange-800",
+      server: "bg-red-100 text-red-800",
+      network: "bg-indigo-100 text-indigo-800",
+      other: "bg-gray-100 text-gray-800"
+    }
+    return colors[type] || "bg-gray-100 text-gray-800"
+  }
+
+  useEffect(() => {
+    const fetchAllData = async () => {
+      setLoading(true)
+      try {
+        // Fetch assets - use /api/assets (not /assets which is intercepted by Propshaft)
+        const assetsUrl = getApiUrl('api/assets')
+        console.log('Fetching assets from:', assetsUrl)
+        
+        const assetsData = await apiRequest<any>(assetsUrl)
+        // Handle different response structures - check if assets is an array or nested
+        const assetsArray = Array.isArray(assetsData) 
+          ? assetsData 
+          : (assetsData?.assets || assetsData?.data || [])
+        
+        // Ensure assetsArray is actually an array before mapping
+        if (!Array.isArray(assetsArray)) {
+          console.error('Assets data is not an array:', assetsArray)
+          setAssets([])
+        } else {
+          const transformedAssets = assetsArray.map(transformAsset)
+          setAssets(transformedAssets)
+        }
+
+        // Fetch stats - use /api/assets/stats
+        const statsUrl = getApiUrl('api/assets/stats')
+        console.log('Fetching stats from:', statsUrl)
+        const statsResponse = await apiRequest<any>(statsUrl)
+        setStatsData(statsResponse)
+
+        // Safely extract stats with null checks
+        const overview = statsResponse?.overview || {}
+        const distribution = statsResponse?.distribution || {}
+        
+        // Update stats cards
+        setAssetStats([
+          {
+            title: "Total Assets",
+            value: (overview.total_assets ?? 0).toString(),
+            change: `${overview.utilization_rate ?? 0}% utilization`,
+            icon: Package,
+            color: "text-blue-600",
+            bgColor: "bg-blue-50",
+          },
+          {
+            title: "Assigned Assets",
+            value: (overview.assigned_assets ?? 0).toString(),
+            change: `${overview.utilization_rate ?? 0}% utilization`,
+            icon: User,
+            color: "text-green-600",
+            bgColor: "bg-green-50",
+          },
+          {
+            title: "Available Assets",
+            value: (overview.available_assets ?? 0).toString(),
+            change: "Ready for allocation",
+            icon: CheckCircle,
+            color: "text-purple-600",
+            bgColor: "bg-purple-50",
+          },
+          {
+            title: "Under Maintenance",
+            value: (overview.maintenance_assets ?? 0).toString(),
+            change: "Requires attention",
+            icon: Wrench,
+            color: "text-orange-600",
+            bgColor: "bg-orange-50",
+          },
+        ])
+
+        // Update asset types dynamically
+        const typeDistribution = distribution.asset_types || {}
+        const typeLabels: Record<string, any> = {
+          laptop: Laptop,
+          desktop: Monitor,
+          mobile: Smartphone,
+          printer: Printer,
+          server: Server,
+          network: Network,
+          other: Package
+        }
+        // Safely map asset types with validation
+        const dynamicAssetTypes = Object.entries(typeDistribution)
+          .filter(([type, count]) => type && count !== undefined && count !== null)
+          .map(([type, count]) => ({
+            type: String(type),
+            label: getAssetTypeLabel(String(type)),
+            icon: typeLabels[String(type)] || Package,
+            count: Number(count) || 0,
+            color: getAssetTypeColor(String(type))
+          }))
+        setAssetTypes(dynamicAssetTypes)
+
+        // Fetch allocations
+        try {
+          const allocationsData = await apiRequest<{ allocations: any[] }>(getApiUrl('api/assets/allocations'))
+          const transformedAllocations = allocationsData.allocations?.map(transformAllocation) || []
+          setAllocations(transformedAllocations)
+        } catch (error) {
+          console.error('Error fetching allocations:', error)
+          setAllocations([])
+        }
+
+        // Fetch maintenance records
+        try {
+          const maintenanceData = await apiRequest<any>(getApiUrl('api/assets/maintenance'))
+          const transformedMaintenance = maintenanceData.recent_maintenance?.map(transformMaintenanceRecord) || []
+          setMaintenanceRecords(transformedMaintenance)
+        } catch (error) {
+          console.error('Error fetching maintenance:', error)
+          setMaintenanceRecords([])
+        }
+      } catch (error: any) {
+        console.error('Error fetching asset data:', error)
+        console.error('Error details:', {
+          message: error?.message,
+          stack: error?.stack,
+          status: error?.statusCode
+        })
+        // Set empty data on error to prevent infinite loading
+        setAssets([])
+        setAllocations([])
+        setMaintenanceRecords([])
+        setAssetTypes([])
+        // Keep default stats values on error - they're already set to "0" and "Loading..."
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchAllData()
+  }, [])
+
+  // Handle asset selection - fetch details if needed
+  const handleViewAsset = async (asset: Asset) => {
+    try {
+      const data = await apiRequest<any>(getApiUrl(`api/assets/${asset.id}`))
+      const transformedAsset = transformAsset(data.asset)
+      transformedAsset.maintenanceHistory = data.maintenance_history?.map(transformMaintenanceRecord) || []
+      setSelectedAsset(transformedAsset)
+    } catch (error) {
+      console.error('Error fetching asset details:', error)
+      // Fallback to basic asset info if API fails
+      setSelectedAsset(asset)
+    }
+  }
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -321,9 +517,98 @@ export default function AssetsPage() {
     return matchesSearch && matchesType && matchesStatus && matchesDepartment
   })
 
-  const totalAssetValue = assets.reduce((sum, asset) => sum + asset.currentValue, 0)
+  const totalAssetValue = assets.reduce((sum, asset) => sum + (asset.currentValue || 0), 0)
   const assignedAssets = assets.filter(asset => asset.status === "assigned").length
   const maintenanceAssets = assets.filter(asset => asset.status === "maintenance").length
+  
+  // Calculate average asset age dynamically
+  const calculateAverageAssetAge = () => {
+    if (assets.length === 0) return 0
+    const totalAge = assets.reduce((sum, asset) => {
+      if (!asset.purchaseDate) return sum
+      const purchaseDate = new Date(asset.purchaseDate)
+      const ageInYears = (Date.now() - purchaseDate.getTime()) / (1000 * 60 * 60 * 24 * 365.25)
+      return sum + ageInYears
+    }, 0)
+    return totalAge / assets.length
+  }
+
+  const averageAssetAge = calculateAverageAssetAge()
+  const utilizationRate = assets.length > 0 ? (assignedAssets / assets.length) * 100 : 0
+
+  const handleAddAsset = async () => {
+    setSubmitting(true)
+    try {
+      // Validate required fields
+      if (!formData.name || !formData.assetType || !formData.serialNumber || 
+          !formData.brand || !formData.model || !formData.purchaseCost || 
+          !formData.purchaseDate || !formData.location || !formData.department) {
+        console.error('Missing required fields')
+        return
+      }
+
+      const assetPayload = {
+        asset: {
+          name: formData.name,
+          asset_type: formData.assetType,
+          serial_number: formData.serialNumber,
+          brand: formData.brand,
+          model: formData.model,
+          purchase_cost: parseFloat(formData.purchaseCost),
+          purchase_date: formData.purchaseDate,
+          warranty_expiry: formData.warrantyExpiry || null,
+          location: formData.location,
+          department: formData.department,
+          condition: formData.condition,
+          status: "available",
+          notes: formData.notes,
+          current_value: parseFloat(formData.purchaseCost) // Will be calculated by backend
+        }
+      }
+
+      // Use /api/assets for POST requests
+      const url = getApiUrl('api/assets')
+      console.log('Creating asset at URL:', url)
+      console.log('Payload:', assetPayload)
+
+      // Make the POST request - apiRequest handles headers and auth automatically
+      const response = await apiRequest<{ asset: any; message: string }>(
+        url,
+        {
+          method: 'POST',
+          body: JSON.stringify(assetPayload)
+        }
+      )
+
+      console.log('Asset created successfully:', response)
+
+      // Refresh assets list and stats
+      const assetsData = await apiRequest<{ assets: any[] }>(getApiUrl('api/assets'))
+      const transformedAssets = assetsData.assets.map(transformAsset)
+      setAssets(transformedAssets)
+
+      // Reset form
+      setFormData({
+        name: "",
+        assetType: "",
+        serialNumber: "",
+        brand: "",
+        model: "",
+        purchaseCost: "",
+        purchaseDate: "",
+        warrantyExpiry: "",
+        location: "",
+        department: "",
+        condition: "good",
+        notes: ""
+      })
+      setShowAddAsset(false)
+    } catch (error) {
+      console.error('Error adding asset:', error)
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   return (
     <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6">
@@ -380,22 +665,28 @@ export default function AssetsPage() {
             </CardTitle>
             <CardDescription>Breakdown by asset category</CardDescription>
           </CardHeader>
-          <CardContent>
+            <CardContent>
             <div className="space-y-3">
-              {assetTypes.map((type) => (
-                <div key={type.type} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-lg ${type.color}`}>
-                      <type.icon className="w-4 h-4" />
+              {loading ? (
+                <p className="text-sm text-gray-500">Loading asset types...</p>
+              ) : assetTypes.length > 0 ? (
+                assetTypes.map((type) => (
+                  <div key={type.type} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2 rounded-lg ${type.color}`}>
+                        <type.icon className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-900">{type.label}</p>
+                        <p className="text-sm text-gray-500">{type.count} assets</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-medium text-gray-900">{type.label}</p>
-                      <p className="text-sm text-gray-500">{type.count} assets</p>
-                    </div>
+                    <Badge variant="outline">{type.count}</Badge>
                   </div>
-                  <Badge variant="outline">{type.count}</Badge>
-                </div>
-              ))}
+                ))
+              ) : (
+                <p className="text-sm text-gray-500">No asset types found</p>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -414,13 +705,15 @@ export default function AssetsPage() {
               <div className="space-y-4">
                 <div>
                   <p className="text-sm font-medium text-gray-600">Total Asset Value</p>
-                  <p className="text-2xl font-bold text-gray-900">₹{totalAssetValue.toLocaleString()}</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    ₹{(statsData?.financial?.total_value || totalAssetValue).toLocaleString()}
+                  </p>
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-600">Utilization Rate</p>
                   <div className="flex items-center gap-2">
-                    <Progress value={(assignedAssets / assets.length) * 100} className="flex-1" />
-                    <span className="text-sm font-medium">{Math.round((assignedAssets / assets.length) * 100)}%</span>
+                    <Progress value={utilizationRate} className="flex-1" />
+                    <span className="text-sm font-medium">{Math.round(utilizationRate)}%</span>
                   </div>
                 </div>
               </div>
@@ -431,7 +724,7 @@ export default function AssetsPage() {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-600">Average Asset Age</p>
-                  <p className="text-2xl font-bold text-gray-900">2.3 years</p>
+                  <p className="text-2xl font-bold text-gray-900">{averageAssetAge.toFixed(1)} years</p>
                 </div>
               </div>
             </div>
@@ -514,89 +807,103 @@ export default function AssetsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredAssets.map((asset) => {
-                      const TypeIcon = getAssetTypeIcon(asset.assetType)
-                      return (
-                        <TableRow key={asset.id}>
-                          <TableCell>
-                            <div className="flex items-center gap-3">
-                              <div className="p-2 bg-gray-100 rounded-lg">
-                                <TypeIcon className="w-4 h-4" />
+                    {loading ? (
+                      <TableRow>
+                        <TableCell colSpan={8} className="text-center py-8">
+                          <p className="text-sm text-gray-500">Loading assets...</p>
+                        </TableCell>
+                      </TableRow>
+                    ) : filteredAssets.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={8} className="text-center py-8">
+                          <p className="text-sm text-gray-500">No assets found matching your filters</p>
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredAssets.map((asset) => {
+                        const TypeIcon = getAssetTypeIcon(asset.assetType)
+                        return (
+                          <TableRow key={asset.id}>
+                            <TableCell>
+                              <div className="flex items-center gap-3">
+                                <div className="p-2 bg-gray-100 rounded-lg">
+                                  <TypeIcon className="w-4 h-4" />
+                                </div>
+                                <div>
+                                  <p className="font-medium text-gray-900">{asset.name}</p>
+                                  <p className="text-sm text-gray-500">{asset.brand} {asset.model}</p>
+                                </div>
                               </div>
-                              <div>
-                                <p className="font-medium text-gray-900">{asset.name}</p>
-                                <p className="text-sm text-gray-500">{asset.brand} {asset.model}</p>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="capitalize">
+                                {asset.assetType}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <span className="text-sm text-gray-600">{asset.serialNumber}</span>
+                            </TableCell>
+                            <TableCell>
+                              <Badge className={getStatusColor(asset.status)}>
+                                {asset.status.charAt(0).toUpperCase() + asset.status.slice(1)}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              {asset.assignedTo ? (
+                                <div>
+                                  <p className="text-sm font-medium text-gray-900">{asset.assignedTo.name}</p>
+                                  <p className="text-xs text-gray-500">{asset.assignedTo.department}</p>
+                                </div>
+                              ) : (
+                                <span className="text-sm text-gray-500">Not assigned</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2 text-sm text-gray-600">
+                                <MapPin className="w-3 h-3" />
+                                <span>{asset.location}</span>
                               </div>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="capitalize">
-                              {asset.assetType}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <span className="text-sm text-gray-600">{asset.serialNumber}</span>
-                          </TableCell>
-                          <TableCell>
-                            <Badge className={getStatusColor(asset.status)}>
-                              {asset.status.charAt(0).toUpperCase() + asset.status.slice(1)}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            {asset.assignedTo ? (
-                              <div>
-                                <p className="text-sm font-medium text-gray-900">{asset.assignedTo.name}</p>
-                                <p className="text-xs text-gray-500">{asset.assignedTo.department}</p>
-                              </div>
-                            ) : (
-                              <span className="text-sm text-gray-500">Not assigned</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2 text-sm text-gray-600">
-                              <MapPin className="w-3 h-3" />
-                              <span>{asset.location}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <span className="font-medium">₹{asset.currentValue.toLocaleString()}</span>
-                          </TableCell>
-                          <TableCell>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="sm">
-                                  <MoreHorizontal className="w-4 h-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                <DropdownMenuItem onClick={() => setSelectedAsset(asset)}>
-                                  <Eye className="w-4 h-4 mr-2" />
-                                  View Details
-                                </DropdownMenuItem>
-                                <DropdownMenuItem>
-                                  <Edit className="w-4 h-4 mr-2" />
-                                  Edit Asset
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => setShowAllocateAsset(true)}>
-                                  <User className="w-4 h-4 mr-2" />
-                                  Allocate
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem>
-                                  <Wrench className="w-4 h-4 mr-2" />
-                                  Schedule Maintenance
-                                </DropdownMenuItem>
-                                <DropdownMenuItem className="text-red-600">
-                                  <Trash2 className="w-4 h-4 mr-2" />
-                                  Retire Asset
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </TableCell>
-                        </TableRow>
-                      )
-                    })}
+                            </TableCell>
+                            <TableCell>
+                              <span className="font-medium">₹{asset.currentValue.toLocaleString()}</span>
+                            </TableCell>
+                            <TableCell>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="sm">
+                                    <MoreHorizontal className="w-4 h-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                  <DropdownMenuItem onClick={() => handleViewAsset(asset)}>
+                                    <Eye className="w-4 h-4 mr-2" />
+                                    View Details
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem>
+                                    <Edit className="w-4 h-4 mr-2" />
+                                    Edit Asset
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => setShowAllocateAsset(true)}>
+                                    <User className="w-4 h-4 mr-2" />
+                                    Allocate
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem>
+                                    <Wrench className="w-4 h-4 mr-2" />
+                                    Schedule Maintenance
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem className="text-red-600">
+                                    <Trash2 className="w-4 h-4 mr-2" />
+                                    Retire Asset
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })
+                    )}
                   </TableBody>
                 </Table>
               </div>
@@ -615,34 +922,43 @@ export default function AssetsPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {assets.filter(asset => asset.assignedTo).map((asset) => (
-                  <div key={asset.id} className="p-4 border rounded-lg hover:bg-gray-50">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className="p-3 bg-blue-100 rounded-lg">
-                          {React.createElement(getAssetTypeIcon(asset.assetType), { className: "w-6 h-6 text-blue-600" })}
+                {loading ? (
+                  <p className="text-sm text-gray-500">Loading allocations...</p>
+                ) : allocations.length > 0 ? (
+                  allocations.map((allocation) => {
+                    const asset = assets.find(a => a.id === allocation.assetId)
+                    return (
+                      <div key={allocation.id} className="p-4 border rounded-lg hover:bg-gray-50">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-4">
+                            <div className="p-3 bg-blue-100 rounded-lg">
+                              {asset ? React.createElement(getAssetTypeIcon(asset.assetType), { className: "w-6 h-6 text-blue-600" }) : <Package className="w-6 h-6 text-blue-600" />}
+                            </div>
+                            <div>
+                              <h3 className="font-medium text-gray-900">{asset?.name || `Asset ${allocation.assetId}`}</h3>
+                              <p className="text-sm text-gray-500">{asset ? `${asset.brand} ${asset.model}` : allocation.notes}</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-medium text-gray-900">{allocation.employeeName}</p>
+                            <p className="text-sm text-gray-500">Assigned: {new Date(allocation.assignedDate).toLocaleDateString()}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge className={allocation.status === "active" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}>
+                              {allocation.status.charAt(0).toUpperCase() + allocation.status.slice(1)}
+                            </Badge>
+                            <Button variant="outline" size="sm">
+                              <User className="w-4 h-4 mr-2" />
+                              Reallocate
+                            </Button>
+                          </div>
                         </div>
-                        <div>
-                          <h3 className="font-medium text-gray-900">{asset.name}</h3>
-                          <p className="text-sm text-gray-500">{asset.brand} {asset.model}</p>
-                        </div>
                       </div>
-                      <div className="text-right">
-                        <p className="font-medium text-gray-900">{asset.assignedTo?.name}</p>
-                        <p className="text-sm text-gray-500">{asset.assignedTo?.department}</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge className={getConditionColor(asset.condition)}>
-                          {asset.condition.charAt(0).toUpperCase() + asset.condition.slice(1)}
-                        </Badge>
-                        <Button variant="outline" size="sm">
-                          <User className="w-4 h-4 mr-2" />
-                          Reallocate
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                    )
+                  })
+                ) : (
+                  <p className="text-sm text-gray-500">No active allocations found</p>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -659,30 +975,36 @@ export default function AssetsPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {assets.filter(asset => asset.nextMaintenance).map((asset) => (
-                  <div key={asset.id} className="p-4 border rounded-lg hover:bg-gray-50">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className="p-3 bg-orange-100 rounded-lg">
-                          {React.createElement(getAssetTypeIcon(asset.assetType), { className: "w-6 h-6 text-orange-600" })}
+                {loading ? (
+                  <p className="text-sm text-gray-500">Loading maintenance records...</p>
+                ) : assets.filter(asset => asset.nextMaintenance).length > 0 ? (
+                  assets.filter(asset => asset.nextMaintenance).map((asset) => (
+                    <div key={asset.id} className="p-4 border rounded-lg hover:bg-gray-50">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className="p-3 bg-orange-100 rounded-lg">
+                            {React.createElement(getAssetTypeIcon(asset.assetType), { className: "w-6 h-6 text-orange-600" })}
+                          </div>
+                          <div>
+                            <h3 className="font-medium text-gray-900">{asset.name}</h3>
+                            <p className="text-sm text-gray-500">Next maintenance: {new Date(asset.nextMaintenance!).toLocaleDateString()}</p>
+                          </div>
                         </div>
-                        <div>
-                          <h3 className="font-medium text-gray-900">{asset.name}</h3>
-                          <p className="text-sm text-gray-500">Next maintenance: {asset.nextMaintenance}</p>
+                        <div className="flex items-center gap-2">
+                          <Badge className={getStatusColor(asset.status)}>
+                            {asset.status.charAt(0).toUpperCase() + asset.status.slice(1)}
+                          </Badge>
+                          <Button variant="outline" size="sm">
+                            <Calendar className="w-4 h-4 mr-2" />
+                            Schedule
+                          </Button>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge className={getStatusColor(asset.status)}>
-                          {asset.status.charAt(0).toUpperCase() + asset.status.slice(1)}
-                        </Badge>
-                        <Button variant="outline" size="sm">
-                          <Calendar className="w-4 h-4 mr-2" />
-                          Schedule
-                        </Button>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))
+                ) : (
+                  <p className="text-sm text-gray-500">No assets scheduled for maintenance</p>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -728,7 +1050,7 @@ export default function AssetsPage() {
                 <div className="space-y-4">
                   <div className="flex justify-between">
                     <span>Utilization Rate</span>
-                    <span className="font-medium">{Math.round((assignedAssets / assets.length) * 100)}%</span>
+                    <span className="font-medium">{Math.round(utilizationRate)}%</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Available Assets</span>
@@ -839,19 +1161,23 @@ export default function AssetsPage() {
                 <div>
                   <h3 className="font-medium mb-2">Maintenance History</h3>
                   <div className="space-y-3">
-                    {selectedAsset.maintenanceHistory.map((record) => (
-                      <div key={record.id} className="p-3 border rounded-lg">
-                        <div className="flex justify-between items-start mb-2">
-                          <div>
-                            <p className="font-medium text-sm">{record.type}</p>
-                            <p className="text-xs text-gray-500">{record.date}</p>
+                    {selectedAsset.maintenanceHistory && selectedAsset.maintenanceHistory.length > 0 ? (
+                      selectedAsset.maintenanceHistory.map((record) => (
+                        <div key={record.id} className="p-3 border rounded-lg">
+                          <div className="flex justify-between items-start mb-2">
+                            <div>
+                              <p className="font-medium text-sm">{record.type}</p>
+                              <p className="text-xs text-gray-500">{record.date}</p>
+                            </div>
+                            <span className="text-sm font-medium">₹{record.cost.toLocaleString()}</span>
                           </div>
-                          <span className="text-sm font-medium">₹{record.cost.toLocaleString()}</span>
+                          <p className="text-sm text-gray-600">{record.description}</p>
+                          <p className="text-xs text-gray-500 mt-1">Performed by: {record.performedBy}</p>
                         </div>
-                        <p className="text-sm text-gray-600">{record.description}</p>
-                        <p className="text-xs text-gray-500 mt-1">Performed by: {record.performedBy}</p>
-                      </div>
-                    ))}
+                      ))
+                    ) : (
+                      <p className="text-sm text-gray-500">No maintenance records found</p>
+                    )}
                   </div>
                 </div>
 
@@ -875,12 +1201,17 @@ export default function AssetsPage() {
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="name">Asset Name</Label>
-                <Input id="name" placeholder="e.g., MacBook Pro 16-inch" />
+                <Label htmlFor="name">Asset Name *</Label>
+                <Input 
+                  id="name" 
+                  placeholder="e.g., MacBook Pro 16-inch" 
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                />
               </div>
               <div>
-                <Label htmlFor="assetType">Asset Type</Label>
-                <Select>
+                <Label htmlFor="assetType">Asset Type *</Label>
+                <Select value={formData.assetType} onValueChange={(value) => setFormData({ ...formData, assetType: value })}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select asset type" />
                   </SelectTrigger>
@@ -891,48 +1222,85 @@ export default function AssetsPage() {
                     <SelectItem value="printer">Printer</SelectItem>
                     <SelectItem value="server">Server</SelectItem>
                     <SelectItem value="network">Network Equipment</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="serialNumber">Serial Number</Label>
-                <Input id="serialNumber" placeholder="Enter serial number" />
+                <Label htmlFor="serialNumber">Serial Number *</Label>
+                <Input 
+                  id="serialNumber" 
+                  placeholder="Enter serial number" 
+                  value={formData.serialNumber}
+                  onChange={(e) => setFormData({ ...formData, serialNumber: e.target.value })}
+                />
               </div>
               <div>
-                <Label htmlFor="brand">Brand</Label>
-                <Input id="brand" placeholder="e.g., Apple, Dell, HP" />
+                <Label htmlFor="brand">Brand *</Label>
+                <Input 
+                  id="brand" 
+                  placeholder="e.g., Apple, Dell, HP" 
+                  value={formData.brand}
+                  onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
+                />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="model">Model</Label>
-                <Input id="model" placeholder="e.g., MacBook Pro M3" />
+                <Label htmlFor="model">Model *</Label>
+                <Input 
+                  id="model" 
+                  placeholder="e.g., MacBook Pro M3" 
+                  value={formData.model}
+                  onChange={(e) => setFormData({ ...formData, model: e.target.value })}
+                />
               </div>
               <div>
-                <Label htmlFor="purchaseCost">Purchase Cost</Label>
-                <Input id="purchaseCost" type="number" placeholder="Enter cost" />
+                <Label htmlFor="purchaseCost">Purchase Cost *</Label>
+                <Input 
+                  id="purchaseCost" 
+                  type="number" 
+                  placeholder="Enter cost" 
+                  value={formData.purchaseCost}
+                  onChange={(e) => setFormData({ ...formData, purchaseCost: e.target.value })}
+                />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="purchaseDate">Purchase Date</Label>
-                <Input id="purchaseDate" type="date" />
+                <Label htmlFor="purchaseDate">Purchase Date *</Label>
+                <Input 
+                  id="purchaseDate" 
+                  type="date" 
+                  value={formData.purchaseDate}
+                  onChange={(e) => setFormData({ ...formData, purchaseDate: e.target.value })}
+                />
               </div>
               <div>
                 <Label htmlFor="warrantyExpiry">Warranty Expiry</Label>
-                <Input id="warrantyExpiry" type="date" />
+                <Input 
+                  id="warrantyExpiry" 
+                  type="date" 
+                  value={formData.warrantyExpiry}
+                  onChange={(e) => setFormData({ ...formData, warrantyExpiry: e.target.value })}
+                />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="location">Location</Label>
-                <Input id="location" placeholder="e.g., Engineering Department" />
+                <Label htmlFor="location">Location *</Label>
+                <Input 
+                  id="location" 
+                  placeholder="e.g., Engineering Department" 
+                  value={formData.location}
+                  onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                />
               </div>
               <div>
-                <Label htmlFor="department">Department</Label>
-                <Select>
+                <Label htmlFor="department">Department *</Label>
+                <Select value={formData.department} onValueChange={(value) => setFormData({ ...formData, department: value })}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select department" />
                   </SelectTrigger>
@@ -947,17 +1315,54 @@ export default function AssetsPage() {
                 </Select>
               </div>
             </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="condition">Condition *</Label>
+                <Select value={formData.condition} onValueChange={(value) => setFormData({ ...formData, condition: value })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select condition" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="excellent">Excellent</SelectItem>
+                    <SelectItem value="good">Good</SelectItem>
+                    <SelectItem value="fair">Fair</SelectItem>
+                    <SelectItem value="poor">Poor</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
             <div>
               <Label htmlFor="notes">Notes</Label>
-              <Textarea id="notes" placeholder="Add any additional notes..." />
+              <Textarea 
+                id="notes" 
+                placeholder="Add any additional notes..." 
+                value={formData.notes}
+                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              />
             </div>
           </div>
           <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setShowAddAsset(false)}>
+            <Button variant="outline" onClick={() => {
+              setShowAddAsset(false)
+              setFormData({
+                name: "",
+                assetType: "",
+                serialNumber: "",
+                brand: "",
+                model: "",
+                purchaseCost: "",
+                purchaseDate: "",
+                warrantyExpiry: "",
+                location: "",
+                department: "",
+                condition: "good",
+                notes: ""
+              })
+            }}>
               Cancel
             </Button>
-            <Button onClick={() => setShowAddAsset(false)}>
-              Add Asset
+            <Button onClick={handleAddAsset} disabled={submitting}>
+              {submitting ? "Adding..." : "Add Asset"}
             </Button>
           </div>
         </DialogContent>

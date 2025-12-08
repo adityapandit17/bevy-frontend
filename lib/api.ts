@@ -323,8 +323,8 @@ export const API_ENDPOINTS = {
   // File Upload
   UPLOAD: '/uploads',
 
-  // Assets
-  ASSETS: '/assets',
+  // Assets - moved to /api/assets to avoid Propshaft conflict
+  ASSETS: '/api/assets',
 
   // Roles
   ROLES: '/roles',
