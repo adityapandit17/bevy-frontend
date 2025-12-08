@@ -34,11 +34,13 @@ import {
   Users,
   CalendarIcon,
   Eye,
+  RefreshCw,
 } from "lucide-react"
 import { LeaveRequestForm } from "@/components/forms/leave-request-form"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { LeaveRequestDetailsDialog } from "@/components/attendance/leave-request-details-dialog"
 import { format } from "date-fns"
+import { useToast } from "@/hooks/use-toast"
 
 interface LeaveRequest {
   id: number
@@ -143,6 +145,8 @@ export default function AttendanceLeavePage() {
   const [showLeaveDetails, setShowLeaveDetails] = useState(false)
   const [leaveCurrentPage, setLeaveCurrentPage] = useState<number>(1)
   const [leavePageSize, setLeavePageSize] = useState<number>(10)
+  const [actionLoading, setActionLoading] = useState<number | null>(null)
+  const { toast } = useToast()
 
   useEffect(() => {
     // Check for query parameters
@@ -545,6 +549,60 @@ export default function AttendanceLeavePage() {
   const handleViewLeaveDetails = (request: LeaveRequest) => {
     setSelectedLeaveRequest(request)
     setShowLeaveDetails(true)
+  }
+
+  const handleApprove = async (requestId: number) => {
+    setActionLoading(requestId)
+    try {
+      await apiRequest<any>(getApiUrl(`/leave_requests/${requestId}/approve`), {
+        method: 'PATCH',
+      })
+      
+      toast({
+        title: "Success",
+        description: "Leave request approved successfully.",
+        variant: "default",
+      })
+      
+      // Refresh the list
+      await fetchLeaveRequests()
+    } catch (error: any) {
+      console.error('Error approving leave request:', error)
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to approve leave request. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handleReject = async (requestId: number) => {
+    setActionLoading(requestId)
+    try {
+      await apiRequest<any>(getApiUrl(`/leave_requests/${requestId}/reject`), {
+        method: 'PATCH',
+      })
+      
+      toast({
+        title: "Success",
+        description: "Leave request rejected successfully.",
+        variant: "default",
+      })
+      
+      // Refresh the list
+      await fetchLeaveRequests()
+    } catch (error: any) {
+      console.error('Error rejecting leave request:', error)
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to reject leave request. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setActionLoading(null)
+    }
   }
 
   // Filter attendance by selected date, search term, and status
@@ -1065,19 +1123,38 @@ export default function AttendanceLeavePage() {
                               <TableCell>
                                 <DropdownMenu>
                                   <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="sm">
-                                      <MoreHorizontal className="w-4 h-4" />
+                                    <Button variant="ghost" size="sm" disabled={actionLoading === request.id}>
+                                      {actionLoading === request.id ? (
+                                        <RefreshCw className="w-4 h-4 animate-spin" />
+                                      ) : (
+                                        <MoreHorizontal className="w-4 h-4" />
+                                      )}
                                     </Button>
                                   </DropdownMenuTrigger>
                                   <DropdownMenuContent align="end">
                                     <DropdownMenuLabel>Actions</DropdownMenuLabel>
                                     <DropdownMenuItem onClick={() => handleViewLeaveDetails(request)}>
+                                      <Eye className="w-4 h-4 mr-2" />
                                       View Details
                                     </DropdownMenuItem>
                                     {(request.status?.toLowerCase() === "pending" || request.statusLabel?.toLowerCase() === "pending") && (
                                       <>
-                                        <DropdownMenuItem className="text-green-600">Approve</DropdownMenuItem>
-                                        <DropdownMenuItem className="text-red-600">Reject</DropdownMenuItem>
+                                        <DropdownMenuItem
+                                          onClick={() => handleApprove(request.id)}
+                                          disabled={actionLoading === request.id}
+                                          className="text-green-600"
+                                        >
+                                          <CheckCircle className="w-4 h-4 mr-2" />
+                                          Approve
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem
+                                          onClick={() => handleReject(request.id)}
+                                          disabled={actionLoading === request.id}
+                                          className="text-red-600"
+                                        >
+                                          <XCircle className="w-4 h-4 mr-2" />
+                                          Reject
+                                        </DropdownMenuItem>
                                       </>
                                     )}
                                   </DropdownMenuContent>
