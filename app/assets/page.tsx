@@ -61,6 +61,7 @@ import {
   Wrench,
   History,
   FileText,
+  UserMinus,
 } from "lucide-react"
 
 interface Asset {
@@ -723,6 +724,37 @@ export default function AssetsPage() {
     setShowAllocateAsset(true)
   }
 
+  const handleUnassignAsset = async (asset: Asset) => {
+    const activeAllocation = allocations.find(
+      (allocation) => allocation.assetId === asset.id && allocation.status === "active"
+    )
+
+    if (!activeAllocation) {
+      console.warn('No active allocation found for asset', asset.id)
+      return
+    }
+
+    setActionLoading(true)
+    try {
+      const payload = {
+        return_asset_allocation: {
+          return_date: new Date().toISOString().split("T")[0],
+          notes: "Unassigned from asset inventory"
+        }
+      }
+
+      await apiRequest(getApiUrl(`asset_allocations/${activeAllocation.id}/return_asset_allocation`), {
+        method: 'PATCH',
+        body: JSON.stringify(payload)
+      })
+      await refreshAssets()
+    } catch (error) {
+      console.error('Error unassigning asset:', error)
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
   const handleAllocateAsset = async () => {
     if (!allocatingAsset) return
     setActionLoading(true)
@@ -789,16 +821,19 @@ export default function AssetsPage() {
 
   const handleRetireAsset = async () => {
     if (!retiringAsset) return
+    if (retiringAsset.status === "assigned") return
     setActionLoading(true)
     try {
+      // If asset is available, retire it. Otherwise, make it available.
+      const newStatus = retiringAsset.status === "available" ? "retired" : "available"
       await apiRequest(getApiUrl(`api/assets/${retiringAsset.id}`), {
         method: 'PUT',
-        body: JSON.stringify({ asset: { status: "retired" } })
+        body: JSON.stringify({ asset: { status: newStatus } })
       })
       await refreshAssets()
       setRetiringAsset(null)
     } catch (error) {
-      console.error('Error retiring asset:', error)
+      console.error('Error updating asset status:', error)
     } finally {
       setActionLoading(false)
     }
@@ -1078,19 +1113,33 @@ export default function AssetsPage() {
                                     <Edit className="w-4 h-4 mr-2" />
                                     Edit Asset
                                   </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => handleOpenAllocate(asset)}>
-                                    <User className="w-4 h-4 mr-2" />
-                                    Allocate
-                                  </DropdownMenuItem>
+                                  {asset.assignedTo ? (
+                                    <DropdownMenuItem onClick={() => handleUnassignAsset(asset)}>
+                                      <UserMinus className="w-4 h-4 mr-2" />
+                                      Unassign
+                                    </DropdownMenuItem>
+                                  ) : (
+                                    <DropdownMenuItem onClick={() => handleOpenAllocate(asset)}>
+                                      <User className="w-4 h-4 mr-2" />
+                                      Allocate
+                                    </DropdownMenuItem>
+                                  )}
                                   <DropdownMenuSeparator />
                                   <DropdownMenuItem onClick={() => handleOpenMaintenance(asset)}>
                                     <Wrench className="w-4 h-4 mr-2" />
                                     Schedule Maintenance
                                   </DropdownMenuItem>
-                                  <DropdownMenuItem className="text-red-600" onClick={() => setRetiringAsset(asset)}>
-                                    <Trash2 className="w-4 h-4 mr-2" />
-                                    Retire Asset
-                                  </DropdownMenuItem>
+                                  {asset.status === "available" ? (
+                                    <DropdownMenuItem className="text-red-600" onClick={() => setRetiringAsset(asset)}>
+                                      <Trash2 className="w-4 h-4 mr-2" />
+                                      Retire Asset
+                                    </DropdownMenuItem>
+                                  ) : asset.status !== "assigned" ? (
+                                    <DropdownMenuItem onClick={() => setRetiringAsset(asset)}>
+                                      <CheckCircle className="w-4 h-4 mr-2" />
+                                      Available
+                                    </DropdownMenuItem>
+                                  ) : null}
                                 </DropdownMenuContent>
                               </DropdownMenu>
                             </TableCell>
@@ -1845,18 +1894,36 @@ export default function AssetsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Retire Asset Dialog */}
+      {/* Make Asset Available / Retire Asset Dialog */}
       <Dialog open={!!retiringAsset} onOpenChange={(open) => !open && setRetiringAsset(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Retire Asset</DialogTitle>
-            <DialogDescription>Mark {retiringAsset?.name} as retired</DialogDescription>
+            <DialogTitle>
+              {retiringAsset?.status === "available" ? "Retire Asset" : "Make Asset Available"}
+            </DialogTitle>
+            <DialogDescription>
+              {retiringAsset?.status === "available" 
+                ? `Mark ${retiringAsset?.name} as retired`
+                : `Mark ${retiringAsset?.name} as available`}
+            </DialogDescription>
           </DialogHeader>
-          <p className="text-sm text-gray-600">This will update the asset status to retired.</p>
+          <p className="text-sm text-gray-600">
+            {retiringAsset?.status === "available"
+              ? "This will update the asset status to retired."
+              : "This will update the asset status to available."}
+          </p>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setRetiringAsset(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={handleRetireAsset} disabled={actionLoading}>
-              {actionLoading ? "Retiring..." : "Retire"}
+            <Button 
+              variant={retiringAsset?.status === "available" ? "destructive" : "default"}
+              onClick={handleRetireAsset} 
+              disabled={actionLoading}
+            >
+              {actionLoading 
+                ? "Updating..." 
+                : retiringAsset?.status === "available" 
+                  ? "Retire" 
+                  : "Make Available"}
             </Button>
           </div>
         </DialogContent>
