@@ -70,8 +70,9 @@ export default function PayrollPage() {
 
   const fetchEmployees = async () => {
     try {
-      const data = await apiRequest(getEndpointUrl('EMPLOYEES'))
-      setEmployees(Array.isArray(data) ? data : [])
+      const data = await apiRequest(`${getEndpointUrl('EMPLOYEES')}?per_page=500`)
+      const list = Array.isArray(data) ? data : Array.isArray((data as any)?.data) ? (data as any).data : []
+      setEmployees(list)
     } catch (err) {
       console.error("Error fetching employees:", err)
       setEmployees([])
@@ -94,22 +95,55 @@ export default function PayrollPage() {
     return emp ? `${emp.first_name} ${emp.last_name}` : id
   }
 
+  const getEmployeeDepartmentName = (employeeId) => {
+    if (!Array.isArray(employees)) return ""
+    const emp = employees.find(e => String(e.id) === String(employeeId))
+    const deptName = emp?.department?.name || emp?.department_name
+    return deptName || ""
+  }
+
   const getDepartmentName = (id) => {
     if (!Array.isArray(departments)) return id
     const dept = departments.find(d => String(d.id) === String(id))
     return dept ? dept.name : id
   }
 
+  const dedupePayrollRecords = (records: any[]) => {
+    if (!Array.isArray(records)) return []
+    return Object.values(
+      records.reduce((acc, record) => {
+        const key = String(record.employee_id)
+        const existing = acc[key]
+
+        const existingCreated = existing?.created_at ? new Date(existing.created_at).getTime() : 0
+        const currentCreated = record?.created_at ? new Date(record.created_at).getTime() : 0
+        const existingUpdated = existing?.updated_at ? new Date(existing.updated_at).getTime() : 0
+        const currentUpdated = record?.updated_at ? new Date(record.updated_at).getTime() : 0
+
+        // Prefer newest by updated_at, then created_at, then higher id
+        const shouldReplace =
+          currentUpdated > existingUpdated ||
+          (currentUpdated === existingUpdated && currentCreated > existingCreated) ||
+          (currentUpdated === existingUpdated && currentCreated === existingCreated && Number(record.id) > Number(existing?.id || 0))
+
+        if (!existing || shouldReplace) {
+          acc[key] = record
+        }
+        return acc
+      }, {} as Record<string, any>)
+    )
+  }
+
+  const normalizedPayrollRecords = dedupePayrollRecords(payrollRecords)
+
   // Filter payroll records by search term (employee name or ID)
-  const filteredPayrollRecords = Array.isArray(payrollRecords)
-    ? payrollRecords.filter((record: any) => {
-        if (!searchTerm) return true
-        const term = searchTerm.toLowerCase()
-        const employeeName = String(getEmployeeName(record.employee_id) || "").toLowerCase()
-        const employeeId = String(record.employee_id || "").toLowerCase()
-        return employeeName.includes(term) || employeeId.includes(term)
-      })
-    : []
+  const filteredPayrollRecords = normalizedPayrollRecords.filter((record: any) => {
+    if (!searchTerm) return true
+    const term = searchTerm.toLowerCase()
+    const employeeName = String(getEmployeeName(record.employee_id) || "").toLowerCase()
+    const employeeId = String(record.employee_id || "").toLowerCase()
+    return employeeName.includes(term) || employeeId.includes(term)
+  })
 
   // Pagination calculations for payroll records
   const totalPages = Math.max(1, Math.ceil(filteredPayrollRecords.length / pageSize))
@@ -130,19 +164,26 @@ export default function PayrollPage() {
 
   const handleAddSalaryStructure = async (formData) => {
     try {
-      const res = await fetch(getEndpointUrl('SALARY_STRUCTURES'), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ salary_structure: formData })
-      })
-      if (res.ok) {
-        fetchSalaryStructures()
-        setShowForm(false)
-      } else {
-        // handle error
+      const payload = {
+        salary_structure: {
+          employee_id: Number(formData.employee_id),
+          basic: Number(formData.baseSalary),
+          hra: Number(formData.hra || 0),
+          allowances: Number(formData.allowances || 0) + Number(formData.bonus || 0),
+          deductions: Number(formData.pf || 0) + Number(formData.esi || 0) + Number(formData.professionalTax || 0) + Number(formData.incomeTax || 0),
+          effective_from: formData.effective_from,
+        }
       }
+
+      await apiRequest(getEndpointUrl('SALARY_STRUCTURES'), {
+        method: "POST",
+        body: JSON.stringify(payload)
+      })
+
+      fetchSalaryStructures()
+      setShowForm(false)
     } catch (err) {
-      // handle error
+      console.error("Error creating salary structure:", err)
     }
   }
 
@@ -201,6 +242,31 @@ export default function PayrollPage() {
       minimumFractionDigits: 0,
     }).format(amount)
   }
+
+  const formatCurrencySafe = (value: any) => {
+    const num = Number(value)
+    if (!Number.isFinite(num)) return "—"
+    return formatCurrency(num)
+  }
+
+  const safeNumber = (value: any) => {
+    const num = Number(value)
+    return Number.isFinite(num) ? num : 0
+  }
+
+  const latestStructureByEmployee = (() => {
+    if (!Array.isArray(salaryStructures) || salaryStructures.length === 0) return {}
+    return salaryStructures.reduce((acc, structure) => {
+      const key = String(structure.employee_id)
+      const existing = acc[key]
+      const currentDate = structure.effective_from ? new Date(structure.effective_from) : null
+      const existingDate = existing?.effective_from ? new Date(existing.effective_from) : null
+      if (!existing || (currentDate && existingDate && currentDate > existingDate)) {
+        acc[key] = structure
+      }
+      return acc
+    }, {} as Record<string, any>)
+  })()
 
   return (
     <ResourceGuard resourceKeys={["payrolls", "salary_structures"]} pageName="Payroll">
@@ -304,50 +370,63 @@ export default function PayrollPage() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      paginatedPayrollRecords.map((record: any) => (
-                        <TableRow key={record.id}>
-                          <TableCell>
-                            <div>
-                              <p className="font-medium text-gray-900">{getEmployeeName(record.employee_id)}</p>
-                              <p className="text-sm text-gray-500">
-                                {record.employee_id} • {getDepartmentName(record.department_id)}
-                              </p>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <span className="font-medium">{formatCurrency(record.basicSalary)}</span>
-                          </TableCell>
-                          <TableCell>
-                            <span className="text-green-600">{formatCurrency(record.allowances)}</span>
-                          </TableCell>
-                          <TableCell>
-                            <span className="text-red-600">{formatCurrency(record.deductions)}</span>
-                          </TableCell>
-                          <TableCell>
-                            <span className="font-bold text-gray-900">{formatCurrency(record.netSalary)}</span>
-                          </TableCell>
-                          <TableCell>
-                            <Badge className={getStatusColor(record.status)}>{record.status}</Badge>
-                          </TableCell>
-                          <TableCell>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="sm">
-                                  <MoreHorizontal className="w-4 h-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                <DropdownMenuItem>View Payslip</DropdownMenuItem>
-                                <DropdownMenuItem>Edit Salary</DropdownMenuItem>
-                                <DropdownMenuItem>Download PDF</DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem>Reprocess Payment</DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </TableCell>
-                        </TableRow>
-                      ))
+                      paginatedPayrollRecords.map((record: any) => {
+                        const structure = latestStructureByEmployee[String(record.employee_id)]
+                        const basic = safeNumber(structure?.basic ?? record.basic_salary)
+                        const hra = safeNumber(structure?.hra)
+                        const allowancesFromStructure = safeNumber(structure?.allowances)
+                        const allowances = allowancesFromStructure + hra
+                        const gross = safeNumber(record.gross_salary ?? basic + allowances)
+                        const net = safeNumber(record.net_salary ?? (gross - safeNumber(structure?.deductions)))
+                        const deductions = gross > 0 && net >= 0 ? Math.max(0, gross - net) : safeNumber(structure?.deductions)
+                        const departmentName = getEmployeeDepartmentName(record.employee_id) || getDepartmentName(record.department_id)
+                        const status = record.status || "processed"
+
+                        return (
+                          <TableRow key={record.id}>
+                            <TableCell>
+                              <div>
+                                <p className="font-medium text-gray-900">{getEmployeeName(record.employee_id)}</p>
+                                <p className="text-sm text-gray-500">
+                                  {record.employee_id} {departmentName ? `• ${departmentName}` : ""}
+                                </p>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <span className="font-medium">{formatCurrencySafe(basic)}</span>
+                            </TableCell>
+                            <TableCell>
+                              <span className="text-green-600">{formatCurrencySafe(allowances)}</span>
+                            </TableCell>
+                            <TableCell>
+                              <span className="text-red-600">{formatCurrencySafe(deductions)}</span>
+                            </TableCell>
+                            <TableCell>
+                              <span className="font-bold text-gray-900">{formatCurrencySafe(net)}</span>
+                            </TableCell>
+                            <TableCell>
+                              <Badge className={getStatusColor(status)}>{status}</Badge>
+                            </TableCell>
+                            <TableCell>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="sm">
+                                    <MoreHorizontal className="w-4 h-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                  <DropdownMenuItem>View Payslip</DropdownMenuItem>
+                                  <DropdownMenuItem>Edit Salary</DropdownMenuItem>
+                                  <DropdownMenuItem>Download PDF</DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem>Reprocess Payment</DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })
                     )}
                   </TableBody>
                 </Table>
@@ -442,59 +521,63 @@ export default function PayrollPage() {
             </CardHeader>
             <CardContent>
               <div className="grid gap-6">
-                {Array.isArray(salaryStructures) && salaryStructures.map((structure) => (
-                  <Card key={structure.id} className="border-l-4 border-l-blue-500">
-                    <CardContent className="p-6">
-                      <div className="flex justify-between items-start mb-4">
-                        <div>
-                          <h3 className="text-lg font-semibold text-gray-900">{structure.title}</h3>
-                          <p className="text-sm text-gray-500">{structure.employees} employees</p>
-                        </div>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm">
-                              <MoreHorizontal className="w-4 h-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem>Edit Structure</DropdownMenuItem>
-                            <DropdownMenuItem>Duplicate</DropdownMenuItem>
-                            <DropdownMenuItem>View Employees</DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem className="text-red-600">Delete</DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
+                {Array.isArray(salaryStructures) && salaryStructures.length > 0 ? (
+                  salaryStructures.map((structure) => {
+                    const basic = Number(structure.basic || 0)
+                    const hra = Number(structure.hra || 0)
+                    const allowances = Number(structure.allowances || 0)
+                    const deductions = Number(structure.deductions || 0)
+                    const gross = basic + hra + allowances
+                    const net = gross - deductions
 
-                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                        <div>
-                          <p className="text-xs text-gray-500 uppercase tracking-wide">Basic Salary</p>
-                          <p className="font-medium text-gray-900">{structure.basicSalary}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-gray-500 uppercase tracking-wide">HRA</p>
-                          <p className="font-medium text-gray-900">{structure.hra}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-gray-500 uppercase tracking-wide">Transport</p>
-                          <p className="font-medium text-gray-900">{structure.transport}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-gray-500 uppercase tracking-wide">Medical</p>
-                          <p className="font-medium text-gray-900">{structure.medical}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-gray-500 uppercase tracking-wide">PF</p>
-                          <p className="font-medium text-gray-900">{structure.pf}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-gray-500 uppercase tracking-wide">ESI</p>
-                          <p className="font-medium text-gray-900">{structure.esi}</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                    return (
+                      <Card key={structure.id} className="border-l-4 border-l-blue-500">
+                        <CardContent className="p-6">
+                          <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 mb-4">
+                            <div>
+                              <h3 className="text-lg font-semibold text-gray-900">{getEmployeeName(structure.employee_id)}</h3>
+                              <p className="text-sm text-gray-500">
+                                Employee ID: {structure.employee_id} • Effective from {structure.effective_from || "N/A"}
+                              </p>
+                            </div>
+                            <Badge variant="outline" className="text-sm">
+                              Net: {formatCurrency(net)}
+                            </Badge>
+                          </div>
+
+                          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                            <div>
+                              <p className="text-xs text-gray-500 uppercase tracking-wide">Basic Salary</p>
+                              <p className="font-medium text-gray-900">{formatCurrency(basic)}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-gray-500 uppercase tracking-wide">HRA</p>
+                              <p className="font-medium text-gray-900">{formatCurrency(hra)}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-gray-500 uppercase tracking-wide">Allowances</p>
+                              <p className="font-medium text-gray-900">{formatCurrency(allowances)}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-gray-500 uppercase tracking-wide">Total Deductions</p>
+                              <p className="font-medium text-gray-900 text-red-600">{formatCurrency(deductions)}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-gray-500 uppercase tracking-wide">Gross</p>
+                              <p className="font-medium text-gray-900">{formatCurrency(gross)}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-gray-500 uppercase tracking-wide">Net</p>
+                              <p className="font-medium text-gray-900">{formatCurrency(net)}</p>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )
+                  })
+                ) : (
+                  <div className="text-center text-gray-500">No salary structures found.</div>
+                )}
               </div>
 
               <div className="mt-6">
@@ -507,7 +590,14 @@ export default function PayrollPage() {
           </Card>
         </TabsContent>
       </Tabs>
-      {showForm && <SalaryStructureForm onClose={() => setShowForm(false)} onSubmit={handleAddSalaryStructure} />}
+      {showForm && (
+        <SalaryStructureForm
+          onClose={() => setShowForm(false)}
+          onSubmit={handleAddSalaryStructure}
+          employees={employees}
+          departments={departments}
+        />
+      )}
     </div>
     </ResourceGuard>
   )

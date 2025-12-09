@@ -13,11 +13,14 @@ import { X, Calculator } from "lucide-react"
 
 interface SalaryStructureFormProps {
   onClose: () => void
+  onSubmit: (payload: any) => Promise<void> | void
+  employees?: any[]
+  departments?: any[]
 }
 
-export function SalaryStructureForm({ onClose }: SalaryStructureFormProps) {
+export function SalaryStructureForm({ onClose, onSubmit, employees = [], departments = [] }: SalaryStructureFormProps) {
   const [formData, setFormData] = useState({
-    name: "",
+    employee_id: "",
     department_id: "",
     level: "",
     baseSalary: "",
@@ -28,12 +31,24 @@ export function SalaryStructureForm({ onClose }: SalaryStructureFormProps) {
     esi: "",
     professionalTax: "",
     incomeTax: "",
+    effective_from: "",
   })
-  const [departments, setDepartments] = useState([])
+  const [departmentOptions, setDepartmentOptions] = useState<any[]>(Array.isArray(departments) ? departments : [])
+  const [employeeOptions, setEmployeeOptions] = useState<any[]>(Array.isArray(employees) ? employees : [])
 
   useEffect(() => {
-    fetchDepartments()
-  }, [])
+    // If the caller passed options, sync them into local state.
+    setDepartmentOptions(Array.isArray(departments) ? departments : [])
+    setEmployeeOptions(Array.isArray(employees) ? employees : [])
+
+    // Fallback fetch in case options were not provided.
+    if (!Array.isArray(departments) || departments.length === 0) {
+      fetchDepartments()
+    }
+    if (!Array.isArray(employees) || employees.length === 0) {
+      fetchEmployees()
+    }
+  }, [departments, employees])
 
   const fetchDepartments = async () => {
     try {
@@ -41,15 +56,39 @@ export function SalaryStructureForm({ onClose }: SalaryStructureFormProps) {
         headers: { "Accept": "application/json" }
       })
       const data = await res.json()
-      setDepartments(data)
-    } catch (err) {
-      // handle error
+      setDepartmentOptions(Array.isArray(data) ? data : [])
+    } catch {
+      setDepartmentOptions([])
     }
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const fetchEmployees = async () => {
+    try {
+      const data = await apiRequest(`${getEndpointUrl('EMPLOYEES')}?per_page=500`)
+      const list = Array.isArray(data) ? data : Array.isArray((data as any)?.data) ? (data as any).data : []
+      setEmployeeOptions(list)
+    } catch {
+      setEmployeeOptions([])
+    }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // send department_id instead of department
+    const payload = {
+      employee_id: formData.employee_id,
+      department_id: formData.department_id,
+      level: formData.level,
+      baseSalary: formData.baseSalary,
+      hra: formData.hra,
+      allowances: formData.allowances,
+      bonus: formData.bonus,
+      pf: formData.pf,
+      esi: formData.esi,
+      professionalTax: formData.professionalTax,
+      incomeTax: formData.incomeTax,
+      effective_from: formData.effective_from,
+    }
+    await onSubmit(payload)
     onClose()
   }
 
@@ -94,16 +133,21 @@ export function SalaryStructureForm({ onClose }: SalaryStructureFormProps) {
             {/* Basic Information */}
             <div className="space-y-4">
               <h3 className="text-lg font-semibold text-gray-900">Structure Details</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div>
-                  <Label htmlFor="name">Structure Name *</Label>
-                  <Input
-                    id="name"
-                    value={formData.name}
-                    onChange={(e) => handleChange("name", e.target.value)}
-                    placeholder="e.g., Software Engineer - L2"
-                    required
-                  />
+                  <Label htmlFor="employee">Employee *</Label>
+                  <Select value={formData.employee_id} onValueChange={v => handleChange("employee_id", v)} required>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select employee" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.isArray(employeeOptions) && employeeOptions.map((emp) => (
+                        <SelectItem key={emp.id} value={String(emp.id)}>
+                          {emp.first_name} {emp.last_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
                   <Label htmlFor="department">Department *</Label>
@@ -112,7 +156,7 @@ export function SalaryStructureForm({ onClose }: SalaryStructureFormProps) {
                       <SelectValue placeholder="Select department" />
                     </SelectTrigger>
                     <SelectContent>
-                      {departments.map((dept) => (
+                      {Array.isArray(departmentOptions) && departmentOptions.map((dept) => (
                         <SelectItem key={dept.id} value={String(dept.id)}>{dept.name}</SelectItem>
                       ))}
                     </SelectContent>
@@ -133,6 +177,16 @@ export function SalaryStructureForm({ onClose }: SalaryStructureFormProps) {
                       <SelectItem value="director">Director</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+                <div>
+                  <Label htmlFor="effective_from">Effective From *</Label>
+                  <Input
+                    id="effective_from"
+                    type="date"
+                    value={formData.effective_from}
+                    onChange={(e) => handleChange("effective_from", e.target.value)}
+                    required
+                  />
                 </div>
               </div>
             </div>
