@@ -227,12 +227,16 @@ interface Training {
 interface Asset {
   id: string
   name: string
-  type: string
+  assetType: string
   serialNumber: string
-  assignedDate: string
+  brand: string
+  model: string
   status: string
+  statusColor?: string
   condition: string
-  returnDate?: string
+  location: string
+  purchaseDate?: string
+  currentValue?: number
 }
 
 export default function EmployeeProfilePage() {
@@ -281,7 +285,23 @@ export default function EmployeeProfilePage() {
         setTimesheets(Array.isArray(data.timesheets) ? data.timesheets : [])
         setBenefits(Array.isArray(data.benefits) ? data.benefits : [])
         setTraining(Array.isArray(data.training) ? data.training : [])
-        setAssets(Array.isArray(data.assets) ? data.assets : [])
+        const assetsData = Array.isArray(data.assets?.assets) ? data.assets.assets : []
+        setAssets(
+          assetsData.map((asset: any) => ({
+            id: asset.id,
+            name: asset.name,
+            assetType: asset.asset_type,
+            serialNumber: asset.serial_number,
+            brand: asset.brand,
+            model: asset.model,
+            status: asset.status,
+            statusColor: asset.status_color,
+            condition: asset.condition,
+            location: asset.location,
+            purchaseDate: asset.purchase_date,
+            currentValue: asset.current_value
+          }))
+        )
       } catch (error) {
         console.error('Error fetching employee data:', error)
         setEmployee(null)
@@ -301,6 +321,16 @@ export default function EmployeeProfilePage() {
       case "approved":
       case "completed":
         return "bg-green-100 text-green-800"
+      case "available":
+        return "bg-green-100 text-green-800"
+      case "assigned":
+        return "bg-blue-100 text-blue-800"
+      case "maintenance":
+        return "bg-orange-100 text-orange-800"
+      case "retired":
+        return "bg-gray-100 text-gray-800"
+      case "lost":
+        return "bg-red-100 text-red-800"
       case "pending":
         return "bg-yellow-100 text-yellow-800"
       case "rejected":
@@ -887,30 +917,45 @@ export default function EmployeeProfilePage() {
               <CardDescription>All company assets assigned to this employee</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {(assets || []).map((asset) => (
-                  <div key={asset.id} className="p-4 border rounded-lg hover:bg-gray-50">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className="p-2 bg-purple-100 rounded-lg">
-                          <Package className="w-5 h-5 text-purple-600" />
+              {assets.length === 0 ? (
+                <p className="text-sm text-gray-500">No assets assigned to this employee.</p>
+              ) : (
+                <div className="space-y-4">
+                  {assets.map((asset) => (
+                    <div key={asset.id} className="p-4 border rounded-lg hover:bg-gray-50">
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-4">
+                          <div className="p-2 bg-purple-100 rounded-lg">
+                            <Package className="w-5 h-5 text-purple-600" />
+                          </div>
+                          <div>
+                            <h4 className="font-medium text-gray-900">{asset.name}</h4>
+                            <p className="text-sm text-gray-600">
+                              {asset.assetType} • {asset.brand} {asset.model}
+                            </p>
+                            <p className="text-xs text-gray-500">Serial: {asset.serialNumber}</p>
+                            {asset.purchaseDate && (
+                              <p className="text-xs text-gray-500">
+                                Purchased: {asset.purchaseDate}
+                              </p>
+                            )}
+                          </div>
                         </div>
-                        <div>
-                          <h4 className="font-medium text-gray-900">{asset.name}</h4>
-                          <p className="text-sm text-gray-600">{asset.type} • {asset.serialNumber}</p>
-                          <p className="text-sm text-gray-500">Assigned: {new Date(asset.assignedDate).toLocaleDateString()}</p>
+                        <div className="text-right space-y-1">
+                          <Badge className={getStatusColor(asset.status)}>
+                            {asset.status.charAt(0).toUpperCase() + asset.status.slice(1)}
+                          </Badge>
+                          <p className="text-sm text-gray-600">Condition: {asset.condition}</p>
+                          <p className="text-sm text-gray-600">Location: {asset.location}</p>
+                          {asset.currentValue !== undefined && (
+                            <p className="text-xs text-gray-500">Value: ₹{asset.currentValue}</p>
+                          )}
                         </div>
-                      </div>
-                      <div className="text-right">
-                        <Badge className={getStatusColor(asset.status)}>
-                          {asset.status}
-                        </Badge>
-                        <p className="text-sm text-gray-600 mt-1">Condition: {asset.condition}</p>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
