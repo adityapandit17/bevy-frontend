@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react"
 import { getApiUrl, getEndpointUrl, apiRequest } from "@/lib/api"
+import { toast } from "@/hooks/use-toast"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -259,7 +260,11 @@ export default function AssetsPage() {
         description: "",
         cost: 0,
         performedBy: "",
-        nextMaintenance: ""
+        nextMaintenance: "",
+        assetId: "",
+        asset_id: "",
+        overdue: false,
+        dueSoon: false
       }
     }
     
@@ -270,7 +275,11 @@ export default function AssetsPage() {
       description: record.description || "",
       cost: parseFloat(record.cost || 0) || 0,
       performedBy: record.performed_by || record.performedBy || "",
-      nextMaintenance: record.next_maintenance || record.nextMaintenance || ""
+      nextMaintenance: record.next_maintenance || record.nextMaintenance || "",
+      assetId: record.asset_id?.toString() || record.assetId?.toString() || "",
+      asset_id: record.asset_id?.toString() || record.assetId?.toString() || "",
+      overdue: record.overdue || false,
+      dueSoon: record.due_soon || record.dueSoon || false
     }
   }
 
@@ -433,11 +442,11 @@ export default function AssetsPage() {
 
         // Fetch maintenance records
         try {
-          const maintenanceData = await apiRequest<any>(getApiUrl('api/assets/maintenance'))
-          const transformedMaintenance = maintenanceData.recent_maintenance?.map(transformMaintenanceRecord) || []
-          setMaintenanceRecords(transformedMaintenance)
+          const maintenanceData = await apiRequest<{ maintenance_records: any[] }>(getApiUrl('maintenance_records'))
+          const records = maintenanceData.maintenance_records || []
+          setMaintenanceRecords(records.map(transformMaintenanceRecord))
         } catch (error) {
-          console.error('Error fetching maintenance:', error)
+          console.error('Error fetching maintenance records:', error)
           setMaintenanceRecords([])
         }
 
@@ -483,6 +492,17 @@ export default function AssetsPage() {
     fetchAllData()
   }, [])
 
+  const refreshMaintenanceRecords = async () => {
+    try {
+      const maintenanceData = await apiRequest<{ maintenance_records: any[] }>(getApiUrl('maintenance_records'))
+      const records = maintenanceData.maintenance_records || []
+      setMaintenanceRecords(records.map(transformMaintenanceRecord))
+    } catch (error) {
+      console.error('Error fetching maintenance records:', error)
+      setMaintenanceRecords([])
+    }
+  }
+
   const refreshAssets = async () => {
     try {
       const assetsData = await apiRequest<any>(getApiUrl('api/assets'))
@@ -492,8 +512,7 @@ export default function AssetsPage() {
       }
       const allocationsData = await apiRequest<{ allocations: any[] }>(getApiUrl('api/assets/allocations'))
       setAllocations(allocationsData.allocations?.map(transformAllocation) || [])
-      const maintenanceData = await apiRequest<any>(getApiUrl('api/assets/maintenance'))
-      setMaintenanceRecords(maintenanceData.recent_maintenance?.map(transformMaintenanceRecord) || [])
+      await refreshMaintenanceRecords()
     } catch (error) {
       console.error('Error refreshing assets data:', error)
     }
@@ -798,6 +817,26 @@ export default function AssetsPage() {
 
   const handleScheduleMaintenance = async () => {
     if (!maintenanceAsset) return
+    
+    // Validate form
+    if (!maintenanceForm.scheduledDate) {
+      toast({
+        title: "Validation Error",
+        description: "Please select a scheduled date",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (!maintenanceForm.maintenanceType) {
+      toast({
+        title: "Validation Error",
+        description: "Please select a maintenance type",
+        variant: "destructive",
+      })
+      return
+    }
+
     setActionLoading(true)
     try {
       const payload = {
@@ -806,13 +845,29 @@ export default function AssetsPage() {
         scheduled_date: maintenanceForm.scheduledDate,
         notes: maintenanceForm.notes
       }
-      await apiRequest(getApiUrl('maintenance_records/schedule'), {
+      const response = await apiRequest<any>(getApiUrl('maintenance_records/schedule'), {
         method: 'POST',
         body: JSON.stringify(payload)
       })
+      
+      toast({
+        title: "Success",
+        description: response.message || "Maintenance scheduled successfully",
+      })
+      
       await refreshAssets()
+      await refreshMaintenanceRecords()
+      
+      // Reset form
+      setMaintenanceForm({
+        maintenanceType: "routine",
+        scheduledDate: new Date().toISOString().split("T")[0],
+        notes: ""
+      })
       setMaintenanceAsset(null)
-    } catch (error) {
+    } catch (error: any) {
+      // Error toast is already shown by apiRequest, but we can add additional handling here
+      const errorMessage = error?.message || "Failed to schedule maintenance"
       console.error('Error scheduling maintenance:', error)
     } finally {
       setActionLoading(false)
@@ -1220,33 +1275,87 @@ export default function AssetsPage() {
               <div className="space-y-4">
                 {loading ? (
                   <p className="text-sm text-gray-500">Loading maintenance records...</p>
-                ) : assets.filter(asset => asset.nextMaintenance).length > 0 ? (
-                  assets.filter(asset => asset.nextMaintenance).map((asset) => (
-                    <div key={asset.id} className="p-4 border rounded-lg hover:bg-gray-50">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                          <div className="p-3 bg-orange-100 rounded-lg">
-                            {React.createElement(getAssetTypeIcon(asset.assetType), { className: "w-6 h-6 text-orange-600" })}
-                          </div>
-                          <div>
-                            <h3 className="font-medium text-gray-900">{asset.name}</h3>
-                            <p className="text-sm text-gray-500">Next maintenance: {new Date(asset.nextMaintenance!).toLocaleDateString()}</p>
+                ) : maintenanceRecords.length > 0 ? (
+                  <div className="space-y-3">
+                    {maintenanceRecords.map((record) => {
+                      const asset = assets.find(a => a.id === record.assetId || a.id === record.asset_id)
+                      const maintenanceDate = new Date(record.date)
+                      const isUpcoming = maintenanceDate >= new Date()
+                      const isOverdue = record.overdue || (maintenanceDate < new Date() && isUpcoming === false)
+                      
+                      return (
+                        <div key={record.id} className="p-4 border rounded-lg hover:bg-gray-50">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-4 flex-1">
+                              <div className={`p-3 rounded-lg ${
+                                isOverdue ? "bg-red-100" : isUpcoming ? "bg-orange-100" : "bg-gray-100"
+                              }`}>
+                                <Wrench className={`w-6 h-6 ${
+                                  isOverdue ? "text-red-600" : isUpcoming ? "text-orange-600" : "text-gray-600"
+                                }`} />
+                              </div>
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <h3 className="font-medium text-gray-900">
+                                    {asset?.name || `Asset ${record.assetId || record.asset_id}`}
+                                  </h3>
+                                  <Badge variant="outline" className={
+                                    record.type === "routine" ? "bg-green-100 text-green-800" :
+                                    record.type === "repair" ? "bg-orange-100 text-orange-800" :
+                                    record.type === "inspection" ? "bg-blue-100 text-blue-800" :
+                                    "bg-gray-100 text-gray-800"
+                                  }>
+                                    {record.type?.charAt(0).toUpperCase() + record.type?.slice(1) || "Maintenance"}
+                                  </Badge>
+                                </div>
+                                <p className="text-sm text-gray-600 mb-1">{record.description}</p>
+                                <div className="flex items-center gap-4 text-xs text-gray-500">
+                                  <span className="flex items-center gap-1">
+                                    <Calendar className="w-3 h-3" />
+                                    {maintenanceDate.toLocaleDateString()}
+                                  </span>
+                                  <span className="flex items-center gap-1">
+                                    <User className="w-3 h-3" />
+                                    {record.performedBy}
+                                  </span>
+                                  {record.cost > 0 && (
+                                    <span className="flex items-center gap-1">
+                                      <DollarSign className="w-3 h-3" />
+                                      ₹{record.cost.toLocaleString()}
+                                    </span>
+                                  )}
+                                  {record.nextMaintenance && (
+                                    <span className="flex items-center gap-1">
+                                      <Clock className="w-3 h-3" />
+                                      Next: {new Date(record.nextMaintenance).toLocaleDateString()}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {isOverdue && (
+                                <Badge className="bg-red-100 text-red-800">
+                                  Overdue
+                                </Badge>
+                              )}
+                              {isUpcoming && !isOverdue && (
+                                <Badge className="bg-orange-100 text-orange-800">
+                                  Upcoming
+                                </Badge>
+                              )}
+                            </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Badge className={getStatusColor(asset.status)}>
-                            {asset.status.charAt(0).toUpperCase() + asset.status.slice(1)}
-                          </Badge>
-                          <Button variant="outline" size="sm">
-                            <Calendar className="w-4 h-4 mr-2" />
-                            Schedule
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  ))
+                      )
+                    })}
+                  </div>
                 ) : (
-                  <p className="text-sm text-gray-500">No assets scheduled for maintenance</p>
+                  <div className="text-center py-8">
+                    <Wrench className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-sm text-gray-500 mb-2">No maintenance records found</p>
+                    <p className="text-xs text-gray-400">Schedule maintenance for assets to see records here</p>
+                  </div>
                 )}
               </div>
             </CardContent>
@@ -1840,7 +1949,16 @@ export default function AssetsPage() {
       </Dialog>
 
       {/* Maintenance Dialog */}
-      <Dialog open={!!maintenanceAsset} onOpenChange={(open) => !open && setMaintenanceAsset(null)}>
+      <Dialog open={!!maintenanceAsset} onOpenChange={(open) => {
+        if (!open) {
+          setMaintenanceAsset(null)
+          setMaintenanceForm({
+            maintenanceType: "routine",
+            scheduledDate: new Date().toISOString().split("T")[0],
+            notes: ""
+          })
+        }
+      }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Schedule Maintenance</DialogTitle>
