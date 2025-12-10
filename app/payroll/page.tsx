@@ -29,6 +29,7 @@ export default function PayrollPage() {
   const [employees, setEmployees] = useState([])
   const [departments, setDepartments] = useState([])
   const [showForm, setShowForm] = useState(false)
+  const [editingStructure, setEditingStructure] = useState<any>(null)
   const [loading, setLoading] = useState(false)
   const [currentPage, setCurrentPage] = useState<number>(1)
   const [pageSize, setPageSize] = useState<number>(10)
@@ -167,24 +168,59 @@ export default function PayrollPage() {
       const payload = {
         salary_structure: {
           employee_id: Number(formData.employee_id),
+          department_id: formData.department_id ? Number(formData.department_id) : null,
+          level: formData.level || null,
           basic: Number(formData.baseSalary),
           hra: Number(formData.hra || 0),
-          allowances: Number(formData.allowances || 0) + Number(formData.bonus || 0),
+          allowances: Number(formData.allowances || 0),
+          bonus: Number(formData.bonus || 0),
           deductions: Number(formData.pf || 0) + Number(formData.esi || 0) + Number(formData.professionalTax || 0) + Number(formData.incomeTax || 0),
+          pf: Number(formData.pf || 0),
+          esi: Number(formData.esi || 0),
+          professional_tax: Number(formData.professionalTax || 0),
+          income_tax: Number(formData.incomeTax || 0),
           effective_from: formData.effective_from,
         }
       }
 
-      await apiRequest(getEndpointUrl('SALARY_STRUCTURES'), {
-        method: "POST",
-        body: JSON.stringify(payload)
-      })
+      if (editingStructure) {
+        // Update existing structure
+        await apiRequest(`${getEndpointUrl('SALARY_STRUCTURES')}/${editingStructure.id}`, {
+          method: "PUT",
+          body: JSON.stringify(payload)
+        })
+      } else {
+        // Create new structure
+        await apiRequest(getEndpointUrl('SALARY_STRUCTURES'), {
+          method: "POST",
+          body: JSON.stringify(payload)
+        })
+      }
 
       fetchSalaryStructures()
       setShowForm(false)
+      setEditingStructure(null)
     } catch (err) {
-      console.error("Error creating salary structure:", err)
+      console.error(`Error ${editingStructure ? 'updating' : 'creating'} salary structure:`, err)
     }
+  }
+
+  const handleDeleteSalaryStructure = async (structureId: number | string) => {
+    if (!structureId) return
+    const confirmed = typeof window !== "undefined" ? window.confirm("Delete this salary structure?") : false
+    if (!confirmed) return
+
+    try {
+      await apiRequest(`${getEndpointUrl('SALARY_STRUCTURES')}/${structureId}`, { method: "DELETE" })
+      fetchSalaryStructures()
+    } catch (err) {
+      console.error("Error deleting salary structure:", err)
+    }
+  }
+
+  const handleEditSalaryStructure = (structure: any) => {
+    setEditingStructure(structure)
+    setShowForm(true)
   }
 
   const payrollStats = [
@@ -540,9 +576,30 @@ export default function PayrollPage() {
                                 Employee ID: {structure.employee_id} • Effective from {structure.effective_from || "N/A"}
                               </p>
                             </div>
-                            <Badge variant="outline" className="text-sm">
-                              Net: {formatCurrency(net)}
-                            </Badge>
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className="text-sm">
+                                Net: {formatCurrency(net)}
+                              </Badge>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                                    <MoreHorizontal className="w-4 h-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                  <DropdownMenuItem onClick={() => handleEditSalaryStructure(structure)}>
+                                    Edit structure
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    className="text-red-600 focus:text-red-600"
+                                    onClick={() => handleDeleteSalaryStructure(structure.id)}
+                                  >
+                                    Delete structure
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
                           </div>
 
                           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
@@ -581,7 +638,10 @@ export default function PayrollPage() {
               </div>
 
               <div className="mt-6">
-                <Button onClick={() => setShowForm(true)}>
+                <Button onClick={() => {
+                  setEditingStructure(null)
+                  setShowForm(true)
+                }}>
                   <Plus className="w-4 h-4 mr-2" />
                   Add New Structure
                 </Button>
@@ -592,10 +652,14 @@ export default function PayrollPage() {
       </Tabs>
       {showForm && (
         <SalaryStructureForm
-          onClose={() => setShowForm(false)}
+          onClose={() => {
+            setShowForm(false)
+            setEditingStructure(null)
+          }}
           onSubmit={handleAddSalaryStructure}
           employees={employees}
           departments={departments}
+          initialData={editingStructure}
         />
       )}
     </div>

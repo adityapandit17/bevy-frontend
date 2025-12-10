@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { useEffect, useState } from "react"
-import { getEndpointUrl } from "@/lib/api"
+import { getEndpointUrl, apiRequest } from "@/lib/api"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -16,22 +16,25 @@ interface SalaryStructureFormProps {
   onSubmit: (payload: any) => Promise<void> | void
   employees?: any[]
   departments?: any[]
+  initialData?: any
 }
 
-export function SalaryStructureForm({ onClose, onSubmit, employees = [], departments = [] }: SalaryStructureFormProps) {
+export function SalaryStructureForm({ onClose, onSubmit, employees = [], departments = [], initialData }: SalaryStructureFormProps) {
+  const isEditMode = !!initialData
+  
   const [formData, setFormData] = useState({
-    employee_id: "",
-    department_id: "",
-    level: "",
-    baseSalary: "",
-    hra: "",
-    allowances: "",
+    employee_id: initialData?.employee_id ? String(initialData.employee_id) : "",
+    department_id: initialData?.department_id ? String(initialData.department_id) : "",
+    level: initialData?.level || "",
+    baseSalary: initialData?.basic ? String(initialData.basic) : "",
+    hra: initialData?.hra ? String(initialData.hra) : "",
+    allowances: initialData?.allowances ? String(initialData.allowances) : "",
     bonus: "",
     pf: "",
     esi: "",
     professionalTax: "",
     incomeTax: "",
-    effective_from: "",
+    effective_from: initialData?.effective_from || "",
   })
   const [departmentOptions, setDepartmentOptions] = useState<any[]>(Array.isArray(departments) ? departments : [])
   const [employeeOptions, setEmployeeOptions] = useState<any[]>(Array.isArray(employees) ? employees : [])
@@ -49,6 +52,45 @@ export function SalaryStructureForm({ onClose, onSubmit, employees = [], departm
       fetchEmployees()
     }
   }, [departments, employees])
+
+  // When initialData or employeeOptions changes, update form data
+  useEffect(() => {
+    if (initialData) {
+      // Get employee to fetch department_id
+      const employee = employeeOptions.find(emp => String(emp.id) === String(initialData.employee_id))
+      // Try to get department_id from initialData first, then from employee, or from employee's department object
+      const departmentId = initialData.department_id 
+        ? String(initialData.department_id) 
+        : (employee?.department_id ? String(employee.department_id) : (employee?.department?.id ? String(employee.department.id) : ""))
+      
+      // Extract all fields from initialData - now they should all be stored in the database
+      const pf = initialData.pf ? String(initialData.pf) : ""
+      const esi = initialData.esi ? String(initialData.esi) : ""
+      const professionalTax = initialData.professional_tax ? String(initialData.professional_tax) : ""
+      const incomeTax = initialData.income_tax ? String(initialData.income_tax) : ""
+      const bonus = initialData.bonus ? String(initialData.bonus) : ""
+      
+      setFormData(prev => {
+        // Only update department if we found one and it's different from current
+        const newDepartmentId = departmentId || (initialData.department_id ? String(initialData.department_id) : prev.department_id)
+        
+        return {
+          employee_id: initialData.employee_id ? String(initialData.employee_id) : prev.employee_id,
+          department_id: newDepartmentId,
+          level: initialData.level || prev.level,
+          baseSalary: initialData.basic ? String(initialData.basic) : prev.baseSalary,
+          hra: initialData.hra ? String(initialData.hra) : prev.hra,
+          allowances: initialData.allowances ? String(initialData.allowances) : prev.allowances,
+          bonus: bonus || prev.bonus,
+          pf: pf || prev.pf,
+          esi: esi || prev.esi,
+          professionalTax: professionalTax || prev.professionalTax,
+          incomeTax: incomeTax || prev.incomeTax,
+          effective_from: initialData.effective_from || prev.effective_from,
+        }
+      })
+    }
+  }, [initialData, employeeOptions])
 
   const fetchDepartments = async () => {
     try {
@@ -93,19 +135,29 @@ export function SalaryStructureForm({ onClose, onSubmit, employees = [], departm
   }
 
   const handleChange = (field: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }))
+    setFormData((prev) => {
+      const updated = { ...prev, [field]: value }
+      // Auto-fill department when employee is selected
+      if (field === "employee_id" && value) {
+        const selectedEmployee = employeeOptions.find(emp => String(emp.id) === value)
+        if (selectedEmployee && selectedEmployee.department_id) {
+          updated.department_id = String(selectedEmployee.department_id)
+        }
+      }
+      return updated
+    })
   }
 
   const calculateTotals = () => {
-    const base = Number.parseFloat(formData.baseSalary) || 0
-    const hra = Number.parseFloat(formData.hra) || 0
-    const allowances = Number.parseFloat(formData.allowances) || 0
-    const bonus = Number.parseFloat(formData.bonus) || 0
+    const base = Number.parseFloat(String(formData.baseSalary || "")) || 0
+    const hra = Number.parseFloat(String(formData.hra || "")) || 0
+    const allowances = Number.parseFloat(String(formData.allowances || "")) || 0
+    const bonus = Number.parseFloat(String(formData.bonus || "")) || 0
 
-    const pf = Number.parseFloat(formData.pf) || 0
-    const esi = Number.parseFloat(formData.esi) || 0
-    const professionalTax = Number.parseFloat(formData.professionalTax) || 0
-    const incomeTax = Number.parseFloat(formData.incomeTax) || 0
+    const pf = Number.parseFloat(String(formData.pf || "")) || 0
+    const esi = Number.parseFloat(String(formData.esi || "")) || 0
+    const professionalTax = Number.parseFloat(String(formData.professionalTax || "")) || 0
+    const incomeTax = Number.parseFloat(String(formData.incomeTax || "")) || 0
 
     const grossSalary = base + hra + allowances + bonus
     const totalDeductions = pf + esi + professionalTax + incomeTax
@@ -121,7 +173,7 @@ export function SalaryStructureForm({ onClose, onSubmit, employees = [], departm
       <Card className="w-full max-w-4xl max-h-[90vh] overflow-y-auto">
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
-            <CardTitle className="text-gray-900">Add Salary Structure</CardTitle>
+            <CardTitle className="text-gray-900">{isEditMode ? "Edit Salary Structure" : "Add Salary Structure"}</CardTitle>
             <CardDescription className="text-gray-600">Define compensation structure for a role</CardDescription>
           </div>
           <Button variant="ghost" size="icon" onClick={onClose}>
@@ -164,7 +216,7 @@ export function SalaryStructureForm({ onClose, onSubmit, employees = [], departm
                 </div>
                 <div>
                   <Label htmlFor="level">Level *</Label>
-                  <Select onValueChange={(value) => handleChange("level", value)}>
+                  <Select value={formData.level} onValueChange={(value) => handleChange("level", value)} required>
                     <SelectTrigger>
                       <SelectValue placeholder="Select level" />
                     </SelectTrigger>
@@ -316,7 +368,7 @@ export function SalaryStructureForm({ onClose, onSubmit, employees = [], departm
                 Cancel
               </Button>
               <Button type="submit" className="bg-green-600 hover:bg-green-700">
-                Create Structure
+                {isEditMode ? "Update Structure" : "Create Structure"}
               </Button>
             </div>
           </form>
