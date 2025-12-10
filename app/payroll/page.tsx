@@ -17,9 +17,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { IndianRupee, Search, Plus, MoreHorizontal, Download, Calculator, Clock, CheckCircle } from "lucide-react"
+import { IndianRupee, Search, Plus, MoreHorizontal, Download, Calculator, Clock, CheckCircle, Calendar as CalendarIcon } from "lucide-react"
 import { SalaryStructureForm } from "@/components/forms/salary-structure-form"
 import { ResourceGuard } from "@/lib/auth/auth.guards"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { format } from "date-fns"
+import { useToast } from "@/hooks/use-toast"
 
 export default function PayrollPage() {
   const [searchTerm, setSearchTerm] = useState("")
@@ -33,6 +36,40 @@ export default function PayrollPage() {
   const [loading, setLoading] = useState(false)
   const [currentPage, setCurrentPage] = useState<number>(1)
   const [pageSize, setPageSize] = useState<number>(10)
+  const [calendarOpen, setCalendarOpen] = useState(false)
+  const [processingPayroll, setProcessingPayroll] = useState(false)
+  
+  // Parse month filter (e.g., "october-2024") to get year and month
+  const parseMonthFilter = (filter: string) => {
+    const parts = filter.split("-")
+    if (parts.length !== 2) return null
+    
+    const monthNames = ["january", "february", "march", "april", "may", "june", 
+                       "july", "august", "september", "october", "november", "december"]
+    const monthName = parts[0].toLowerCase()
+    const monthIndex = monthNames.indexOf(monthName)
+    const year = parseInt(parts[1], 10)
+    
+    if (monthIndex === -1 || isNaN(year)) return null
+    return { year, month: monthIndex + 1 }
+  }
+
+  // Parse monthFilter to get date for calendar
+  const getDateFromMonthFilter = () => {
+    const monthInfo = parseMonthFilter(monthFilter)
+    if (monthInfo) {
+      return new Date(monthInfo.year, monthInfo.month - 1, 1)
+    }
+    return new Date()
+  }
+  
+  const [selectedDate, setSelectedDate] = useState<Date>(getDateFromMonthFilter())
+  const [selectedYear, setSelectedYear] = useState<number>(getDateFromMonthFilter().getFullYear())
+  const [selectedMonthIndex, setSelectedMonthIndex] = useState<number>(getDateFromMonthFilter().getMonth())
+  const now = new Date()
+  const currentYear = now.getFullYear()
+  const currentMonthIndex = now.getMonth()
+  const { toast } = useToast()
 
   useEffect(() => {
     fetchPayrollRecords()
@@ -40,6 +77,14 @@ export default function PayrollPage() {
     fetchEmployees()
     fetchDepartments()
   }, [])
+
+  // Sync selectedDate with monthFilter changes
+  useEffect(() => {
+    const newDate = getDateFromMonthFilter()
+    setSelectedDate(newDate)
+    setSelectedYear(newDate.getFullYear())
+    setSelectedMonthIndex(newDate.getMonth())
+  }, [monthFilter])
 
   const fetchPayrollRecords = async () => {
     setLoading(true)
@@ -90,6 +135,32 @@ export default function PayrollPage() {
     }
   }
 
+  const processPayroll = async () => {
+    setProcessingPayroll(true)
+    try {
+      await apiRequest(getEndpointUrl("PAYROLL_PROCESS_MONTH"), {
+        method: "POST",
+        body: JSON.stringify({
+          month: monthFilter,
+          preview: false,
+        }),
+      })
+      toast({
+        title: "Payroll processed",
+        description: `Processed payroll for ${formatMonthDisplay(monthFilter)}`,
+      })
+      fetchPayrollRecords()
+    } catch (err: any) {
+      toast({
+        title: "Failed to process payroll",
+        description: err?.message || "Please try again",
+        variant: "destructive",
+      })
+    } finally {
+      setProcessingPayroll(false)
+    }
+  }
+
   const getEmployeeName = (id) => {
     if (!Array.isArray(employees)) return id
     const emp = employees.find(e => String(e.id) === String(id))
@@ -137,8 +208,17 @@ export default function PayrollPage() {
 
   const normalizedPayrollRecords = dedupePayrollRecords(payrollRecords)
 
+  const selectedMonthLabel = formatMonthDisplay(monthFilter)
+
+  const isRecordInSelectedMonth = (record: any) => {
+    if (!selectedMonthLabel || selectedMonthLabel === "Select Month") return true
+    const recordMonth = String(record?.month || "").trim().toLowerCase()
+    return recordMonth === selectedMonthLabel.trim().toLowerCase()
+  }
+
   // Filter payroll records by search term (employee name or ID)
   const filteredPayrollRecords = normalizedPayrollRecords.filter((record: any) => {
+    if (!isRecordInSelectedMonth(record)) return false
     if (!searchTerm) return true
     const term = searchTerm.toLowerCase()
     const employeeName = String(getEmployeeName(record.employee_id) || "").toLowerCase()
@@ -290,19 +370,117 @@ export default function PayrollPage() {
     return Number.isFinite(num) ? num : 0
   }
 
-  const latestStructureByEmployee = (() => {
-    if (!Array.isArray(salaryStructures) || salaryStructures.length === 0) return {}
-    return salaryStructures.reduce((acc, structure) => {
-      const key = String(structure.employee_id)
-      const existing = acc[key]
-      const currentDate = structure.effective_from ? new Date(structure.effective_from) : null
-      const existingDate = existing?.effective_from ? new Date(existing.effective_from) : null
-      if (!existing || (currentDate && existingDate && currentDate > existingDate)) {
-        acc[key] = structure
+  // Convert date to month filter format
+  const dateToMonthFilter = (date: Date) => {
+    const monthNames = ["january", "february", "march", "april", "may", "june", 
+                       "july", "august", "september", "october", "november", "december"]
+    const monthName = monthNames[date.getMonth()]
+    const year = date.getFullYear()
+    return `${monthName}-${year}`
+  }
+
+  // Handle calendar date selection
+  const handleCalendarSelect = (date: Date | undefined) => {
+    if (date) {
+      setSelectedDate(date)
+      const newFilter = dateToMonthFilter(date)
+      setMonthFilter(newFilter)
+      setCalendarOpen(false)
+    }
+  }
+
+  // Month/year pickers (without showing dates)
+  const handleMonthChange = (monthIndex: number) => {
+    // If current year, don't allow selecting future months
+    if (selectedYear === currentYear && monthIndex > currentMonthIndex) {
+      monthIndex = currentMonthIndex
+    }
+    const date = new Date(selectedYear, monthIndex, 1)
+    handleCalendarSelect(date)
+    setSelectedMonthIndex(monthIndex)
+  }
+
+  const handleYearChange = (year: number) => {
+    let monthIndex = selectedMonthIndex
+    if (year === currentYear && monthIndex > currentMonthIndex) {
+      monthIndex = currentMonthIndex
+    }
+    const date = new Date(year, monthIndex, 1)
+    handleCalendarSelect(date)
+    setSelectedYear(year)
+    setSelectedMonthIndex(monthIndex)
+  }
+
+  // Format month display (hoisted)
+  function formatMonthDisplay(filter: string) {
+    const monthInfo = parseMonthFilter(filter)
+    if (monthInfo) {
+      const monthNames = ["January", "February", "March", "April", "May", "June", 
+                         "July", "August", "September", "October", "November", "December"]
+      return `${monthNames[monthInfo.month - 1]} ${monthInfo.year}`
+    }
+    return "Select Month"
+  }
+
+  // Get salary structure for a specific employee and month
+  // Returns the structure that is effective for the given month
+  // (the structure with effective_from <= target month, and is the latest)
+  const getStructureForMonth = (employeeId: number, year: number, month: number) => {
+    if (!Array.isArray(salaryStructures) || salaryStructures.length === 0) return null
+    
+    // Filter structures for this employee with valid effective_from dates
+    const employeeStructures = salaryStructures.filter(
+      (s: any) => s.employee_id === employeeId && s.effective_from
+    )
+    
+    if (employeeStructures.length === 0) return null
+    
+    // Target month date (first day of the month)
+    const targetDate = new Date(year, month - 1, 1)
+    const targetMonthKey = `${year}-${String(month).padStart(2, '0')}`
+    
+    // First, group structures by their effective month and resolve duplicates
+    // (keep only the latest created structure for each month)
+    const structuresByMonth: Record<string, any> = {}
+    employeeStructures.forEach((structure: any) => {
+      const effectiveDate = new Date(structure.effective_from)
+      const monthKey = `${effectiveDate.getFullYear()}-${String(effectiveDate.getMonth() + 1).padStart(2, '0')}`
+      
+      if (!structuresByMonth[monthKey] || 
+          new Date(structure.created_at) > new Date(structuresByMonth[monthKey].created_at)) {
+        structuresByMonth[monthKey] = structure
       }
-      return acc
-    }, {} as Record<string, any>)
-  })()
+    })
+    
+    // Return structure for the exact target month if it exists
+    if (structuresByMonth[targetMonthKey]) {
+      return structuresByMonth[targetMonthKey]
+    }
+    
+    // If no exact match, find the latest structure that is effective on or before the target month
+    // This handles cases where a structure is effective from an earlier month and continues
+    let latestStructure: any = null
+    let latestDate: Date | null = null
+    
+    Object.values(structuresByMonth).forEach((structure: any) => {
+      const structDate = new Date(structure.effective_from)
+      // Structure must be effective on or before the target month
+      if (structDate <= targetDate) {
+        // Among valid structures, pick the one with the latest effective_from date
+        if (!latestDate || structDate > latestDate) {
+          latestDate = structDate
+          latestStructure = structure
+        } else if (structDate.getTime() === latestDate.getTime()) {
+          // If same date, prefer the one created later
+          if (new Date(structure.created_at) > new Date(latestStructure.created_at)) {
+            latestStructure = structure
+          }
+        }
+      }
+    })
+    
+    return latestStructure
+  }
 
   return (
     <ResourceGuard resourceKeys={["payrolls", "salary_structures"]} pageName="Payroll">
@@ -318,9 +496,9 @@ export default function PayrollPage() {
             <Download className="w-4 h-4 mr-2" />
             Export Payroll
           </Button>
-          <Button size="sm">
+            <Button size="sm" onClick={processPayroll} disabled={processingPayroll}>
             <Calculator className="w-4 h-4 mr-2" />
-            Process Payroll
+              {processingPayroll ? "Processing..." : "Process Payroll"}
           </Button>
         </div>
       </div>
@@ -372,17 +550,59 @@ export default function PayrollPage() {
                     className="pl-10"
                   />
                 </div>
-                <Select value={monthFilter} onValueChange={setMonthFilter}>
-                  <SelectTrigger className="w-full sm:w-48">
-                    <SelectValue placeholder="Select Month" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="november-2024">November 2024</SelectItem>
-                    <SelectItem value="october-2024">October 2024</SelectItem>
-                    <SelectItem value="september-2024">September 2024</SelectItem>
-                    <SelectItem value="august-2024">August 2024</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="w-full sm:w-48 justify-start text-left font-normal"
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {formatMonthDisplay(monthFilter)}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-72" align="start">
+                    <div className="space-y-3">
+                      <div className="text-sm font-medium text-gray-900">Select month & year</div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <Select
+                          value={String(selectedMonthIndex)}
+                          onValueChange={(val) => handleMonthChange(Number(val))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Month" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {["January","February","March","April","May","June","July","August","September","October","November","December"]
+                              .filter((_, idx) => selectedYear === currentYear ? idx <= currentMonthIndex : true)
+                              .map((m, idx) => (
+                                <SelectItem key={m} value={String(idx)}>
+                                  {m}
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+
+                        <Select
+                          value={String(selectedYear)}
+                          onValueChange={(val) => handleYearChange(Number(val))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Year" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {Array.from({ length: 6 }, (_, i) => currentYear - 5 + i)
+                              .filter((year) => year <= currentYear)
+                              .map((year) => (
+                                <SelectItem key={year} value={String(year)}>
+                                  {year}
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
 
               <div className="rounded-md border">
@@ -407,14 +627,43 @@ export default function PayrollPage() {
                       </TableRow>
                     ) : (
                       paginatedPayrollRecords.map((record: any) => {
-                        const structure = latestStructureByEmployee[String(record.employee_id)]
-                        const basic = safeNumber(structure?.basic ?? record.basic_salary)
-                        const hra = safeNumber(structure?.hra)
-                        const allowancesFromStructure = safeNumber(structure?.allowances)
-                        const allowances = allowancesFromStructure + hra
-                        const gross = safeNumber(record.gross_salary ?? basic + allowances)
-                        const net = safeNumber(record.net_salary ?? (gross - safeNumber(structure?.deductions)))
-                        const deductions = gross > 0 && net >= 0 ? Math.max(0, gross - net) : safeNumber(structure?.deductions)
+                        // Parse month filter to get year and month
+                        const monthInfo = parseMonthFilter(monthFilter)
+                        const structure = monthInfo 
+                          ? getStructureForMonth(record.employee_id, monthInfo.year, monthInfo.month)
+                          : null
+                        
+                        // Always calculate from salary structure, not stored payroll values
+                        // Frontend values in salary structure are annual; payroll records are monthly.
+                        // Convert annual structure numbers to monthly for display.
+                        const toMonthly = (val: any) => safeNumber(val) / 12
+
+                        const basicAnnual = safeNumber(structure?.basic ?? 0)
+                        const hraAnnual = safeNumber(structure?.hra ?? 0)
+                        const allowancesAnnual = safeNumber(structure?.allowances ?? 0)
+                        const bonusAnnual = safeNumber(structure?.bonus ?? 0)
+
+                        const basic = toMonthly(basicAnnual)
+                        const hra = toMonthly(hraAnnual)
+                        const allowancesFromStructure = toMonthly(allowancesAnnual)
+                        const bonus = toMonthly(bonusAnnual)
+                        
+                        // Calculate gross salary (monthly): basic + hra + allowances + bonus
+                        const gross = basic + hra + allowancesFromStructure + bonus
+                        
+                        // Calculate deductions monthly
+                        const pf = toMonthly(structure?.pf ?? 0)
+                        const esi = toMonthly(structure?.esi ?? 0)
+                        const professionalTax = toMonthly(structure?.professional_tax ?? 0)
+                        const incomeTax = toMonthly(structure?.income_tax ?? 0)
+                        const totalDeductions = pf + esi + professionalTax + incomeTax
+                        
+                        // Net salary (monthly) = gross - deductions
+                        const net = Math.max(0, gross - totalDeductions)
+                        
+                        // For display: allowances = hra + other allowances
+                        const allowances = hra + allowancesFromStructure
+                        const deductions = totalDeductions
                         const departmentName = getEmployeeDepartmentName(record.employee_id) || getDepartmentName(record.department_id)
                         const status = record.status || "processed"
 

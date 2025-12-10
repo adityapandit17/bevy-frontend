@@ -299,6 +299,7 @@ export const API_ENDPOINTS = {
 
   // Payroll
   PAYROLLS: '/payrolls',
+  PAYROLL_PROCESS_MONTH: '/payrolls/process_month',
   SALARY_STRUCTURES: '/salary_structures',
 
   // Company
