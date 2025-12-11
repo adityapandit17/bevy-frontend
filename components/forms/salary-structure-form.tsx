@@ -35,9 +35,12 @@ export function SalaryStructureForm({ onClose, onSubmit, employees = [], departm
     professionalTax: "",
     incomeTax: "",
     effective_from: initialData?.effective_from || "",
+    effective_upto: initialData?.effective_upto || "",
   })
   const [departmentOptions, setDepartmentOptions] = useState<any[]>(Array.isArray(departments) ? departments : [])
   const [employeeOptions, setEmployeeOptions] = useState<any[]>(Array.isArray(employees) ? employees : [])
+  const [existingStructures, setExistingStructures] = useState<any[]>([])
+  const [validationError, setValidationError] = useState<string>("")
 
   useEffect(() => {
     // If the caller passed options, sync them into local state.
@@ -87,6 +90,7 @@ export function SalaryStructureForm({ onClose, onSubmit, employees = [], departm
           professionalTax: professionalTax || prev.professionalTax,
           incomeTax: incomeTax || prev.incomeTax,
           effective_from: initialData.effective_from || prev.effective_from,
+          effective_upto: initialData.effective_upto || prev.effective_upto,
         }
       })
     }
@@ -114,8 +118,96 @@ export function SalaryStructureForm({ onClose, onSubmit, employees = [], departm
     }
   }
 
+  const fetchExistingStructures = async (employeeId: string) => {
+    if (!employeeId) {
+      setExistingStructures([])
+      return
+    }
+    try {
+      const data = await apiRequest(getEndpointUrl('SALARY_STRUCTURES'))
+      const structures = Array.isArray(data) ? data : []
+      // Filter structures for this employee, excluding current structure if editing
+      const filtered = structures.filter((s: any) => {
+        if (String(s.employee_id) !== String(employeeId)) return false
+        if (isEditMode && initialData && s.id === initialData.id) return false
+        return true
+      })
+      setExistingStructures(filtered)
+    } catch {
+      setExistingStructures([])
+    }
+  }
+
+  // Check if two date ranges overlap
+  const periodsOverlap = (from1: string, upto1: string | null, from2: string, upto2: string | null): boolean => {
+    if (!from1 || !from2) return false
+    
+    const date1 = new Date(from1)
+    const date2 = new Date(from2)
+    const uptoDate1 = upto1 ? new Date(upto1) : null
+    const uptoDate2 = upto2 ? new Date(upto2) : null
+    
+    // If either period has no end date (indefinite), check if they overlap
+    if (!uptoDate1 && !uptoDate2) {
+      // Both are indefinite - they overlap
+      return true
+    } else if (!uptoDate1) {
+      // First period is indefinite - overlaps if from1 <= upto2
+      return date1 <= uptoDate2!
+    } else if (!uptoDate2) {
+      // Second period is indefinite - overlaps if from2 <= upto1
+      return date2 <= uptoDate1
+    } else {
+      // Both have end dates - standard overlap check
+      return date2 <= uptoDate1 && date1 <= uptoDate2
+    }
+  }
+
+  const validateNoOverlaps = (): boolean => {
+    if (!formData.employee_id || !formData.effective_from) {
+      return true // Let required field validation handle this
+    }
+
+    // Validate that effective_upto is after effective_from if both are present
+    if (formData.effective_upto && formData.effective_from) {
+      const fromDate = new Date(formData.effective_from)
+      const uptoDate = new Date(formData.effective_upto)
+      if (uptoDate < fromDate) {
+        setValidationError("Effective upto date must be after or equal to effective from date")
+        return false
+      }
+    }
+
+    // Check for overlaps with existing structures
+    for (const existing of existingStructures) {
+      if (periodsOverlap(
+        formData.effective_from,
+        formData.effective_upto || null,
+        existing.effective_from,
+        existing.effective_upto || null
+      )) {
+        const existingPeriod = existing.effective_upto
+          ? `${existing.effective_from} to ${existing.effective_upto}`
+          : `${existing.effective_from} (ongoing)`
+        setValidationError(
+          `This salary structure period overlaps with an existing structure (Effective from: ${existingPeriod}). Please choose a different date range.`
+        )
+        return false
+      }
+    }
+
+    setValidationError("")
+    return true
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // Validate no overlaps before submitting
+    if (!validateNoOverlaps()) {
+      return
+    }
+    
     const payload = {
       employee_id: formData.employee_id,
       department_id: formData.department_id,
@@ -129,9 +221,20 @@ export function SalaryStructureForm({ onClose, onSubmit, employees = [], departm
       professionalTax: formData.professionalTax,
       incomeTax: formData.incomeTax,
       effective_from: formData.effective_from,
+      effective_upto: formData.effective_upto,
     }
-    await onSubmit(payload)
-    onClose()
+    
+    try {
+      await onSubmit(payload)
+      onClose()
+    } catch (error: any) {
+      // Handle backend validation errors
+      if (error?.errors && Array.isArray(error.errors)) {
+        setValidationError(error.errors.join(", "))
+      } else if (error?.message) {
+        setValidationError(error.message)
+      }
+    }
   }
 
   const handleChange = (field: string, value: string) => {
@@ -143,10 +246,24 @@ export function SalaryStructureForm({ onClose, onSubmit, employees = [], departm
         if (selectedEmployee && selectedEmployee.department_id) {
           updated.department_id = String(selectedEmployee.department_id)
         }
+        // Fetch existing structures for this employee
+        fetchExistingStructures(value)
       }
       return updated
     })
+    
+    // Clear validation error when user changes dates
+    if (field === "effective_from" || field === "effective_upto") {
+      setValidationError("")
+    }
   }
+
+  // Fetch existing structures when employee is selected via initialData
+  useEffect(() => {
+    if (formData.employee_id) {
+      fetchExistingStructures(formData.employee_id)
+    }
+  }, [formData.employee_id])
 
   const calculateTotals = () => {
     const base = Number.parseFloat(String(formData.baseSalary || "")) || 0
@@ -182,6 +299,13 @@ export function SalaryStructureForm({ onClose, onSubmit, employees = [], departm
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Validation Error */}
+            {validationError && (
+              <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-sm text-red-600">{validationError}</p>
+              </div>
+            )}
+            
             {/* Basic Information */}
             <div className="space-y-4">
               <h3 className="text-lg font-semibold text-gray-900">Structure Details</h3>
@@ -238,6 +362,16 @@ export function SalaryStructureForm({ onClose, onSubmit, employees = [], departm
                     value={formData.effective_from}
                     onChange={(e) => handleChange("effective_from", e.target.value)}
                     required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="effective_upto">Effective Upto</Label>
+                  <Input
+                    id="effective_upto"
+                    type="date"
+                    value={formData.effective_upto}
+                    onChange={(e) => handleChange("effective_upto", e.target.value)}
+                    placeholder="Select end date"
                   />
                 </div>
               </div>

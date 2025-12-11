@@ -260,6 +260,7 @@ export default function PayrollPage() {
           professional_tax: Number(formData.professionalTax || 0),
           income_tax: Number(formData.incomeTax || 0),
           effective_from: formData.effective_from,
+          effective_upto: formData.effective_upto || null,
         }
       }
 
@@ -280,8 +281,15 @@ export default function PayrollPage() {
       fetchSalaryStructures()
       setShowForm(false)
       setEditingStructure(null)
-    } catch (err) {
+    } catch (err: any) {
       console.error(`Error ${editingStructure ? 'updating' : 'creating'} salary structure:`, err)
+      // Re-throw error so form can handle it
+      if (err?.errors) {
+        throw { errors: Array.isArray(err.errors) ? err.errors : [err.errors] }
+      } else if (err?.message) {
+        throw { message: err.message }
+      }
+      throw err
     }
   }
 
@@ -823,6 +831,7 @@ export default function PayrollPage() {
                               <h3 className="text-lg font-semibold text-gray-900">{getEmployeeName(structure.employee_id)}</h3>
                               <p className="text-sm text-gray-500">
                                 Employee ID: {structure.employee_id} • Effective from {structure.effective_from || "N/A"}
+                                {structure.effective_upto && ` • Effective upto ${structure.effective_upto}`}
                               </p>
                             </div>
                             <div className="flex items-center gap-2">

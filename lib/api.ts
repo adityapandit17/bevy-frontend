@@ -114,6 +114,7 @@ export const apiRequest = async <T>(
 
       // Try to parse error response
       let errorMessage = `Request failed with status ${response.status || 'unknown'}`;
+      let errorData: any = {};
       
       try {
         // Clone response to read it safely (in case it was already read)
@@ -148,6 +149,16 @@ export const apiRequest = async <T>(
               const extractedMessage = errorJson.message || errorJson.error || errorJson.errors?.join(', ') || null;
               if (extractedMessage && extractedMessage.trim().length > 0) {
                 errorMessage = extractedMessage.trim();
+              }
+              // Preserve errors array and other error data for better error handling
+              if (errorJson.errors) {
+                errorData.errors = Array.isArray(errorJson.errors) ? errorJson.errors : [errorJson.errors];
+              }
+              if (errorJson.error) {
+                errorData.error = errorJson.error;
+              }
+              if (errorJson.message) {
+                errorData.message = errorJson.message;
               }
             } catch {
               // Use the text directly (but truncate if too long)
@@ -188,6 +199,16 @@ export const apiRequest = async <T>(
       const error = new Error(errorMessage);
       (error as any).toastShown = true;
       (error as any).statusCode = response.status;
+      // Preserve error data for better error handling
+      if (errorData.errors) {
+        (error as any).errors = errorData.errors;
+      }
+      if (errorData.error) {
+        (error as any).error = errorData.error;
+      }
+      if (errorData.message) {
+        (error as any).message = errorData.message;
+      }
       // Mark as handled to prevent Next.js error overlay
       (error as any).isHandled = true;
       throw error;
