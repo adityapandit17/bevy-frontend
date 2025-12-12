@@ -21,6 +21,7 @@ import { IndianRupee, Search, Plus, MoreHorizontal, Download, Calculator, Clock,
 import { SalaryStructureForm } from "@/components/forms/salary-structure-form"
 import { ResourceGuard } from "@/lib/auth/auth.guards"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { format } from "date-fns"
 import { useToast } from "@/hooks/use-toast"
 
@@ -38,6 +39,10 @@ export default function PayrollPage() {
   const [pageSize, setPageSize] = useState<number>(10)
   const [calendarOpen, setCalendarOpen] = useState(false)
   const [processingPayroll, setProcessingPayroll] = useState(false)
+  const [showCalculationDialog, setShowCalculationDialog] = useState(false)
+  const [selectedPayrollId, setSelectedPayrollId] = useState<number | null>(null)
+  const [calculationBreakdown, setCalculationBreakdown] = useState<any>(null)
+  const [loadingBreakdown, setLoadingBreakdown] = useState(false)
   
   // Parse month filter (e.g., "october-2024") to get year and month
   const parseMonthFilter = (filter: string) => {
@@ -133,6 +138,29 @@ export default function PayrollPage() {
       console.error("Error fetching departments:", err)
       setDepartments([])
     }
+  }
+
+  const fetchCalculationBreakdown = async (payrollId: number) => {
+    setLoadingBreakdown(true)
+    try {
+      const data = await apiRequest(`${getEndpointUrl('PAYROLLS')}/${payrollId}/calculation_breakdown`)
+      setCalculationBreakdown(data)
+      setShowCalculationDialog(true)
+    } catch (err: any) {
+      console.error("Error fetching calculation breakdown:", err)
+      toast({
+        title: "Error",
+        description: err.message || "Failed to fetch calculation breakdown",
+        variant: "destructive",
+      })
+    } finally {
+      setLoadingBreakdown(false)
+    }
+  }
+
+  const handleViewCalculation = (payrollId: number) => {
+    setSelectedPayrollId(payrollId)
+    fetchCalculationBreakdown(payrollId)
   }
 
   const processPayroll = async () => {
@@ -245,6 +273,11 @@ export default function PayrollPage() {
 
   const handleAddSalaryStructure = async (formData) => {
     try {
+      // Combine annual bonus + other allowances into total allowances
+      const otherAllowances = Number(formData.allowances || 0)
+      const bonus = Number(formData.bonus || 0)
+      const totalAllowances = otherAllowances + bonus
+
       const payload = {
         salary_structure: {
           employee_id: Number(formData.employee_id),
@@ -252,8 +285,8 @@ export default function PayrollPage() {
           level: formData.level || null,
           basic: Number(formData.baseSalary),
           hra: Number(formData.hra || 0),
-          allowances: Number(formData.allowances || 0),
-          bonus: Number(formData.bonus || 0),
+          allowances: totalAllowances,
+          bonus: 0, // Bonus is now included in allowances
           deductions: Number(formData.pf || 0) + Number(formData.esi || 0) + Number(formData.professionalTax || 0) + Number(formData.incomeTax || 0),
           pf: Number(formData.pf || 0),
           esi: Number(formData.esi || 0),
@@ -641,37 +674,61 @@ export default function PayrollPage() {
                           ? getStructureForMonth(record.employee_id, monthInfo.year, monthInfo.month)
                           : null
                         
-                        // Always calculate from salary structure, not stored payroll values
-                        // Frontend values in salary structure are annual; payroll records are monthly.
-                        // Convert annual structure numbers to monthly for display.
+                        // Convert annual structure numbers to monthly for display (structure is annual)
                         const toMonthly = (val: any) => safeNumber(val) / 12
 
-                        const basicAnnual = safeNumber(structure?.basic ?? 0)
-                        const hraAnnual = safeNumber(structure?.hra ?? 0)
-                        const allowancesAnnual = safeNumber(structure?.allowances ?? 0)
-                        const bonusAnnual = safeNumber(structure?.bonus ?? 0)
-
-                        const basic = toMonthly(basicAnnual)
-                        const hra = toMonthly(hraAnnual)
-                        const allowancesFromStructure = toMonthly(allowancesAnnual)
-                        const bonus = toMonthly(bonusAnnual)
+                        // Use earnings_breakdown from processed payroll if available, otherwise use structure
+                        let basic = 0
+                        let hra = 0
+                        let allowancesFromStructure = 0
                         
-                        // Calculate gross salary (monthly): basic + hra + allowances + bonus
-                        const gross = basic + hra + allowancesFromStructure + bonus
+                        if (record.earnings_breakdown && typeof record.earnings_breakdown === 'object') {
+                          // Use values from processed payroll (already monthly)
+                          basic = safeNumber(record.earnings_breakdown.basic ?? 0)
+                          hra = safeNumber(record.earnings_breakdown.hra ?? 0)
+                          allowancesFromStructure = safeNumber(record.earnings_breakdown.allowances ?? 0)
+                        } else {
+                          // Fallback: calculate from structure (annual, convert to monthly)
+                          const basicAnnual = safeNumber(structure?.basic ?? 0)
+                          const hraAnnual = safeNumber(structure?.hra ?? 0)
+                          // Allowances already includes annual bonus + other allowances from backend
+                          const allowancesAnnual = safeNumber(structure?.allowances ?? 0)
+                          
+                          basic = toMonthly(basicAnnual)
+                          hra = toMonthly(hraAnnual)
+                          allowancesFromStructure = toMonthly(allowancesAnnual)
+                        }
                         
-                        // Calculate deductions monthly
+                        // Calculate gross salary (monthly) from structure as fallback
+                        const grossFromStructure = basic + hra + allowancesFromStructure
+                        
+                        // Calculate deductions monthly from structure as fallback
                         const pf = toMonthly(structure?.pf ?? 0)
                         const esi = toMonthly(structure?.esi ?? 0)
                         const professionalTax = toMonthly(structure?.professional_tax ?? 0)
                         const incomeTax = toMonthly(structure?.income_tax ?? 0)
-                        const totalDeductions = pf + esi + professionalTax + incomeTax
+                        const totalDeductionsFromStructure = pf + esi + professionalTax + incomeTax
                         
-                        // Net salary (monthly) = gross - deductions
-                        const net = Math.max(0, gross - totalDeductions)
+                        // Prefer processed payroll values when present (includes leave deductions)
+                        const recordGross = safeNumber(record.gross_salary ?? grossFromStructure)
+                        const recordNet = safeNumber(record.net_salary ?? (recordGross - totalDeductionsFromStructure))
                         
-                        // For display: allowances = hra + other allowances
+                        // Use deductions_breakdown from processed payroll if available, otherwise calculate from structure
+                        let deductions = 0
+                        if (record.deductions_breakdown && typeof record.deductions_breakdown === 'object') {
+                          // Sum all deduction values from the breakdown (includes leave_deduction)
+                          deductions = Object.values(record.deductions_breakdown).reduce((sum: number, val: any) => {
+                            return sum + safeNumber(val)
+                          }, 0)
+                        } else {
+                          // Fallback: calculate from structure (no leave deduction in this case)
+                          deductions = totalDeductionsFromStructure
+                        }
+                        
+                        const net = recordNet
+                        
+                        // For display: allowances = hra + total allowances (which includes bonus + other allowances)
                         const allowances = hra + allowancesFromStructure
-                        const deductions = totalDeductions
                         const departmentName = getEmployeeDepartmentName(record.employee_id) || getDepartmentName(record.department_id)
                         const status = record.status || "processed"
 
@@ -709,6 +766,10 @@ export default function PayrollPage() {
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
                                   <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                  <DropdownMenuItem onClick={() => handleViewCalculation(record.id)}>
+                                    <Calculator className="w-4 h-4 mr-2" />
+                                    View Calculation
+                                  </DropdownMenuItem>
                                   <DropdownMenuItem>View Payslip</DropdownMenuItem>
                                   <DropdownMenuItem>Edit Salary</DropdownMenuItem>
                                   <DropdownMenuItem>Download PDF</DropdownMenuItem>
@@ -818,10 +879,25 @@ export default function PayrollPage() {
                   salaryStructures.map((structure) => {
                     const basic = Number(structure.basic || 0)
                     const hra = Number(structure.hra || 0)
-                    const allowances = Number(structure.allowances || 0)
-                    const deductions = Number(structure.deductions || 0)
+                    // Combine allowances and bonus for display (for backward compatibility with old data)
+                    // New data will have bonus = 0, so allowances already contains the total
+                    const dbAllowances = Number(structure.allowances || 0)
+                    const dbBonus = Number(structure.bonus || 0)
+                    const allowances = dbAllowances + dbBonus // Total allowances (other allowances + annual bonus)
+                    
+                    // Calculate deductions: statutory deductions + other deductions (matching PayrollBreakdown logic)
+                    const pf = Number(structure.pf || 0)
+                    const esi = Number(structure.esi || 0)
+                    const professionalTax = Number(structure.professional_tax || 0)
+                    const incomeTax = Number(structure.income_tax || 0)
+                    const statutory = pf + esi + professionalTax + incomeTax
+                    const otherDeductions = Number(structure.deductions || 0)
+                    // Note: If deductions field already includes statutory (from old data), this might double-count
+                    // But matching PayrollBreakdown logic which adds deductions + statutory
+                    const totalDeductions = otherDeductions + statutory
+                    
                     const gross = basic + hra + allowances
-                    const net = gross - deductions
+                    const net = gross - totalDeductions
 
                     return (
                       <Card key={structure.id} className="border-l-4 border-l-blue-500">
@@ -875,7 +951,7 @@ export default function PayrollPage() {
                             </div>
                             <div>
                               <p className="text-xs text-gray-500 uppercase tracking-wide">Total Deductions</p>
-                              <p className="font-medium text-gray-900 text-red-600">{formatCurrency(deductions)}</p>
+                              <p className="font-medium text-gray-900 text-red-600">{formatCurrency(totalDeductions)}</p>
                             </div>
                             <div>
                               <p className="text-xs text-gray-500 uppercase tracking-wide">Gross</p>
@@ -920,6 +996,196 @@ export default function PayrollPage() {
           initialData={editingStructure}
         />
       )}
+
+      {/* Payroll Calculation Breakdown Dialog */}
+      <Dialog open={showCalculationDialog} onOpenChange={setShowCalculationDialog}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Payroll Calculation Breakdown</DialogTitle>
+            <DialogDescription>
+              Detailed calculation for {calculationBreakdown?.employee?.name || ""} - {calculationBreakdown?.payroll?.month || ""}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {loadingBreakdown ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-gray-500">Loading calculation breakdown...</div>
+            </div>
+          ) : calculationBreakdown ? (
+            <div className="space-y-6">
+              {/* Summary Cards */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <Card>
+                  <CardContent className="pt-4">
+                    <div className="text-sm text-gray-500">Total Days</div>
+                    <div className="text-2xl font-bold">{calculationBreakdown.calculation?.total_days || 0}</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4">
+                    <div className="text-sm text-gray-500">Payable Days</div>
+                    <div className="text-2xl font-bold text-green-600">{calculationBreakdown.calculation?.payable_days || 0}</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4">
+                    <div className="text-sm text-gray-500">Unpaid Days</div>
+                    <div className="text-2xl font-bold text-red-600">{calculationBreakdown.calculation?.unpaid_days || 0}</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4">
+                    <div className="text-sm text-gray-500">Per Day Rate</div>
+                    <div className="text-2xl font-bold">{formatCurrencySafe(calculationBreakdown.calculation?.per_day_rate || 0)}</div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Earnings & Deductions Breakdown */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Earnings</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    {calculationBreakdown.earnings_breakdown && Object.entries(calculationBreakdown.earnings_breakdown).map(([key, value]: [string, any]) => (
+                      <div key={key} className="flex justify-between">
+                        <span className="text-gray-600 capitalize">{key.replace('_', ' ')}</span>
+                        <span className="font-medium">{formatCurrencySafe(value)}</span>
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Deductions</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    {calculationBreakdown.deductions_breakdown && Object.entries(calculationBreakdown.deductions_breakdown).map(([key, value]: [string, any]) => (
+                      <div key={key} className="flex justify-between">
+                        <span className="text-gray-600 capitalize">{key.replace('_', ' ')}</span>
+                        <span className="font-medium text-red-600">{formatCurrencySafe(value)}</span>
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Attendance Summary */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Attendance Summary</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div>
+                      <div className="text-sm text-gray-500">Present</div>
+                      <div className="text-lg font-semibold text-green-600">{calculationBreakdown.attendance_summary?.present || 0}</div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-500">Half Day</div>
+                      <div className="text-lg font-semibold text-yellow-600">{calculationBreakdown.attendance_summary?.half_day || 0}</div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-500">Absent</div>
+                      <div className="text-lg font-semibold text-red-600">{calculationBreakdown.attendance_summary?.absent || 0}</div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-500">No Record</div>
+                      <div className="text-lg font-semibold text-gray-600">{calculationBreakdown.attendance_summary?.no_record || 0}</div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Day-by-Day Breakdown */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Day-by-Day Breakdown</CardTitle>
+                  <CardDescription>Daily attendance and deduction details</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="max-h-96 overflow-y-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Day</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Reason</TableHead>
+                          <TableHead className="text-right">Deduction</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {calculationBreakdown.day_breakdown?.map((day: any, index: number) => (
+                          <TableRow key={index} className={day.is_weekend ? "bg-gray-50" : ""}>
+                            <TableCell>{format(new Date(day.date), "MMM dd, yyyy")}</TableCell>
+                            <TableCell>
+                              <span className={day.is_weekend ? "text-gray-500" : ""}>{day.day_name}</span>
+                            </TableCell>
+                            <TableCell>
+                              {day.attendance_label ? (
+                                <Badge className={
+                                  day.attendance_status === "present" || day.attendance_status === "late" || day.attendance_status === "work_from_home" || day.attendance_status === "early_departure"
+                                    ? "bg-green-100 text-green-800"
+                                    : day.attendance_status === "half_day"
+                                    ? "bg-yellow-100 text-yellow-800"
+                                    : "bg-red-100 text-red-800"
+                                }>
+                                  {day.attendance_label}
+                                </Badge>
+                              ) : day.leave_type ? (
+                                <Badge className={day.leave_type === "unpaid" ? "bg-red-100 text-red-800" : "bg-blue-100 text-blue-800"}>
+                                  {day.leave_type === "unpaid" ? "Unpaid Leave" : "Paid Leave"}
+                                </Badge>
+                              ) : (
+                                <Badge className="bg-gray-100 text-gray-800">
+                                  {day.is_weekend ? "Weekend" : "Present"}
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-sm text-gray-600">{day.reason}</TableCell>
+                            <TableCell className="text-right">
+                              {day.deduction > 0 ? (
+                                <span className="text-red-600 font-medium">-{day.deduction} day{day.deduction !== 1 ? 's' : ''}</span>
+                              ) : (
+                                <span className="text-green-600">No deduction</span>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Final Calculation */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Final Calculation</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <div className="flex justify-between text-lg">
+                    <span className="font-semibold">Gross Salary:</span>
+                    <span className="font-bold">{formatCurrencySafe(calculationBreakdown.payroll?.gross_salary || 0)}</span>
+                  </div>
+                  <div className="flex justify-between text-lg text-red-600">
+                    <span>Total Deductions:</span>
+                    <span className="font-bold">-{formatCurrencySafe(calculationBreakdown.calculation?.total_deduction_amount || 0)}</span>
+                  </div>
+                  <div className="border-t pt-2 flex justify-between text-xl">
+                    <span className="font-bold">Net Salary:</span>
+                    <span className="font-bold text-green-600">{formatCurrencySafe(calculationBreakdown.payroll?.net_salary || 0)}</span>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          ) : (
+            <div className="text-center text-gray-500 py-8">No calculation data available</div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
     </ResourceGuard>
   )

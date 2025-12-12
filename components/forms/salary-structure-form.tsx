@@ -71,7 +71,21 @@ export function SalaryStructureForm({ onClose, onSubmit, employees = [], departm
       const esi = initialData.esi ? String(initialData.esi) : ""
       const professionalTax = initialData.professional_tax ? String(initialData.professional_tax) : ""
       const incomeTax = initialData.income_tax ? String(initialData.income_tax) : ""
-      const bonus = initialData.bonus ? String(initialData.bonus) : ""
+      
+      // Handle allowances and bonus: 
+      // - If bonus > 0, it means old data where they were stored separately, so we need to split
+      // - If bonus = 0, allowances already contains the combined value
+      const dbAllowances = Number(initialData.allowances || 0)
+      const dbBonus = Number(initialData.bonus || 0)
+      
+      // For backward compatibility: if bonus exists, it means allowances in DB is just "other allowances"
+      // For new data: bonus = 0, so allowances in DB is already the total
+      let otherAllowances = dbAllowances
+      let annualBonus = dbBonus
+      
+      // If bonus is 0, it means allowances already contains the total, so we can't split it
+      // In this case, show the total in "Other Allowances" and 0 in "Annual Bonus"
+      // User can then adjust as needed
       
       setFormData(prev => {
         // Only update department if we found one and it's different from current
@@ -83,8 +97,8 @@ export function SalaryStructureForm({ onClose, onSubmit, employees = [], departm
           level: initialData.level || prev.level,
           baseSalary: initialData.basic ? String(initialData.basic) : prev.baseSalary,
           hra: initialData.hra ? String(initialData.hra) : prev.hra,
-          allowances: initialData.allowances ? String(initialData.allowances) : prev.allowances,
-          bonus: bonus || prev.bonus,
+          allowances: String(otherAllowances),
+          bonus: String(annualBonus),
           pf: pf || prev.pf,
           esi: esi || prev.esi,
           professionalTax: professionalTax || prev.professionalTax,
@@ -208,14 +222,19 @@ export function SalaryStructureForm({ onClose, onSubmit, employees = [], departm
       return
     }
     
+    // Combine annual bonus + other allowances into total allowances
+    const otherAllowances = Number.parseFloat(String(formData.allowances || "")) || 0
+    const bonus = Number.parseFloat(String(formData.bonus || "")) || 0
+    const totalAllowances = otherAllowances + bonus
+
     const payload = {
       employee_id: formData.employee_id,
       department_id: formData.department_id,
       level: formData.level,
       baseSalary: formData.baseSalary,
       hra: formData.hra,
-      allowances: formData.allowances,
-      bonus: formData.bonus,
+      allowances: String(totalAllowances),
+      bonus: "0", // Bonus is now included in allowances
       pf: formData.pf,
       esi: formData.esi,
       professionalTax: formData.professionalTax,
@@ -268,15 +287,17 @@ export function SalaryStructureForm({ onClose, onSubmit, employees = [], departm
   const calculateTotals = () => {
     const base = Number.parseFloat(String(formData.baseSalary || "")) || 0
     const hra = Number.parseFloat(String(formData.hra || "")) || 0
-    const allowances = Number.parseFloat(String(formData.allowances || "")) || 0
+    const otherAllowances = Number.parseFloat(String(formData.allowances || "")) || 0
     const bonus = Number.parseFloat(String(formData.bonus || "")) || 0
+    // Combine annual bonus + other allowances into total allowances
+    const allowances = otherAllowances + bonus
 
     const pf = Number.parseFloat(String(formData.pf || "")) || 0
     const esi = Number.parseFloat(String(formData.esi || "")) || 0
     const professionalTax = Number.parseFloat(String(formData.professionalTax || "")) || 0
     const incomeTax = Number.parseFloat(String(formData.incomeTax || "")) || 0
 
-    const grossSalary = base + hra + allowances + bonus
+    const grossSalary = base + hra + allowances
     const totalDeductions = pf + esi + professionalTax + incomeTax
     const netSalary = grossSalary - totalDeductions
 
