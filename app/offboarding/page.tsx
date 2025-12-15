@@ -572,6 +572,28 @@ export default function OffboardingPage() {
     await fetchOffboardingTasks()
   }
 
+  const handleCancelOffboarding = async (employee: OffboardingEmployee) => {
+    const confirmed = window.confirm(
+      `Are you sure you want to cancel the offboarding process for ${employee.name}?`
+    )
+
+    if (!confirmed) return
+
+    try {
+      await apiRequest(getApiUrl(`/offboarding_employees/${employee.id}/update_status`), {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'cancelled' })
+      })
+
+      // Refresh data so UI reflects the cancelled status
+      await fetchOffboardingEmployees()
+      await fetchOffboardingTasks()
+      await fetchStats()
+    } catch (error) {
+      console.error('Error cancelling offboarding:', error)
+    }
+  }
+
   const handleEdit = (employee: OffboardingEmployee) => {
     setEditEmployee(employee)
     setFormData({
@@ -1095,11 +1117,18 @@ export default function OffboardingPage() {
                               <Download className="w-4 h-4 mr-2" />
                               Export
                             </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem className="text-red-600">
-                              <Trash2 className="w-4 h-4 mr-2" />
-                              Cancel Offboarding
-                            </DropdownMenuItem>
+                            {employee.status !== 'cancelled' && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  className="text-red-600"
+                                  onClick={() => handleCancelOffboarding(employee)}
+                                >
+                                  <Trash2 className="w-4 h-4 mr-2" />
+                                  Cancel Offboarding
+                                </DropdownMenuItem>
+                              </>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
