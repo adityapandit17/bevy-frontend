@@ -463,6 +463,101 @@ export default function PayrollPage() {
     return Number.isFinite(num) ? num : 0
   }
 
+  // Render a lightweight payslip in a new tab/window. Optionally trigger print for PDF download.
+  const openPayslipWindow = ({
+    record,
+    amounts,
+    departmentName,
+    print = false,
+  }: {
+    record: any
+    amounts: { basic: number; hra: number; allowances: number; deductions: number; gross: number; net: number }
+    departmentName: string
+    print?: boolean
+  }) => {
+    if (typeof window === "undefined") return
+
+    const employeeName = getEmployeeName(record.employee_id)
+    const monthLabel = record.month || formatMonthDisplay(monthFilter)
+    const slipWindow = window.open("", "_blank", "width=900,height=1100")
+
+    if (!slipWindow) {
+      toast({
+        title: "Pop-up blocked",
+        description: "Allow pop-ups to view or download the payslip.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Payslip - ${employeeName}</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 24px; color: #111827; }
+    h1 { margin: 0; }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .section { border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #f3f4f6; }
+    .row:last-child { border-bottom: none; }
+    .muted { color: #6b7280; }
+    .strong { font-weight: 600; }
+    .totals { font-size: 16px; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <h1>Payslip</h1>
+      <div class="muted">${monthLabel}</div>
+    </div>
+    <div class="muted">Status: ${record.status || "processed"}</div>
+  </div>
+
+  <div class="section">
+    <div class="strong" style="margin-bottom:8px;">Employee</div>
+    <div class="grid">
+      <div><div class="muted">Name</div><div class="strong">${employeeName}</div></div>
+      <div><div class="muted">Employee ID</div><div class="strong">${record.employee_id}</div></div>
+      <div><div class="muted">Department</div><div class="strong">${departmentName || "—"}</div></div>
+      <div><div class="muted">Month</div><div class="strong">${monthLabel}</div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="grid">
+      <div>
+        <div class="strong" style="margin-bottom:8px;">Earnings</div>
+        <div class="row"><span>Basic</span><span class="strong">${formatCurrencySafe(amounts.basic)}</span></div>
+        <div class="row"><span>HRA</span><span class="strong">${formatCurrencySafe(amounts.hra)}</span></div>
+        <div class="row"><span>Allowances</span><span class="strong">${formatCurrencySafe(amounts.allowances)}</span></div>
+        <div class="row totals"><span>Gross</span><span>${formatCurrencySafe(amounts.gross)}</span></div>
+      </div>
+      <div>
+        <div class="strong" style="margin-bottom:8px;">Deductions</div>
+        <div class="row"><span>Leave Deduction</span><span class="strong" style="color:#dc2626;">${formatCurrencySafe(amounts.deductions)}</span></div>
+        <div class="row totals" style="color:#dc2626;"><span>Total Deductions</span><span>${formatCurrencySafe(amounts.deductions)}</span></div>
+        <div class="row totals" style="color:#059669;"><span>Net Pay</span><span>${formatCurrencySafe(amounts.net)}</span></div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+`
+
+    slipWindow.document.write(html)
+    slipWindow.document.close()
+    slipWindow.focus()
+
+    if (print) {
+      slipWindow.print()
+    }
+  }
+
   // Convert date to month filter format
   const dateToMonthFilter = (date: Date) => {
     const monthNames = ["january", "february", "march", "april", "may", "june", 
@@ -780,6 +875,37 @@ export default function PayrollPage() {
                         const departmentName = getEmployeeDepartmentName(record.employee_id) || getDepartmentName(record.department_id)
                         const status = record.status || "processed"
 
+                        const amountsForSlip = {
+                          basic,
+                          hra,
+                          allowances,
+                          deductions,
+                          gross: recordGross,
+                          net,
+                        }
+
+                        const handleViewPayslip = () => {
+                          openPayslipWindow({
+                            record,
+                            amounts: amountsForSlip,
+                            departmentName,
+                            print: false,
+                          })
+                        }
+
+                        const handleDownloadPayslipPdf = () => {
+                          openPayslipWindow({
+                            record,
+                            amounts: amountsForSlip,
+                            departmentName,
+                            print: true,
+                          })
+                        }
+
+                        const handleReprocessPayment = async () => {
+                          await processPayroll()
+                        }
+
                         return (
                           <TableRow key={record.id}>
                             <TableCell>
@@ -818,13 +944,13 @@ export default function PayrollPage() {
                                     <Calculator className="w-4 h-4 mr-2" />
                                     View Calculation
                                   </DropdownMenuItem>
-                                  <DropdownMenuItem>View Payslip</DropdownMenuItem>
+                                  <DropdownMenuItem onClick={handleViewPayslip}>View Payslip</DropdownMenuItem>
                                   <DropdownMenuItem onClick={() => handleEditSalaryForEmployee(record.employee_id)}>
                                     Edit Salary
                                   </DropdownMenuItem>
-                                  <DropdownMenuItem>Download PDF</DropdownMenuItem>
+                                  <DropdownMenuItem onClick={handleDownloadPayslipPdf}>Download PDF</DropdownMenuItem>
                                   <DropdownMenuSeparator />
-                                  <DropdownMenuItem>Reprocess Payment</DropdownMenuItem>
+                                  <DropdownMenuItem onClick={handleReprocessPayment}>Reprocess Payment</DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
                             </TableCell>
