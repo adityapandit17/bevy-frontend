@@ -713,16 +713,12 @@ export default function PayrollPage() {
                         const recordGross = safeNumber(record.gross_salary ?? grossFromStructure)
                         const recordNet = safeNumber(record.net_salary ?? (recordGross - totalDeductionsFromStructure))
                         
-                        // Use deductions_breakdown from processed payroll if available, otherwise calculate from structure
+                        // Only show leave deductions in the list (exclude statutory components)
                         let deductions = 0
                         if (record.deductions_breakdown && typeof record.deductions_breakdown === 'object') {
-                          // Sum all deduction values from the breakdown (includes leave_deduction)
-                          deductions = Object.values(record.deductions_breakdown).reduce((sum: number, val: any) => {
-                            return sum + safeNumber(val)
-                          }, 0)
-                        } else {
-                          // Fallback: calculate from structure (no leave deduction in this case)
-                          deductions = totalDeductionsFromStructure
+                          deductions = safeNumber((record.deductions_breakdown as any).leave_deduction ?? 0)
+                        } else if (record.leave_deduction !== undefined && record.leave_deduction !== null) {
+                          deductions = safeNumber(record.leave_deduction)
                         }
                         
                         const net = recordNet
