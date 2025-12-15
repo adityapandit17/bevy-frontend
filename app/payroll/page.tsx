@@ -39,6 +39,10 @@ export default function PayrollPage() {
   const [pageSize, setPageSize] = useState<number>(10)
   const [calendarOpen, setCalendarOpen] = useState(false)
   const [processingPayroll, setProcessingPayroll] = useState(false)
+  const [showProcessDialog, setShowProcessDialog] = useState(false)
+  const [payrollPreview, setPayrollPreview] = useState<any>(null)
+  const [loadingPreview, setLoadingPreview] = useState(false)
+  const [previewError, setPreviewError] = useState<string | null>(null)
   const [showCalculationDialog, setShowCalculationDialog] = useState(false)
   const [selectedPayrollId, setSelectedPayrollId] = useState<number | null>(null)
   const [calculationBreakdown, setCalculationBreakdown] = useState<any>(null)
@@ -163,6 +167,31 @@ export default function PayrollPage() {
     fetchCalculationBreakdown(payrollId)
   }
 
+  const fetchPayrollPreview = async () => {
+    setLoadingPreview(true)
+    setPreviewError(null)
+    try {
+      const data = await apiRequest(getEndpointUrl("PAYROLL_PROCESS_MONTH"), {
+        method: "POST",
+        body: JSON.stringify({
+          month: monthFilter,
+          preview: true,
+        }),
+      })
+      setPayrollPreview(data)
+    } catch (err: any) {
+      const message = err?.message || "Failed to load payroll preview"
+      setPreviewError(message)
+      toast({
+        title: "Preview failed",
+        description: message,
+        variant: "destructive",
+      })
+    } finally {
+      setLoadingPreview(false)
+    }
+  }
+
   const processPayroll = async () => {
     setProcessingPayroll(true)
     try {
@@ -177,6 +206,7 @@ export default function PayrollPage() {
         title: "Payroll processed",
         description: `Processed payroll for ${formatMonthDisplay(monthFilter)}`,
       })
+      setShowProcessDialog(false)
       fetchPayrollRecords()
     } catch (err: any) {
       toast({
@@ -186,6 +216,28 @@ export default function PayrollPage() {
       })
     } finally {
       setProcessingPayroll(false)
+    }
+  }
+
+  const handleOpenProcessDialog = () => {
+    setShowProcessDialog(true)
+    fetchPayrollPreview()
+  }
+
+  const handleEditSalaryForEmployee = (employeeId: number) => {
+    const monthInfo = parseMonthFilter(monthFilter)
+    const structure = monthInfo ? getStructureForMonth(employeeId, monthInfo.year, monthInfo.month) : null
+
+    if (structure) {
+      setEditingStructure(structure)
+      setShowForm(true)
+      setShowProcessDialog(false)
+    } else {
+      toast({
+        title: "No salary structure",
+        description: "Add a salary structure for this employee before processing.",
+        variant: "destructive",
+      })
     }
   }
 
@@ -537,9 +589,9 @@ export default function PayrollPage() {
             <Download className="w-4 h-4 mr-2" />
             Export Payroll
           </Button>
-            <Button size="sm" onClick={processPayroll} disabled={processingPayroll}>
+            <Button size="sm" onClick={handleOpenProcessDialog}>
             <Calculator className="w-4 h-4 mr-2" />
-              {processingPayroll ? "Processing..." : "Process Payroll"}
+              Process Payroll
           </Button>
         </div>
       </div>
@@ -767,7 +819,9 @@ export default function PayrollPage() {
                                     View Calculation
                                   </DropdownMenuItem>
                                   <DropdownMenuItem>View Payslip</DropdownMenuItem>
-                                  <DropdownMenuItem>Edit Salary</DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleEditSalaryForEmployee(record.employee_id)}>
+                                    Edit Salary
+                                  </DropdownMenuItem>
                                   <DropdownMenuItem>Download PDF</DropdownMenuItem>
                                   <DropdownMenuSeparator />
                                   <DropdownMenuItem>Reprocess Payment</DropdownMenuItem>
@@ -992,6 +1046,123 @@ export default function PayrollPage() {
           initialData={editingStructure}
         />
       )}
+
+      {/* Payroll processing review */}
+      <Dialog open={showProcessDialog} onOpenChange={(open) => {
+        setShowProcessDialog(open)
+        if (open) fetchPayrollPreview()
+      }}>
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Review payroll for {formatMonthDisplay(monthFilter)}</DialogTitle>
+            <DialogDescription>
+              Confirm salaries before processing. Adjust any employee’s structure if needed, then proceed.
+            </DialogDescription>
+          </DialogHeader>
+
+          {loadingPreview ? (
+            <div className="py-8 text-center text-gray-600">Loading preview...</div>
+          ) : previewError ? (
+            <div className="flex flex-col items-center gap-3 py-8">
+              <p className="text-red-600">{previewError}</p>
+              <Button variant="outline" onClick={fetchPayrollPreview}>Retry preview</Button>
+            </div>
+          ) : payrollPreview ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <Card>
+                  <CardContent className="pt-4">
+                    <p className="text-sm text-gray-500">Employees checked</p>
+                    <p className="text-2xl font-bold">{payrollPreview.processed || 0}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4">
+                    <p className="text-sm text-gray-500">New payrolls</p>
+                    <p className="text-2xl font-bold text-green-600">{payrollPreview.created || 0}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4">
+                    <p className="text-sm text-gray-500">Updated</p>
+                    <p className="text-2xl font-bold text-blue-600">{payrollPreview.updated || 0}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4">
+                    <p className="text-sm text-gray-500">Skipped</p>
+                    <p className="text-2xl font-bold text-gray-700">{payrollPreview.skipped || 0}</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {Array.isArray(payrollPreview.errors) && payrollPreview.errors.length > 0 && (
+                <div className="text-sm text-red-600">
+                  Issues detected:
+                  <ul className="list-disc list-inside">
+                    {payrollPreview.errors.map((err: string, idx: number) => (
+                      <li key={idx}>{err}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Employee</TableHead>
+                      <TableHead>Gross</TableHead>
+                      <TableHead>Net</TableHead>
+                      <TableHead>Unpaid Days</TableHead>
+                      <TableHead>Leave Deduction</TableHead>
+                      <TableHead className="w-32 text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {Array.isArray(payrollPreview.payrolls) && payrollPreview.payrolls.length > 0 ? (
+                      payrollPreview.payrolls.map((preview: any) => {
+                        return (
+                          <TableRow key={preview.employee_id || preview.id}>
+                            <TableCell>
+                              <div className="font-medium text-gray-900">{getEmployeeName(preview.employee_id)}</div>
+                              <div className="text-sm text-gray-500">ID: {preview.employee_id}</div>
+                            </TableCell>
+                            <TableCell>{formatCurrencySafe(preview.gross_salary)}</TableCell>
+                            <TableCell className="font-semibold text-green-700">{formatCurrencySafe(preview.net_salary)}</TableCell>
+                            <TableCell>{preview.unpaid_days ?? "—"}</TableCell>
+                            <TableCell className="text-red-600">{formatCurrencySafe(preview.leave_deduction)}</TableCell>
+                            <TableCell className="text-right">
+                              <Button size="sm" variant="outline" onClick={() => handleEditSalaryForEmployee(preview.employee_id)}>
+                                Edit salary
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center text-gray-500 py-6">
+                          No employees found for this month.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+
+              <div className="flex items-center justify-end gap-3">
+                <Button variant="outline" onClick={() => setShowProcessDialog(false)}>Cancel</Button>
+                <Button onClick={processPayroll} disabled={processingPayroll}>
+                  {processingPayroll ? "Processing..." : "Proceed to process"}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="py-8 text-center text-gray-500">No preview data.</div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Payroll Calculation Breakdown Dialog */}
       <Dialog open={showCalculationDialog} onOpenChange={setShowCalculationDialog}>
