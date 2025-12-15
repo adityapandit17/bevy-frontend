@@ -6,7 +6,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Briefcase, MapPin, Users, BadgeCheck, DollarSign, Layers, MoreHorizontal } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
@@ -20,6 +19,14 @@ export default function JobShowPage() {
   const [newCandidate, setNewCandidate] = useState({ first_name: "", last_name: "", email: "", phone: "" })
   const [isLoadingCandidates, setIsLoadingCandidates] = useState(false)
   const [isAddingCandidate, setIsAddingCandidate] = useState(false)
+
+  const STATUS_OPTIONS = [
+    { label: "Open", value: "open" },
+    { label: "Closed", value: "closed" },
+    { label: "Draft", value: "draft" },
+    // Backend expects "filled" (not \"inactive\")
+    { label: "Filled", value: "filled" }
+  ]
 
   useEffect(() => {
     fetchJob()
@@ -136,19 +143,20 @@ export default function JobShowPage() {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem disabled>Update Status</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleStatusChange("Open")}>Open</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleStatusChange("Closed")}>Closed</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleStatusChange("Draft")}>Draft</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleStatusChange("Inactive")}>Inactive</DropdownMenuItem>
+                    {STATUS_OPTIONS.map(option => (
+                      <DropdownMenuItem key={option.value} onClick={() => handleStatusChange(option.value)}>
+                        {option.label}
+                      </DropdownMenuItem>
+                    ))}
                   </DropdownMenuContent>
                 </DropdownMenu>
-                <BadgeCheck className="w-5 h-5 text-green-500" title={job.status} />
+                <BadgeCheck className="w-5 h-5 text-green-500" title={job.status_label || job.status} />
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex flex-wrap gap-2 items-center">
                 <Badge>{job.job_type}</Badge>
-                <Badge>{job.status}</Badge>
+                <Badge>{job.status_label || job.status}</Badge>
                 <span className="flex items-center gap-1 text-sm text-muted-foreground"><MapPin className="w-4 h-4" />{job.location}</span>
                 <span className="flex items-center gap-1 text-sm text-muted-foreground">
                   <Users className="w-4 h-4" />
