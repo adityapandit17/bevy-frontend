@@ -36,20 +36,61 @@ interface Department {
   name: string
 }
 
+interface SalaryStructure {
+  id: number
+  employee_id: number
+  basic: number
+  hra: number
+  allowances: number
+  bonus: number
+  pf: number
+  esi: number
+  professional_tax: number
+  income_tax: number
+  effective_from: string
+  effective_upto: string | null
+}
+
+interface PayrollRecord {
+  id: number
+  employee_id: number
+  month: string
+  gross_salary: number
+  net_salary: number
+  status: string
+  created_at: string
+  earnings_breakdown?: any
+  deductions_breakdown?: any
+}
+
 export default function EmployeePayrollPage() {
   const params = useParams()
   const router = useRouter()
   const employeeId = params.id as string
   const [employee, setEmployee] = useState<Employee | null>(null)
   const [departments, setDepartments] = useState<Department[]>([])
+  const [salaryStructures, setSalaryStructures] = useState<SalaryStructure[]>([])
+  const [payrollRecords, setPayrollRecords] = useState<PayrollRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedSlip, setSelectedSlip] = useState<{ month: string; year: string; amount: string; status: string; date: string } | null>(null)
-  const [selectedYear, setSelectedYear] = useState<string>("2024")
+  const [selectedYear, setSelectedYear] = useState<string>(new Date().getFullYear().toString())
 
   useEffect(() => {
     fetchEmployee()
     fetchDepartments()
+    fetchSalaryStructures()
+    fetchPayrollRecords()
   }, [employeeId])
+
+  // Update selected year when payroll records are loaded
+  useEffect(() => {
+    if (payrollRecords.length > 0) {
+      const availableYears = getAvailableYears()
+      if (availableYears.length > 0 && !availableYears.includes(selectedYear)) {
+        setSelectedYear(availableYears[0])
+      }
+    }
+  }, [payrollRecords])
 
   const fetchEmployee = async () => {
     try {
@@ -73,6 +114,217 @@ export default function EmployeePayrollPage() {
     } catch (err) {
       console.error('Error fetching departments:', err)
     }
+  }
+
+  const fetchSalaryStructures = async () => {
+    try {
+      const data = await apiRequest<SalaryStructure[]>(getEndpointUrl('SALARY_STRUCTURES'), {
+        method: "GET"
+      })
+      // Filter structures for this employee
+      const employeeStructures = Array.isArray(data) 
+        ? data.filter((s: SalaryStructure) => String(s.employee_id) === employeeId)
+        : []
+      setSalaryStructures(employeeStructures)
+    } catch (err) {
+      console.error('Error fetching salary structures:', err)
+      setSalaryStructures([])
+    }
+  }
+
+  const fetchPayrollRecords = async () => {
+    try {
+      const data = await apiRequest<PayrollRecord[]>(getEndpointUrl('PAYROLLS'), {
+        method: "GET"
+      })
+      // Filter payroll records for this employee
+      const employeePayrolls = Array.isArray(data)
+        ? data.filter((p: PayrollRecord) => String(p.employee_id) === employeeId)
+        : []
+      setPayrollRecords(employeePayrolls)
+    } catch (err) {
+      console.error('Error fetching payroll records:', err)
+      setPayrollRecords([])
+    }
+  }
+
+  // Get current salary structure (for current month)
+  const getCurrentSalaryStructure = (): SalaryStructure | null => {
+    if (!Array.isArray(salaryStructures) || salaryStructures.length === 0) return null
+    
+    const now = new Date()
+    const currentYear = now.getFullYear()
+    const currentMonth = now.getMonth() + 1
+    
+    return getStructureForMonth(Number(employeeId), currentYear, currentMonth)
+  }
+
+  // Get salary structure for a specific month
+  const getStructureForMonth = (employeeId: number, year: number, month: number): SalaryStructure | null => {
+    if (!Array.isArray(salaryStructures) || salaryStructures.length === 0) return null
+    
+    // Filter structures for this employee with valid effective_from dates
+    const employeeStructures = salaryStructures.filter(
+      (s: SalaryStructure) => s.employee_id === employeeId && s.effective_from
+    )
+    
+    if (employeeStructures.length === 0) return null
+    
+    // Target month date (first day of the month)
+    const targetDate = new Date(year, month - 1, 1)
+    const targetMonthKey = `${year}-${String(month).padStart(2, '0')}`
+    
+    // First, group structures by their effective month and resolve duplicates
+    const structuresByMonth: Record<string, SalaryStructure> = {}
+    employeeStructures.forEach((structure: SalaryStructure) => {
+      const effectiveDate = new Date(structure.effective_from)
+      const monthKey = `${effectiveDate.getFullYear()}-${String(effectiveDate.getMonth() + 1).padStart(2, '0')}`
+      
+      if (!structuresByMonth[monthKey] || 
+          new Date(structure.effective_from) > new Date(structuresByMonth[monthKey].effective_from)) {
+        structuresByMonth[monthKey] = structure
+      }
+    })
+    
+    // Return structure for the exact target month if it exists
+    if (structuresByMonth[targetMonthKey]) {
+      return structuresByMonth[targetMonthKey]
+    }
+    
+    // If no exact match, find the latest structure that is effective on or before the target month
+    let latestStructure: SalaryStructure | null = null
+    let latestDate: Date | null = null
+    
+    Object.values(structuresByMonth).forEach((structure: SalaryStructure) => {
+      const structDate = new Date(structure.effective_from)
+      if (structDate <= targetDate) {
+        if (!latestDate || structDate > latestDate) {
+          latestDate = structDate
+          latestStructure = structure
+        }
+      }
+    })
+    
+    return latestStructure
+  }
+
+  // Convert annual to monthly
+  const toMonthly = (annual: number) => {
+    const num = Number(annual) || 0
+    return num / 12
+  }
+
+  // Format currency
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount)
+  }
+
+  // Calculate salary breakdown from structure
+  const calculateSalaryBreakdown = () => {
+    const structure = getCurrentSalaryStructure()
+    if (!structure) {
+      return {
+        basic: 0,
+        hra: 0,
+        allowances: 0,
+        pf: 0,
+        esi: 0,
+        professionalTax: 0,
+        incomeTax: 0,
+        gross: 0,
+        totalDeductions: 0,
+        net: 0,
+      }
+    }
+
+    const basic = toMonthly(structure.basic)
+    const hra = toMonthly(structure.hra)
+    const allowances = toMonthly(structure.allowances)
+    const pf = toMonthly(structure.pf)
+    const esi = toMonthly(structure.esi)
+    const professionalTax = toMonthly(structure.professional_tax)
+    const incomeTax = toMonthly(structure.income_tax)
+
+    const gross = basic + hra + allowances
+    const totalDeductions = pf + esi + professionalTax + incomeTax
+    const net = gross - totalDeductions
+
+    return {
+      basic,
+      hra,
+      allowances,
+      pf,
+      esi,
+      professionalTax,
+      incomeTax,
+      gross,
+      totalDeductions,
+      net,
+    }
+  }
+
+  // Calculate total paid this year
+  const calculateTotalPaidThisYear = () => {
+    const currentYear = new Date().getFullYear()
+    const yearPayrolls = payrollRecords.filter((p) => {
+      if (!p.month) return false
+      // Parse month string (e.g., "November 2024")
+      const monthMatch = p.month.match(/(\w+)\s+(\d{4})/)
+      if (!monthMatch) return false
+      const year = parseInt(monthMatch[2], 10)
+      return year === currentYear
+    })
+    
+    return yearPayrolls.reduce((sum, p) => sum + (Number(p.net_salary) || 0), 0)
+  }
+
+  // Get number of salary slips
+  const getSalarySlipsCount = () => {
+    return payrollRecords.length
+  }
+
+  // Convert payroll records to salary slips format
+  const convertPayrollToSalarySlips = () => {
+    return payrollRecords.map((record) => {
+      // Parse month string (e.g., "November 2024")
+      const monthMatch = record.month?.match(/(\w+)\s+(\d{4})/)
+      const month = monthMatch ? monthMatch[1] : 'Unknown'
+      const year = monthMatch ? monthMatch[2] : new Date(record.created_at).getFullYear().toString()
+      const date = record.created_at || new Date().toISOString()
+      
+      return {
+        month,
+        year,
+        amount: formatCurrency(record.net_salary || 0),
+        status: record.status || 'Paid',
+        date: date.split('T')[0], // Get date part only
+      }
+    }).sort((a, b) => {
+      // Sort by year and month (newest first)
+      if (a.year !== b.year) return b.year.localeCompare(a.year)
+      const monthOrder = ['January', 'February', 'March', 'April', 'May', 'June', 
+                          'July', 'August', 'September', 'October', 'November', 'December']
+      return monthOrder.indexOf(b.month) - monthOrder.indexOf(a.month)
+    })
+  }
+
+  // Get available years from payroll records
+  const getAvailableYears = () => {
+    const years = new Set<string>()
+    payrollRecords.forEach((record) => {
+      const monthMatch = record.month?.match(/(\w+)\s+(\d{4})/)
+      if (monthMatch) {
+        years.add(monthMatch[2])
+      } else if (record.created_at) {
+        years.add(new Date(record.created_at).getFullYear().toString())
+      }
+    })
+    return Array.from(years).sort((a, b) => b.localeCompare(a))
   }
 
   const downloadSalarySlip = (slip: { month: string; year: string; amount: string; status: string; date: string }) => {
@@ -594,100 +846,129 @@ export default function EmployeePayrollPage() {
 
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-6 mt-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">Current Salary</p>
-                    <p className="text-2xl font-bold text-gray-900 mt-1">₹75,000</p>
-                    <p className="text-xs text-gray-500 mt-1">Monthly</p>
-                  </div>
-                  <div className="p-3 bg-blue-50 rounded-lg">
-                    <IndianRupee className="w-6 h-6 text-blue-600" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+          {(() => {
+            const breakdown = calculateSalaryBreakdown()
+            const totalPaid = calculateTotalPaidThisYear()
+            const slipsCount = getSalarySlipsCount()
+            
+            return (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Card>
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm text-gray-600">Current Salary</p>
+                          <p className="text-2xl font-bold text-gray-900 mt-1">
+                            {formatCurrency(breakdown.net)}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">Monthly</p>
+                        </div>
+                        <div className="p-3 bg-blue-50 rounded-lg">
+                          <IndianRupee className="w-6 h-6 text-blue-600" />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
 
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">Total Paid</p>
-                    <p className="text-2xl font-bold text-gray-900 mt-1">₹6,75,000</p>
-                    <p className="text-xs text-gray-500 mt-1">This Year</p>
-                  </div>
-                  <div className="p-3 bg-green-50 rounded-lg">
-                    <TrendingUp className="w-6 h-6 text-green-600" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                  <Card>
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm text-gray-600">Total Paid</p>
+                          <p className="text-2xl font-bold text-gray-900 mt-1">
+                            {formatCurrency(totalPaid)}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">This Year</p>
+                        </div>
+                        <div className="p-3 bg-green-50 rounded-lg">
+                          <TrendingUp className="w-6 h-6 text-green-600" />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
 
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">Salary Slips</p>
-                    <p className="text-2xl font-bold text-gray-900 mt-1">12</p>
-                    <p className="text-xs text-gray-500 mt-1">Available</p>
-                  </div>
-                  <div className="p-3 bg-purple-50 rounded-lg">
-                    <FileText className="w-6 h-6 text-purple-600" />
-                  </div>
+                  <Card>
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm text-gray-600">Salary Slips</p>
+                          <p className="text-2xl font-bold text-gray-900 mt-1">{slipsCount}</p>
+                          <p className="text-xs text-gray-500 mt-1">Available</p>
+                        </div>
+                        <div className="p-3 bg-purple-50 rounded-lg">
+                          <FileText className="w-6 h-6 text-purple-600" />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
                 </div>
-              </CardContent>
-            </Card>
-          </div>
 
-          {/* Salary Breakdown */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Current Salary Structure</CardTitle>
-              <CardDescription>Monthly salary breakdown for {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex justify-between items-center py-2 border-b">
-                  <span className="text-gray-600">Basic Salary</span>
-                  <span className="font-semibold">₹45,000</span>
-                </div>
-                <div className="flex justify-between items-center py-2 border-b">
-                  <span className="text-gray-600">House Rent Allowance (HRA)</span>
-                  <span className="font-semibold text-green-600">₹18,000</span>
-                </div>
-                <div className="flex justify-between items-center py-2 border-b">
-                  <span className="text-gray-600">Transport Allowance</span>
-                  <span className="font-semibold text-green-600">₹5,000</span>
-                </div>
-                <div className="flex justify-between items-center py-2 border-b">
-                  <span className="text-gray-600">Medical Allowance</span>
-                  <span className="font-semibold text-green-600">₹3,000</span>
-                </div>
-                <div className="flex justify-between items-center py-2 border-b">
-                  <span className="text-gray-600">Special Allowance</span>
-                  <span className="font-semibold text-green-600">₹4,000</span>
-                </div>
-                <div className="flex justify-between items-center py-2 border-b">
-                  <span className="text-gray-600">Provident Fund (PF)</span>
-                  <span className="font-semibold text-red-600">-₹5,400</span>
-                </div>
-                <div className="flex justify-between items-center py-2 border-b">
-                  <span className="text-gray-600">Professional Tax</span>
-                  <span className="font-semibold text-red-600">-₹200</span>
-                </div>
-                <div className="flex justify-between items-center py-2 border-b">
-                  <span className="text-gray-600">Income Tax (TDS)</span>
-                  <span className="font-semibold text-red-600">-₹4,400</span>
-                </div>
-                <div className="flex justify-between items-center py-3 pt-4 border-t-2 border-gray-300">
-                  <span className="text-lg font-semibold">Net Salary</span>
-                  <span className="text-xl font-bold text-gray-900">₹75,000</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+                {/* Salary Breakdown */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Current Salary Structure</CardTitle>
+                    <CardDescription>Monthly salary breakdown for {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {getCurrentSalaryStructure() ? (
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center py-2 border-b">
+                          <span className="text-gray-600">Basic Salary</span>
+                          <span className="font-semibold">{formatCurrency(breakdown.basic)}</span>
+                        </div>
+                        {breakdown.hra > 0 && (
+                          <div className="flex justify-between items-center py-2 border-b">
+                            <span className="text-gray-600">House Rent Allowance (HRA)</span>
+                            <span className="font-semibold text-green-600">{formatCurrency(breakdown.hra)}</span>
+                          </div>
+                        )}
+                        {breakdown.allowances > 0 && (
+                          <div className="flex justify-between items-center py-2 border-b">
+                            <span className="text-gray-600">Other Allowances</span>
+                            <span className="font-semibold text-green-600">{formatCurrency(breakdown.allowances)}</span>
+                          </div>
+                        )}
+                        {breakdown.pf > 0 && (
+                          <div className="flex justify-between items-center py-2 border-b">
+                            <span className="text-gray-600">Provident Fund (PF)</span>
+                            <span className="font-semibold text-red-600">-{formatCurrency(breakdown.pf)}</span>
+                          </div>
+                        )}
+                        {breakdown.professionalTax > 0 && (
+                          <div className="flex justify-between items-center py-2 border-b">
+                            <span className="text-gray-600">Professional Tax</span>
+                            <span className="font-semibold text-red-600">-{formatCurrency(breakdown.professionalTax)}</span>
+                          </div>
+                        )}
+                        {breakdown.incomeTax > 0 && (
+                          <div className="flex justify-between items-center py-2 border-b">
+                            <span className="text-gray-600">Income Tax (TDS)</span>
+                            <span className="font-semibold text-red-600">-{formatCurrency(breakdown.incomeTax)}</span>
+                          </div>
+                        )}
+                        {breakdown.esi > 0 && (
+                          <div className="flex justify-between items-center py-2 border-b">
+                            <span className="text-gray-600">Employee State Insurance (ESI)</span>
+                            <span className="font-semibold text-red-600">-{formatCurrency(breakdown.esi)}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between items-center py-3 pt-4 border-t-2 border-gray-300">
+                          <span className="text-lg font-semibold">Net Salary</span>
+                          <span className="text-xl font-bold text-gray-900">{formatCurrency(breakdown.net)}</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-gray-500">
+                        <p>No salary structure found for this employee.</p>
+                        <p className="text-sm mt-2">Please add a salary structure in the Payroll section.</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </>
+            )
+          })()}
 
           {/* Employee Info */}
           <Card>
@@ -738,63 +1019,43 @@ export default function EmployeePayrollPage() {
               <h3 className="text-lg font-semibold">Salary Slips</h3>
               <p className="text-sm text-gray-600">Download or view past salary slips</p>
             </div>
-            <Select value={selectedYear} onValueChange={setSelectedYear}>
-              <SelectTrigger className="w-40">
-                <SelectValue placeholder="Select Year" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="2024">2024</SelectItem>
-                <SelectItem value="2023">2023</SelectItem>
-                <SelectItem value="2022">2022</SelectItem>
-                <SelectItem value="2021">2021</SelectItem>
-              </SelectContent>
-            </Select>
+            {(() => {
+              const availableYears = getAvailableYears()
+              const defaultYear = availableYears.length > 0 ? availableYears[0] : new Date().getFullYear().toString()
+              
+              // Set default year if not set or if current selection is not available
+              if (!selectedYear || !availableYears.includes(selectedYear)) {
+                if (availableYears.length > 0) {
+                  setSelectedYear(defaultYear)
+                }
+              }
+              
+              return (
+                <Select value={selectedYear || defaultYear} onValueChange={setSelectedYear}>
+                  <SelectTrigger className="w-40">
+                    <SelectValue placeholder="Select Year" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableYears.length > 0 ? (
+                      availableYears.map((year) => (
+                        <SelectItem key={year} value={year}>
+                          {year}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value={new Date().getFullYear().toString()}>
+                        {new Date().getFullYear()}
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              )
+            })()}
           </div>
 
           <div className="space-y-3">
             {(() => {
-              const allSalarySlips = [
-                // 2024 salary slips
-                { month: 'December', year: '2024', amount: '₹75,000', status: 'Paid', date: '2024-12-01' },
-                { month: 'November', year: '2024', amount: '₹75,000', status: 'Paid', date: '2024-11-01' },
-                { month: 'October', year: '2024', amount: '₹75,000', status: 'Paid', date: '2024-10-01' },
-                { month: 'September', year: '2024', amount: '₹75,000', status: 'Paid', date: '2024-09-01' },
-                { month: 'August', year: '2024', amount: '₹75,000', status: 'Paid', date: '2024-08-01' },
-                { month: 'July', year: '2024', amount: '₹75,000', status: 'Paid', date: '2024-07-01' },
-                { month: 'June', year: '2024', amount: '₹75,000', status: 'Paid', date: '2024-06-01' },
-                { month: 'May', year: '2024', amount: '₹75,000', status: 'Paid', date: '2024-05-01' },
-                { month: 'April', year: '2024', amount: '₹75,000', status: 'Paid', date: '2024-04-01' },
-                { month: 'March', year: '2024', amount: '₹75,000', status: 'Paid', date: '2024-03-01' },
-                { month: 'February', year: '2024', amount: '₹75,000', status: 'Paid', date: '2024-02-01' },
-                { month: 'January', year: '2024', amount: '₹75,000', status: 'Paid', date: '2024-01-01' },
-                // 2023 salary slips
-                { month: 'December', year: '2023', amount: '₹70,000', status: 'Paid', date: '2023-12-01' },
-                { month: 'November', year: '2023', amount: '₹70,000', status: 'Paid', date: '2023-11-01' },
-                { month: 'October', year: '2023', amount: '₹70,000', status: 'Paid', date: '2023-10-01' },
-                { month: 'September', year: '2023', amount: '₹70,000', status: 'Paid', date: '2023-09-01' },
-                { month: 'August', year: '2023', amount: '₹70,000', status: 'Paid', date: '2023-08-01' },
-                { month: 'July', year: '2023', amount: '₹70,000', status: 'Paid', date: '2023-07-01' },
-                { month: 'June', year: '2023', amount: '₹70,000', status: 'Paid', date: '2023-06-01' },
-                { month: 'May', year: '2023', amount: '₹70,000', status: 'Paid', date: '2023-05-01' },
-                { month: 'April', year: '2023', amount: '₹70,000', status: 'Paid', date: '2023-04-01' },
-                { month: 'March', year: '2023', amount: '₹70,000', status: 'Paid', date: '2023-03-01' },
-                { month: 'February', year: '2023', amount: '₹70,000', status: 'Paid', date: '2023-02-01' },
-                { month: 'January', year: '2023', amount: '₹70,000', status: 'Paid', date: '2023-01-01' },
-                // 2022 salary slips
-                { month: 'December', year: '2022', amount: '₹65,000', status: 'Paid', date: '2022-12-01' },
-                { month: 'November', year: '2022', amount: '₹65,000', status: 'Paid', date: '2022-11-01' },
-                { month: 'October', year: '2022', amount: '₹65,000', status: 'Paid', date: '2022-10-01' },
-                { month: 'September', year: '2022', amount: '₹65,000', status: 'Paid', date: '2022-09-01' },
-                { month: 'August', year: '2022', amount: '₹65,000', status: 'Paid', date: '2022-08-01' },
-                { month: 'July', year: '2022', amount: '₹65,000', status: 'Paid', date: '2022-07-01' },
-                { month: 'June', year: '2022', amount: '₹65,000', status: 'Paid', date: '2022-06-01' },
-                { month: 'May', year: '2022', amount: '₹65,000', status: 'Paid', date: '2022-05-01' },
-                { month: 'April', year: '2022', amount: '₹65,000', status: 'Paid', date: '2022-04-01' },
-                { month: 'March', year: '2022', amount: '₹65,000', status: 'Paid', date: '2022-03-01' },
-                { month: 'February', year: '2022', amount: '₹65,000', status: 'Paid', date: '2022-02-01' },
-                { month: 'January', year: '2022', amount: '₹65,000', status: 'Paid', date: '2022-01-01' },
-              ]
-              
+              const allSalarySlips = convertPayrollToSalarySlips()
               const filteredSlips = allSalarySlips.filter(slip => slip.year === selectedYear)
               
               if (filteredSlips.length === 0) {
@@ -802,7 +1063,11 @@ export default function EmployeePayrollPage() {
                   <div className="text-center py-12">
                     <Receipt className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                     <p className="text-gray-600 font-medium">No salary slips found for {selectedYear}</p>
-                    <p className="text-sm text-gray-500 mt-1">Try selecting a different year</p>
+                    <p className="text-sm text-gray-500 mt-1">
+                      {payrollRecords.length === 0 
+                        ? "No payroll records available for this employee"
+                        : "Try selecting a different year"}
+                    </p>
                   </div>
                 )
               }
@@ -813,41 +1078,41 @@ export default function EmployeePayrollPage() {
                     Showing {filteredSlips.length} salary slip{filteredSlips.length !== 1 ? 's' : ''} for {selectedYear}
                   </p>
                   {filteredSlips.map((slip, index) => (
-              <Card key={index} className="hover:shadow-md transition-shadow">
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="p-3 bg-blue-50 rounded-lg">
-                        <Receipt className="w-5 h-5 text-blue-600" />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-gray-900">
-                          Salary Slip - {slip.month} {slip.year}
-                        </p>
-                        <div className="flex items-center gap-4 mt-1">
-                          <p className="text-sm text-gray-600">
-                            Amount: <span className="font-medium text-gray-900">{slip.amount}</span>
-                          </p>
-                          <p className="text-sm text-gray-600">
-                            Paid on: <span className="font-medium">{new Date(slip.date).toLocaleDateString()}</span>
-                          </p>
+                    <Card key={index} className="hover:shadow-md transition-shadow">
+                      <CardContent className="p-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-4">
+                            <div className="p-3 bg-blue-50 rounded-lg">
+                              <Receipt className="w-5 h-5 text-blue-600" />
+                            </div>
+                            <div>
+                              <p className="font-semibold text-gray-900">
+                                Salary Slip - {slip.month} {slip.year}
+                              </p>
+                              <div className="flex items-center gap-4 mt-1">
+                                <p className="text-sm text-gray-600">
+                                  Amount: <span className="font-medium text-gray-900">{slip.amount}</span>
+                                </p>
+                                <p className="text-sm text-gray-600">
+                                  Paid on: <span className="font-medium">{new Date(slip.date).toLocaleDateString()}</span>
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge className="bg-green-100 text-green-800">{slip.status}</Badge>
+                            <Button variant="outline" size="sm" onClick={() => setSelectedSlip(slip)}>
+                              <FileText className="w-4 h-4 mr-2" />
+                              View
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => downloadSalarySlip(slip)}>
+                              <Download className="w-4 h-4 mr-2" />
+                              Download
+                            </Button>
+                          </div>
                         </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge className="bg-green-100 text-green-800">{slip.status}</Badge>
-                      <Button variant="outline" size="sm" onClick={() => setSelectedSlip(slip)}>
-                        <FileText className="w-4 h-4 mr-2" />
-                        View
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => downloadSalarySlip(slip)}>
-                        <Download className="w-4 h-4 mr-2" />
-                        Download
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                      </CardContent>
+                    </Card>
                   ))}
                 </>
               )
@@ -877,37 +1142,89 @@ export default function EmployeePayrollPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {[
-                  { period: 'Dec 2024', basic: '₹45,000', allowances: '₹30,000', deductions: '₹10,000', net: '₹75,000', status: 'Paid', date: '2024-12-01' },
-                  { period: 'Nov 2024', basic: '₹45,000', allowances: '₹30,000', deductions: '₹10,000', net: '₹75,000', status: 'Paid', date: '2024-11-01' },
-                  { period: 'Oct 2024', basic: '₹45,000', allowances: '₹30,000', deductions: '₹10,000', net: '₹75,000', status: 'Paid', date: '2024-10-01' },
-                  { period: 'Sep 2024', basic: '₹45,000', allowances: '₹30,000', deductions: '₹10,000', net: '₹75,000', status: 'Paid', date: '2024-09-01' },
-                  { period: 'Aug 2024', basic: '₹45,000', allowances: '₹30,000', deductions: '₹10,000', net: '₹75,000', status: 'Paid', date: '2024-08-01' },
-                  { period: 'Jul 2024', basic: '₹45,000', allowances: '₹30,000', deductions: '₹10,000', net: '₹75,000', status: 'Paid', date: '2024-07-01' },
-                  { period: 'Jun 2024', basic: '₹45,000', allowances: '₹30,000', deductions: '₹10,000', net: '₹75,000', status: 'Paid', date: '2024-06-01' },
-                  { period: 'May 2024', basic: '₹45,000', allowances: '₹30,000', deductions: '₹10,000', net: '₹75,000', status: 'Paid', date: '2024-05-01' },
-                  { period: 'Apr 2024', basic: '₹45,000', allowances: '₹30,000', deductions: '₹10,000', net: '₹75,000', status: 'Paid', date: '2024-04-01' },
-                  { period: 'Mar 2024', basic: '₹45,000', allowances: '₹30,000', deductions: '₹10,000', net: '₹75,000', status: 'Paid', date: '2024-03-01' },
-                  { period: 'Feb 2024', basic: '₹45,000', allowances: '₹30,000', deductions: '₹10,000', net: '₹75,000', status: 'Paid', date: '2024-02-01' },
-                  { period: 'Jan 2024', basic: '₹45,000', allowances: '₹30,000', deductions: '₹10,000', net: '₹75,000', status: 'Paid', date: '2024-01-01' },
-                ].map((record, index) => (
-                  <TableRow key={index}>
-                    <TableCell className="font-medium">{record.period}</TableCell>
-                    <TableCell>{record.basic}</TableCell>
-                    <TableCell className="text-green-600">{record.allowances}</TableCell>
-                    <TableCell className="text-red-600">{record.deductions}</TableCell>
-                    <TableCell className="font-semibold">{record.net}</TableCell>
-                    <TableCell>
-                      <Badge className="bg-green-100 text-green-800">{record.status}</Badge>
-                    </TableCell>
-                    <TableCell>{new Date(record.date).toLocaleDateString()}</TableCell>
-                    <TableCell>
-                      <Button variant="ghost" size="sm">
-                        <Download className="w-4 h-4" />
-                      </Button>
+                {payrollRecords.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center text-gray-500 py-8">
+                      No payroll records found for this employee.
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  payrollRecords
+                    .sort((a, b) => {
+                      // Sort by date (newest first)
+                      const dateA = new Date(a.created_at || a.month || 0).getTime()
+                      const dateB = new Date(b.created_at || b.month || 0).getTime()
+                      return dateB - dateA
+                    })
+                    .map((record) => {
+                      // Parse month to get period
+                      const monthMatch = record.month?.match(/(\w+)\s+(\d{4})/)
+                      const period = monthMatch 
+                        ? `${monthMatch[1].substring(0, 3)} ${monthMatch[2]}`
+                        : record.month || 'Unknown'
+                      
+                      // Get structure for this month to calculate breakdown
+                      let basic = 0
+                      let allowances = 0
+                      let deductions = 0
+                      
+                      if (monthMatch) {
+                        const year = parseInt(monthMatch[2], 10)
+                        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                                          'July', 'August', 'September', 'October', 'November', 'December']
+                        const monthIndex = monthNames.findIndex(m => m.startsWith(monthMatch[1]))
+                        if (monthIndex >= 0) {
+                          const structure = getStructureForMonth(Number(employeeId), year, monthIndex + 1)
+                          if (structure) {
+                            basic = toMonthly(structure.basic)
+                            allowances = toMonthly(structure.hra + structure.allowances)
+                            deductions = toMonthly(structure.pf + structure.esi + structure.professional_tax + structure.income_tax)
+                          }
+                        }
+                      }
+                      
+                      // Use earnings_breakdown if available
+                      if (record.earnings_breakdown && typeof record.earnings_breakdown === 'object') {
+                        basic = Number((record.earnings_breakdown as any).basic ?? basic)
+                        const hra = Number((record.earnings_breakdown as any).hra ?? 0)
+                        const otherAllowances = Number((record.earnings_breakdown as any).allowances ?? 0)
+                        allowances = hra + otherAllowances
+                      }
+                      
+                      // Use deductions_breakdown if available
+                      if (record.deductions_breakdown && typeof record.deductions_breakdown === 'object') {
+                        const pf = Number((record.deductions_breakdown as any).pf ?? 0)
+                        const esi = Number((record.deductions_breakdown as any).esi ?? 0)
+                        const professionalTax = Number((record.deductions_breakdown as any).professional_tax ?? 0)
+                        const incomeTax = Number((record.deductions_breakdown as any).income_tax ?? 0)
+                        const leaveDeduction = Number((record.deductions_breakdown as any).leave_deduction ?? 0)
+                        deductions = pf + esi + professionalTax + incomeTax + leaveDeduction
+                      }
+                      
+                      const paymentDate = record.created_at 
+                        ? new Date(record.created_at).toLocaleDateString()
+                        : 'N/A'
+                      
+                      return (
+                        <TableRow key={record.id}>
+                          <TableCell className="font-medium">{period}</TableCell>
+                          <TableCell>{formatCurrency(basic)}</TableCell>
+                          <TableCell className="text-green-600">{formatCurrency(allowances)}</TableCell>
+                          <TableCell className="text-red-600">{formatCurrency(deductions)}</TableCell>
+                          <TableCell className="font-semibold">{formatCurrency(record.net_salary || 0)}</TableCell>
+                          <TableCell>
+                            <Badge className="bg-green-100 text-green-800">{record.status || 'Paid'}</Badge>
+                          </TableCell>
+                          <TableCell>{paymentDate}</TableCell>
+                          <TableCell>
+                            <Button variant="ghost" size="sm">
+                              <Download className="w-4 h-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })
+                )}
               </TableBody>
             </Table>
           </div>

@@ -27,7 +27,18 @@ import { useToast } from "@/hooks/use-toast"
 
 export default function PayrollPage() {
   const [searchTerm, setSearchTerm] = useState("")
-  const [monthFilter, setMonthFilter] = useState("november-2024")
+  
+  // Set default month filter to current month
+  const getCurrentMonthFilter = () => {
+    const now = new Date()
+    const monthNames = ["january", "february", "march", "april", "may", "june", 
+                       "july", "august", "september", "october", "november", "december"]
+    const monthName = monthNames[now.getMonth()]
+    const year = now.getFullYear()
+    return `${monthName}-${year}`
+  }
+  
+  const [monthFilter, setMonthFilter] = useState(getCurrentMonthFilter())
   const [payrollRecords, setPayrollRecords] = useState([])
   const [salaryStructures, setSalaryStructures] = useState([])
   const [employees, setEmployees] = useState([])
@@ -86,6 +97,62 @@ export default function PayrollPage() {
     fetchEmployees()
     fetchDepartments()
   }, [])
+
+  // Auto-detect and set month filter to a month that has payroll records (only on initial load)
+  const [hasAutoDetectedMonth, setHasAutoDetectedMonth] = useState(false)
+  useEffect(() => {
+    if (payrollRecords.length > 0 && !hasAutoDetectedMonth) {
+      // Check if current month has records by comparing month filter
+      const currentMonthInfo = parseMonthFilter(monthFilter)
+      const hasCurrentMonthRecords = currentMonthInfo ? payrollRecords.some((record: any) => {
+        if (!record.month) return false
+        // Parse record month (e.g., "November 2024")
+        const match = record.month.match(/(\w+)\s+(\d{4})/i)
+        if (match) {
+          const monthNames = ["january", "february", "march", "april", "may", "june", 
+                             "july", "august", "september", "october", "november", "december"]
+          const monthName = match[1].toLowerCase()
+          const year = parseInt(match[2], 10)
+          const monthIndex = monthNames.findIndex(m => m.startsWith(monthName))
+          return monthIndex + 1 === currentMonthInfo.month && year === currentMonthInfo.year
+        }
+        return false
+      }) : false
+      
+      if (!hasCurrentMonthRecords) {
+        // Find the most recent month with records
+        const monthNames = ["january", "february", "march", "april", "may", "june", 
+                           "july", "august", "september", "october", "november", "december"]
+        const monthsWithRecords = payrollRecords
+          .map((record: any) => {
+            if (!record.month) return null
+            const match = record.month.match(/(\w+)\s+(\d{4})/i)
+            if (match) {
+              const monthName = match[1].toLowerCase()
+              const year = parseInt(match[2], 10)
+              const monthIndex = monthNames.findIndex(m => m.startsWith(monthName))
+              if (monthIndex >= 0) {
+                return { monthIndex, year }
+              }
+            }
+            return null
+          })
+          .filter(Boolean)
+          .sort((a: any, b: any) => {
+            if (a.year !== b.year) return b.year - a.year
+            return b.monthIndex - a.monthIndex
+          })
+        
+        if (monthsWithRecords.length > 0) {
+          const mostRecent = monthsWithRecords[0] as any
+          const monthName = monthNames[mostRecent.monthIndex]
+          const newFilter = `${monthName}-${mostRecent.year}`
+          setMonthFilter(newFilter)
+        }
+      }
+      setHasAutoDetectedMonth(true)
+    }
+  }, [payrollRecords, hasAutoDetectedMonth, monthFilter])
 
   // Sync selectedDate with monthFilter changes
   useEffect(() => {
@@ -195,7 +262,7 @@ export default function PayrollPage() {
   const processPayroll = async () => {
     setProcessingPayroll(true)
     try {
-      await apiRequest(getEndpointUrl("PAYROLL_PROCESS_MONTH"), {
+      const response = await apiRequest(getEndpointUrl("PAYROLL_PROCESS_MONTH"), {
         method: "POST",
         body: JSON.stringify({
           month: monthFilter,
@@ -207,7 +274,15 @@ export default function PayrollPage() {
         description: `Processed payroll for ${formatMonthDisplay(monthFilter)}`,
       })
       setShowProcessDialog(false)
-      fetchPayrollRecords()
+      // Refresh payroll records after processing
+      await fetchPayrollRecords()
+      // Ensure month filter is set to the processed month so records are visible
+      // The month filter should already be set, but we ensure it matches
+      if (response?.month) {
+        // Parse the response month and set filter if needed
+        const processedMonth = response.month
+        // The month filter should already match, but we refresh to ensure visibility
+      }
     } catch (err: any) {
       toast({
         title: "Failed to process payroll",
@@ -264,7 +339,9 @@ export default function PayrollPage() {
     if (!Array.isArray(records)) return []
     return Object.values(
       records.reduce((acc, record) => {
-        const key = String(record.employee_id)
+        // Use both employee_id and month as the key to allow multiple records per employee (one per month)
+        const month = String(record?.month || "").trim().toLowerCase()
+        const key = `${record.employee_id}-${month}`
         const existing = acc[key]
 
         const existingCreated = existing?.created_at ? new Date(existing.created_at).getTime() : 0
