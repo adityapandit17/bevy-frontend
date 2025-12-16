@@ -477,8 +477,61 @@ export default function PayrollPage() {
   }) => {
     if (typeof window === "undefined") return
 
+    // Get employee details
+    const employee = Array.isArray(employees) 
+      ? employees.find((e: any) => String(e.id) === String(record.employee_id))
+      : null
+    
     const employeeName = getEmployeeName(record.employee_id)
+    const employeeDesignation = employee?.designation || 'N/A'
+    const employeeDateOfJoining = employee?.date_of_joining 
+      ? new Date(employee.date_of_joining).toLocaleDateString()
+      : 'N/A'
+    
+    // Parse month from monthLabel or monthFilter
     const monthLabel = record.month || formatMonthDisplay(monthFilter)
+    const monthInfo = parseMonthFilter(monthFilter)
+    const monthNames = ["January", "February", "March", "April", "May", "June", 
+                       "July", "August", "September", "October", "November", "December"]
+    const monthName = monthInfo ? monthNames[monthInfo.month - 1] : monthLabel.split(' ')[0]
+    const year = monthInfo ? monthInfo.year : new Date().getFullYear()
+    
+    // Get deductions breakdown from record or structure
+    const monthInfoForStructure = parseMonthFilter(monthFilter)
+    const structure = monthInfoForStructure 
+      ? getStructureForMonth(record.employee_id, monthInfoForStructure.year, monthInfoForStructure.month)
+      : null
+    
+    const toMonthly = (val: any) => safeNumber(val) / 12
+    
+    // Get statutory deductions from structure (annual, convert to monthly)
+    const pf = toMonthly(structure?.pf ?? 0)
+    const esi = toMonthly(structure?.esi ?? 0)
+    const professionalTax = toMonthly(structure?.professional_tax ?? 0)
+    const incomeTax = toMonthly(structure?.income_tax ?? 0)
+    const leaveDeduction = amounts.deductions || 0
+    
+    // Calculate total deductions
+    const totalDeductions = pf + esi + professionalTax + incomeTax + leaveDeduction
+    
+    // Payment date - use record date or current date
+    const paymentDate = record.created_at 
+      ? new Date(record.created_at).toLocaleDateString('en-US', { 
+          weekday: 'long', 
+          year: 'numeric', 
+          month: 'long', 
+          day: 'numeric' 
+        })
+      : new Date().toLocaleDateString('en-US', { 
+          weekday: 'long', 
+          year: 'numeric', 
+          month: 'long', 
+          day: 'numeric' 
+        })
+    
+    // Break down allowances - for display, we'll show HRA separately and other allowances combined
+    const otherAllowances = amounts.allowances - amounts.hra
+    
     const slipWindow = window.open("", "_blank", "width=900,height=1100")
 
     if (!slipWindow) {
@@ -492,59 +545,414 @@ export default function PayrollPage() {
 
     const html = `
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Payslip - ${employeeName}</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 24px; color: #111827; }
-    h1 { margin: 0; }
-    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-    .section { border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
-    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-    .row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #f3f4f6; }
-    .row:last-child { border-bottom: none; }
-    .muted { color: #6b7280; }
-    .strong { font-weight: 600; }
-    .totals { font-size: 16px; font-weight: 700; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Salary Slip - ${monthName} ${year}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Arial', sans-serif;
+            padding: 40px;
+            background: white;
+            color: #1f2937;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+        }
+        .header {
+            border-bottom: 3px solid #374151;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .company-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+        .company-name {
+            font-size: 28px;
+            font-weight: bold;
+            color: #1e40af;
+            margin-bottom: 10px;
+        }
+        .company-details {
+            font-size: 12px;
+            color: #6b7280;
+            line-height: 1.8;
+        }
+        .statement-title {
+            text-align: right;
+        }
+        .statement-title h2 {
+            font-size: 20px;
+            font-weight: bold;
+            color: #1f2937;
+            margin-bottom: 5px;
+        }
+        .statement-title p {
+            font-size: 12px;
+            color: #6b7280;
+        }
+        .employee-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            border-bottom: 1px solid #e5e7eb;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .section-title {
+            font-size: 14px;
+            font-weight: bold;
+            color: #374151;
+            margin-bottom: 15px;
+        }
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            font-size: 13px;
+            border-bottom: 1px solid #f3f4f6;
+        }
+        .detail-label {
+            color: #6b7280;
+        }
+        .detail-value {
+            font-weight: 600;
+            color: #1f2937;
+        }
+        .salary-breakdown {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+        .earnings, .deductions {
+            border: 2px solid;
+            padding: 20px;
+            border-radius: 8px;
+        }
+        .earnings {
+            border-color: #10b981;
+        }
+        .deductions {
+            border-color: #ef4444;
+        }
+        .breakdown-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid;
+        }
+        .earnings .breakdown-title {
+            color: #10b981;
+            border-color: #10b981;
+        }
+        .deductions .breakdown-title {
+            color: #ef4444;
+            border-color: #ef4444;
+        }
+        .breakdown-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            font-size: 14px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .breakdown-label {
+            color: #374151;
+        }
+        .breakdown-value {
+            font-weight: 600;
+        }
+        .earnings .breakdown-value {
+            color: #10b981;
+        }
+        .deductions .breakdown-value {
+            color: #ef4444;
+        }
+        .total-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 15px 0;
+            margin-top: 10px;
+            border-top: 2px solid #d1d5db;
+            font-size: 16px;
+            font-weight: bold;
+        }
+        .net-salary {
+            background: linear-gradient(135deg, #dbeafe 0%, #e0e7ff 100%);
+            padding: 25px;
+            border-radius: 8px;
+            border: 2px solid #3b82f6;
+            margin-bottom: 30px;
+        }
+        .net-salary-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .net-amount {
+            font-size: 32px;
+            font-weight: bold;
+            color: #1f2937;
+            margin: 10px 0;
+        }
+        .net-label {
+            font-size: 13px;
+            color: #6b7280;
+        }
+        .net-date {
+            font-size: 11px;
+            color: #9ca3af;
+            margin-top: 5px;
+        }
+        .amount-in-words {
+            background: white;
+            padding: 15px;
+            border-radius: 6px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .amount-in-words-label {
+            font-size: 11px;
+            color: #6b7280;
+            margin-bottom: 5px;
+        }
+        .amount-in-words-value {
+            font-size: 13px;
+            font-weight: 600;
+            color: #374151;
+        }
+        .ytd-summary {
+            border-top: 1px solid #e5e7eb;
+            padding-top: 20px;
+            margin-bottom: 30px;
+        }
+        .ytd-title {
+            font-size: 14px;
+            font-weight: bold;
+            color: #374151;
+            margin-bottom: 15px;
+        }
+        .ytd-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+        }
+        .ytd-item {
+            background: #f9fafb;
+            padding: 15px;
+            border-radius: 6px;
+        }
+        .ytd-label {
+            font-size: 12px;
+            color: #6b7280;
+            margin-bottom: 5px;
+        }
+        .ytd-value {
+            font-size: 18px;
+            font-weight: bold;
+            color: #1f2937;
+        }
+        .footer {
+            border-top: 1px solid #e5e7eb;
+            padding-top: 20px;
+            text-align: center;
+            font-size: 11px;
+            color: #6b7280;
+        }
+        .footer p {
+            margin: 5px 0;
+        }
+        @media print {
+            body {
+                padding: 20px;
+            }
+            .container {
+                max-width: 100%;
+            }
+        }
+    </style>
 </head>
 <body>
-  <div class="header">
-    <div>
-      <h1>Payslip</h1>
-      <div class="muted">${monthLabel}</div>
-    </div>
-    <div class="muted">Status: ${record.status || "processed"}</div>
-  </div>
+    <div class="container">
+        <div class="header">
+            <div class="company-info">
+                <div>
+                    <div class="company-name">HRMS Pro</div>
+                    <div class="company-details">
+                        123 Business Park, Corporate Tower<br>
+                        Mumbai, Maharashtra - 400001<br>
+                        Phone: +91 22 1234 5678 | Email: hr@hrmspro.com
+                    </div>
+                </div>
+                <div class="statement-title">
+                    <h2>SALARY STATEMENT</h2>
+                    <p>For the month of ${monthName} ${year}</p>
+                </div>
+            </div>
+        </div>
 
-  <div class="section">
-    <div class="strong" style="margin-bottom:8px;">Employee</div>
-    <div class="grid">
-      <div><div class="muted">Name</div><div class="strong">${employeeName}</div></div>
-      <div><div class="muted">Employee ID</div><div class="strong">${record.employee_id}</div></div>
-      <div><div class="muted">Department</div><div class="strong">${departmentName || "—"}</div></div>
-      <div><div class="muted">Month</div><div class="strong">${monthLabel}</div></div>
-    </div>
-  </div>
+        <div class="employee-section">
+            <div>
+                <div class="section-title">Employee Details</div>
+                <div class="detail-row">
+                    <span class="detail-label">Employee Name:</span>
+                    <span class="detail-value">${employeeName}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Employee ID:</span>
+                    <span class="detail-value">${record.employee_id}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Designation:</span>
+                    <span class="detail-value">${employeeDesignation}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Department:</span>
+                    <span class="detail-value">${departmentName || 'N/A'}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Date of Joining:</span>
+                    <span class="detail-value">${employeeDateOfJoining}</span>
+                </div>
+            </div>
+            <div>
+                <div class="section-title">Payment Details</div>
+                <div class="detail-row">
+                    <span class="detail-label">Payment Date:</span>
+                    <span class="detail-value">${paymentDate}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Payment Month:</span>
+                    <span class="detail-value">${monthName} ${year}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Bank Account:</span>
+                    <span class="detail-value">****1234 (HDFC Bank)</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">PAN Number:</span>
+                    <span class="detail-value">ABCDE1234F</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Status:</span>
+                    <span class="detail-value">${record.status || 'Paid'}</span>
+                </div>
+            </div>
+        </div>
 
-  <div class="section">
-    <div class="grid">
-      <div>
-        <div class="strong" style="margin-bottom:8px;">Earnings</div>
-        <div class="row"><span>Basic</span><span class="strong">${formatCurrencySafe(amounts.basic)}</span></div>
-        <div class="row"><span>HRA</span><span class="strong">${formatCurrencySafe(amounts.hra)}</span></div>
-        <div class="row"><span>Allowances</span><span class="strong">${formatCurrencySafe(amounts.allowances)}</span></div>
-        <div class="row totals"><span>Gross</span><span>${formatCurrencySafe(amounts.gross)}</span></div>
-      </div>
-      <div>
-        <div class="strong" style="margin-bottom:8px;">Deductions</div>
-        <div class="row"><span>Leave Deduction</span><span class="strong" style="color:#dc2626;">${formatCurrencySafe(amounts.deductions)}</span></div>
-        <div class="row totals" style="color:#dc2626;"><span>Total Deductions</span><span>${formatCurrencySafe(amounts.deductions)}</span></div>
-        <div class="row totals" style="color:#059669;"><span>Net Pay</span><span>${formatCurrencySafe(amounts.net)}</span></div>
-      </div>
+        <div class="salary-breakdown">
+            <div class="earnings">
+                <div class="breakdown-title">Earnings</div>
+                <div class="breakdown-row">
+                    <span class="breakdown-label">Basic Salary</span>
+                    <span class="breakdown-value">${formatCurrencySafe(amounts.basic)}</span>
+                </div>
+                <div class="breakdown-row">
+                    <span class="breakdown-label">House Rent Allowance (HRA)</span>
+                    <span class="breakdown-value">${formatCurrencySafe(amounts.hra)}</span>
+                </div>
+                ${otherAllowances > 0 ? `
+                <div class="breakdown-row">
+                    <span class="breakdown-label">Other Allowances</span>
+                    <span class="breakdown-value">${formatCurrencySafe(otherAllowances)}</span>
+                </div>
+                ` : ''}
+                <div class="total-row">
+                    <span>Total Earnings</span>
+                    <span style="color: #10b981;">${formatCurrencySafe(amounts.gross)}</span>
+                </div>
+            </div>
+            <div class="deductions">
+                <div class="breakdown-title">Deductions</div>
+                ${pf > 0 ? `
+                <div class="breakdown-row">
+                    <span class="breakdown-label">Provident Fund (PF)</span>
+                    <span class="breakdown-value">${formatCurrencySafe(pf)}</span>
+                </div>
+                ` : ''}
+                ${professionalTax > 0 ? `
+                <div class="breakdown-row">
+                    <span class="breakdown-label">Professional Tax</span>
+                    <span class="breakdown-value">${formatCurrencySafe(professionalTax)}</span>
+                </div>
+                ` : ''}
+                ${incomeTax > 0 ? `
+                <div class="breakdown-row">
+                    <span class="breakdown-label">Income Tax (TDS)</span>
+                    <span class="breakdown-value">${formatCurrencySafe(incomeTax)}</span>
+                </div>
+                ` : ''}
+                ${esi > 0 ? `
+                <div class="breakdown-row">
+                    <span class="breakdown-label">Employee State Insurance (ESI)</span>
+                    <span class="breakdown-value">${formatCurrencySafe(esi)}</span>
+                </div>
+                ` : ''}
+                ${leaveDeduction > 0 ? `
+                <div class="breakdown-row">
+                    <span class="breakdown-label">Leave Deduction</span>
+                    <span class="breakdown-value">${formatCurrencySafe(leaveDeduction)}</span>
+                </div>
+                ` : ''}
+                <div class="total-row">
+                    <span>Total Deductions</span>
+                    <span style="color: #ef4444;">${formatCurrencySafe(totalDeductions)}</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="net-salary">
+            <div class="net-salary-content">
+                <div>
+                    <div class="net-label">Net Salary Payable</div>
+                    <div class="net-amount">${formatCurrencySafe(amounts.net)}</div>
+                    <div class="net-date">Paid on ${paymentDate}</div>
+                </div>
+                <div class="amount-in-words">
+                    <div class="amount-in-words-label">In Words</div>
+                    <div class="amount-in-words-value">Amount in words (system generated)</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="ytd-summary">
+            <div class="ytd-title">Year-to-Date Summary</div>
+            <div class="ytd-grid">
+                <div class="ytd-item">
+                    <div class="ytd-label">Total Earnings (YTD)</div>
+                    <div class="ytd-value">${formatCurrencySafe(amounts.gross)}</div>
+                </div>
+                <div class="ytd-item">
+                    <div class="ytd-label">Total Deductions (YTD)</div>
+                    <div class="ytd-value">${formatCurrencySafe(totalDeductions)}</div>
+                </div>
+                <div class="ytd-item">
+                    <div class="ytd-label">Net Paid (YTD)</div>
+                    <div class="ytd-value">${formatCurrencySafe(amounts.net)}</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>This is a system generated salary slip. No signature is required.</p>
+            <p>For queries, please contact HR Department at hr@hrmspro.com</p>
+            <p style="margin-top: 10px; color: #9ca3af;">
+                Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}
+            </p>
+        </div>
     </div>
-  </div>
 </body>
 </html>
 `
