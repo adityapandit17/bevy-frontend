@@ -1,6 +1,8 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { jsPDF } from "jspdf"
+import html2canvas from "html2canvas"
 import { getApiUrl, getEndpointUrl, apiRequest } from "@/lib/api"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -17,7 +19,22 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { IndianRupee, Search, Plus, MoreHorizontal, Download, Calculator, Clock, CheckCircle, Calendar as CalendarIcon } from "lucide-react"
+import {
+  IndianRupee,
+  Search,
+  Plus,
+  MoreHorizontal,
+  Download,
+  Calculator,
+  Clock,
+  CheckCircle,
+  Calendar as CalendarIcon,
+  Receipt,
+  Building2,
+  User,
+  CreditCard,
+  Printer,
+} from "lucide-react"
 import { SalaryStructureForm } from "@/components/forms/salary-structure-form"
 import { ResourceGuard } from "@/lib/auth/auth.guards"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -58,6 +75,7 @@ export default function PayrollPage() {
   const [selectedPayrollId, setSelectedPayrollId] = useState<number | null>(null)
   const [calculationBreakdown, setCalculationBreakdown] = useState<any>(null)
   const [loadingBreakdown, setLoadingBreakdown] = useState(false)
+  const [selectedPayslip, setSelectedPayslip] = useState<any | null>(null)
   
   // Parse month filter (e.g., "october-2024") to get year and month
   const parseMonthFilter = (filter: string) => {
@@ -540,87 +558,84 @@ export default function PayrollPage() {
     return Number.isFinite(num) ? num : 0
   }
 
-  // Render a lightweight payslip in a new tab/window. Optionally trigger print for PDF download.
-  const openPayslipWindow = ({
+  // Build shared HTML for payslip (used for both view and PDF download)
+  const buildPayslipHtml = ({
     record,
     amounts,
     departmentName,
-    print = false,
   }: {
     record: any
-    amounts: { basic: number; hra: number; allowances: number; deductions: number; gross: number; net: number }
+    amounts: any
     departmentName: string
-    print?: boolean
   }) => {
-    if (typeof window === "undefined") return
-
     // Get employee details
-    const employee = Array.isArray(employees) 
+    const employee = Array.isArray(employees)
       ? employees.find((e: any) => String(e.id) === String(record.employee_id))
       : null
-    
+
     const employeeName = getEmployeeName(record.employee_id)
-    const employeeDesignation = employee?.designation || 'N/A'
-    const employeeDateOfJoining = employee?.date_of_joining 
+    const employeeDesignation = employee?.designation || "N/A"
+    const employeeDateOfJoining = employee?.date_of_joining
       ? new Date(employee.date_of_joining).toLocaleDateString()
-      : 'N/A'
-    
+      : "N/A"
+
     // Parse month from monthLabel or monthFilter
     const monthLabel = record.month || formatMonthDisplay(monthFilter)
     const monthInfo = parseMonthFilter(monthFilter)
-    const monthNames = ["January", "February", "March", "April", "May", "June", 
-                       "July", "August", "September", "October", "November", "December"]
-    const monthName = monthInfo ? monthNames[monthInfo.month - 1] : monthLabel.split(' ')[0]
+    const monthNames = [
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December",
+    ]
+    const monthName = monthInfo ? monthNames[monthInfo.month - 1] : monthLabel.split(" ")[0]
     const year = monthInfo ? monthInfo.year : new Date().getFullYear()
-    
+
     // Get deductions breakdown from record or structure
     const monthInfoForStructure = parseMonthFilter(monthFilter)
-    const structure = monthInfoForStructure 
+    const structure = monthInfoForStructure
       ? getStructureForMonth(record.employee_id, monthInfoForStructure.year, monthInfoForStructure.month)
       : null
-    
+
     const toMonthly = (val: any) => safeNumber(val) / 12
-    
+
     // Get statutory deductions from structure (annual, convert to monthly)
     const pf = toMonthly(structure?.pf ?? 0)
     const esi = toMonthly(structure?.esi ?? 0)
     const professionalTax = toMonthly(structure?.professional_tax ?? 0)
     const incomeTax = toMonthly(structure?.income_tax ?? 0)
     const leaveDeduction = amounts.deductions || 0
-    
+
     // Calculate total deductions
     const totalDeductions = pf + esi + professionalTax + incomeTax + leaveDeduction
-    
+
     // Payment date - use record date or current date
-    const paymentDate = record.created_at 
-      ? new Date(record.created_at).toLocaleDateString('en-US', { 
-          weekday: 'long', 
-          year: 'numeric', 
-          month: 'long', 
-          day: 'numeric' 
+    const paymentDate = record.created_at
+      ? new Date(record.created_at).toLocaleDateString("en-US", {
+          weekday: "long",
+          year: "numeric",
+          month: "long",
+          day: "numeric",
         })
-      : new Date().toLocaleDateString('en-US', { 
-          weekday: 'long', 
-          year: 'numeric', 
-          month: 'long', 
-          day: 'numeric' 
+      : new Date().toLocaleDateString("en-US", {
+          weekday: "long",
+          year: "numeric",
+          month: "long",
+          day: "numeric",
         })
-    
+
     // Break down allowances - for display, we'll show HRA separately and other allowances combined
     const otherAllowances = amounts.allowances - amounts.hra
-    
-    const slipWindow = window.open("", "_blank", "width=900,height=1100")
 
-    if (!slipWindow) {
-      toast({
-        title: "Pop-up blocked",
-        description: "Allow pop-ups to view or download the payslip.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    const html = `
+    return `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1033,13 +1048,102 @@ export default function PayrollPage() {
 </body>
 </html>
 `
+  }
 
+  // Render payslip in a new tab/window for viewing
+  const openPayslipWindow = ({
+    record,
+    amounts,
+    departmentName,
+  }: {
+    record: any
+    amounts: any
+    departmentName: string
+  }) => {
+    if (typeof window === "undefined") return
+
+    const slipWindow = window.open("", "_blank", "width=900,height=1100")
+
+    if (!slipWindow) {
+      toast({
+        title: "Pop-up blocked",
+        description: "Allow pop-ups to view the payslip.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    const html = buildPayslipHtml({ record, amounts, departmentName })
     slipWindow.document.write(html)
     slipWindow.document.close()
     slipWindow.focus()
+  }
 
-    if (print) {
-      slipWindow.print()
+  // Download payslip as PDF using same HTML format
+  const downloadPayslipPdf = async ({
+    record,
+    amounts,
+    departmentName,
+  }: {
+    record: any
+    amounts: any
+    departmentName: string
+  }) => {
+    if (typeof document === "undefined") return
+
+    const htmlContent = buildPayslipHtml({ record, amounts, departmentName })
+
+    const tempDiv = document.createElement("div")
+    tempDiv.innerHTML = htmlContent
+    tempDiv.style.position = "absolute"
+    tempDiv.style.left = "-9999px"
+    tempDiv.style.width = "800px"
+    document.body.appendChild(tempDiv)
+
+    try {
+      const canvas = await html2canvas(tempDiv, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: "#ffffff",
+      })
+
+      const imgData = canvas.toDataURL("image/png")
+      const pdf = new jsPDF("p", "mm", "a4")
+
+      const imgWidth = 210 // A4 width in mm
+      const pageHeight = 297 // A4 height in mm
+      const imgHeight = (canvas.height * imgWidth) / canvas.width
+      let heightLeft = imgHeight
+      let position = 0
+
+      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight)
+      heightLeft -= pageHeight
+
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight
+        pdf.addPage()
+        pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight)
+        heightLeft -= pageHeight
+      }
+
+      const employeeName = String(getEmployeeName(record.employee_id) || "")
+        .trim()
+        .replace(/\s+/g, "_")
+      const monthLabelSafe = String(record.month || formatMonthDisplay(monthFilter))
+        .trim()
+        .replace(/\s+/g, "_")
+
+      pdf.save(`Salary_Slip_${employeeName}_${monthLabelSafe}.pdf`)
+    } catch (error) {
+      console.error("Error generating payslip PDF:", error)
+      toast({
+        title: "PDF generation failed",
+        description: "Unable to generate payslip PDF. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      document.body.removeChild(tempDiv)
     }
   }
 
@@ -1360,6 +1464,8 @@ export default function PayrollPage() {
                         const departmentName = getEmployeeDepartmentName(record.employee_id) || getDepartmentName(record.department_id)
                         const status = record.status || "processed"
 
+                        const totalDeductionsAll = pf + esi + professionalTax + incomeTax + deductions
+
                         const amountsForSlip = {
                           basic,
                           hra,
@@ -1367,23 +1473,27 @@ export default function PayrollPage() {
                           deductions,
                           gross: recordGross,
                           net,
+                          pf,
+                          esi,
+                          professionalTax,
+                          incomeTax,
+                          leaveDeduction: deductions,
+                          totalDeductions: totalDeductionsAll,
                         }
 
                         const handleViewPayslip = () => {
-                          openPayslipWindow({
+                          setSelectedPayslip({
                             record,
                             amounts: amountsForSlip,
                             departmentName,
-                            print: false,
                           })
                         }
 
                         const handleDownloadPayslipPdf = () => {
-                          openPayslipWindow({
+                          downloadPayslipPdf({
                             record,
                             amounts: amountsForSlip,
                             departmentName,
-                            print: true,
                           })
                         }
 
@@ -1657,6 +1767,332 @@ export default function PayrollPage() {
           initialData={editingStructure}
         />
       )}
+
+      {/* Payslip view dialog (same layout as employee salary slip) */}
+      {selectedPayslip && (
+        <style dangerouslySetInnerHTML={{
+          __html: `
+            @media print {
+              /* Hide dialog overlay and backdrop */
+              [data-radix-dialog-overlay],
+              [data-radix-dialog-content]::before {
+                display: none !important;
+              }
+              
+              /* Make dialog content full page */
+              [data-radix-dialog-content] {
+                position: fixed !important;
+                inset: 0 !important;
+                max-width: 100% !important;
+                max-height: 100% !important;
+                margin: 0 !important;
+                padding: 20px !important;
+                border: none !important;
+                border-radius: 0 !important;
+                box-shadow: none !important;
+                background: white !important;
+                overflow: visible !important;
+              }
+              
+              /* Hide action buttons when printing */
+              .no-print {
+                display: none !important;
+              }
+              
+              /* Optimize spacing for print */
+              body {
+                overflow: visible !important;
+              }
+              
+              /* Reduce spacing in payslip content */
+              [data-radix-dialog-content] .space-y-6 > * + * {
+                margin-top: 1rem !important;
+              }
+              
+              /* Ensure sections don't break across pages */
+              [data-radix-dialog-content] .border-b-2 {
+                break-inside: avoid;
+                page-break-inside: avoid;
+              }
+              
+              /* Optimize grid layouts for print */
+              [data-radix-dialog-content] .grid {
+                gap: 1rem !important;
+              }
+              
+              /* Reduce padding in sections */
+              [data-radix-dialog-content] .pb-4 {
+                padding-bottom: 0.75rem !important;
+              }
+              
+              [data-radix-dialog-content] .p-6 {
+                padding: 1rem !important;
+              }
+            }
+          `
+        }} />
+      )}
+      <Dialog
+        open={!!selectedPayslip}
+        onOpenChange={(open) => {
+          if (!open) setSelectedPayslip(null)
+        }}
+      >
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader className="no-print">
+            <DialogTitle className="flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <Receipt className="w-5 h-5" />
+                {selectedPayslip?.record?.month || formatMonthDisplay(monthFilter)} Payslip
+              </span>
+              {selectedPayslip && (
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      downloadPayslipPdf({
+                        record: selectedPayslip.record,
+                        amounts: selectedPayslip.amounts,
+                        departmentName: selectedPayslip.departmentName,
+                      })
+                    }
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Download PDF
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      window.print()
+                    }}
+                  >
+                    <Printer className="w-4 h-4 mr-2" />
+                    Print
+                  </Button>
+                </div>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+
+          {selectedPayslip && (() => {
+            const { record, amounts, departmentName } = selectedPayslip
+            const employeeName = getEmployeeName(record.employee_id)
+            const paymentDate = record.created_at
+              ? new Date(record.created_at).toLocaleDateString("en-US", {
+                  weekday: "long",
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                })
+              : new Date().toLocaleDateString()
+
+            return (
+              <div className="space-y-6">
+                {/* Company Header */}
+                <div className="border-b-2 border-gray-300 pb-4" style={{ breakInside: 'avoid' }}>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <Building2 className="w-6 h-6 text-blue-600" />
+                        <h2 className="text-2xl font-bold text-gray-900">HRMS Pro</h2>
+                      </div>
+                      <p className="text-sm text-gray-600">123 Business Park, Corporate Tower</p>
+                      <p className="text-sm text-gray-600">Mumbai, Maharashtra - 400001</p>
+                      <p className="text-sm text-gray-600">
+                        Phone: +91 22 1234 5678 | Email: hr@hrmspro.com
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-lg font-semibold text-gray-900">SALARY STATEMENT</p>
+                      <p className="text-sm text-gray-600 mt-1">
+                        For the month of {record.month || formatMonthDisplay(monthFilter)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Employee Details */}
+                <div className="grid grid-cols-2 gap-6 border-b border-gray-200 pb-4">
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                      <User className="w-4 h-4" />
+                      Employee Details
+                    </h3>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Employee Name:</span>
+                        <span className="font-medium">{employeeName}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Employee ID:</span>
+                        <span className="font-medium">{record.employee_id}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Department:</span>
+                        <span className="font-medium">{departmentName || "N/A"}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                      <CreditCard className="w-4 h-4" />
+                      Payment Details
+                    </h3>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Payment Date:</span>
+                        <span className="font-medium">{paymentDate}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Payment Month:</span>
+                        <span className="font-medium">
+                          {record.month || formatMonthDisplay(monthFilter)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Status:</span>
+                        <Badge className="bg-green-100 text-green-800">
+                          {record.status || "processed"}
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Salary Breakdown */}
+                <div className="grid grid-cols-2 gap-6">
+                  {/* Earnings */}
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b-2 border-green-500">
+                      Earnings
+                    </h3>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center py-2 border-b">
+                        <span className="text-gray-700">Basic Salary</span>
+                        <span className="font-semibold text-gray-900">
+                          {formatCurrencySafe(amounts.basic)}
+                        </span>
+                      </div>
+                      {amounts.hra > 0 && (
+                        <div className="flex justify-between items-center py-2 border-b">
+                          <span className="text-gray-700">House Rent Allowance (HRA)</span>
+                          <span className="font-semibold text-green-600">
+                            {formatCurrencySafe(amounts.hra)}
+                          </span>
+                        </div>
+                      )}
+                      {amounts.allowances - amounts.hra > 0 && (
+                        <div className="flex justify-between items-center py-2 border-b">
+                          <span className="text-gray-700">Other Allowances</span>
+                          <span className="font-semibold text-green-600">
+                            {formatCurrencySafe(amounts.allowances - amounts.hra)}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex justify-between items-center py-3 pt-4 border-t-2 border-gray-300">
+                        <span className="text-lg font-semibold text-gray-900">Total Earnings</span>
+                        <span className="text-xl font-bold text-green-600">
+                          {formatCurrencySafe(amounts.gross)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Deductions */}
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b-2 border-red-500">
+                      Deductions
+                    </h3>
+                    <div className="space-y-3">
+                      {amounts.pf > 0 && (
+                        <div className="flex justify-between items-center py-2 border-b">
+                          <span className="text-gray-700">Provident Fund (PF)</span>
+                          <span className="font-semibold text-red-600">
+                            {formatCurrencySafe(amounts.pf)}
+                          </span>
+                        </div>
+                      )}
+                      {amounts.professionalTax > 0 && (
+                        <div className="flex justify-between items-center py-2 border-b">
+                          <span className="text-gray-700">Professional Tax</span>
+                          <span className="font-semibold text-red-600">
+                            {formatCurrencySafe(amounts.professionalTax)}
+                          </span>
+                        </div>
+                      )}
+                      {amounts.incomeTax > 0 && (
+                        <div className="flex justify-between items-center py-2 border-b">
+                          <span className="text-gray-700">Income Tax (TDS)</span>
+                          <span className="font-semibold text-red-600">
+                            {formatCurrencySafe(amounts.incomeTax)}
+                          </span>
+                        </div>
+                      )}
+                      {amounts.esi > 0 && (
+                        <div className="flex justify-between items-center py-2 border-b">
+                          <span className="text-gray-700">Employee State Insurance (ESI)</span>
+                          <span className="font-semibold text-red-600">
+                            {formatCurrencySafe(amounts.esi)}
+                          </span>
+                        </div>
+                      )}
+                      {amounts.leaveDeduction > 0 && (
+                        <div className="flex justify-between items-center py-2 border-b">
+                          <span className="text-gray-700">Leave Deduction</span>
+                          <span className="font-semibold text-red-600">
+                            {formatCurrencySafe(amounts.leaveDeduction)}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex justify-between items-center py-3 pt-4 border-t-2 border-gray-300">
+                        <span className="text-lg font-semibold text-gray-900">Total Deductions</span>
+                        <span className="text-xl font-bold text-red-600">
+                          {formatCurrencySafe(amounts.totalDeductions)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Net Salary */}
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-lg border-2 border-blue-200">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p className="text-sm text-gray-600 mb-1">Net Salary Payable</p>
+                      <p className="text-3xl font-bold text-gray-900">
+                        {formatCurrencySafe(amounts.net)}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">Paid on {paymentDate}</p>
+                    </div>
+                    <div className="text-right">
+                      <div className="p-4 bg-white rounded-lg shadow-sm">
+                        <p className="text-xs text-gray-500 mb-1">In Words</p>
+                        <p className="text-sm font-semibold text-gray-700">
+                          Amount in words (system generated)
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div className="border-t border-gray-200 pt-4 text-center text-xs text-gray-500">
+                  <p>This is a system generated salary slip. No signature is required.</p>
+                  <p className="mt-1">
+                    For queries, please contact HR Department at hr@hrmspro.com
+                  </p>
+                  <p className="mt-2 text-gray-400">
+                    Generated on {new Date().toLocaleDateString()} at{" "}
+                    {new Date().toLocaleTimeString()}
+                  </p>
+                </div>
+              </div>
+            )
+          })()}
+        </DialogContent>
+      </Dialog>
 
       {/* Payroll processing review */}
       <Dialog open={showProcessDialog} onOpenChange={(open) => {
