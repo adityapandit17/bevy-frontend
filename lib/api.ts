@@ -20,10 +20,17 @@ const getToken = (): string | null => {
  * Automatically includes JWT token in Authorization header
  * NOTE: This function ALWAYS sends the token if available (except for login requests which use AuthService)
  */
+type ApiRequestOptions = RequestInit & {
+  /** Suppress toast notifications for this request (caller will handle errors) */
+  suppressToast?: boolean;
+}
+
 export const apiRequest = async <T>(
   url: string,
-  options: RequestInit = {}
+  options: ApiRequestOptions = {}
 ): Promise<T> => {
+  const { suppressToast, ...requestOptions } = options
+
   const defaultHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
@@ -39,10 +46,10 @@ export const apiRequest = async <T>(
   }
 
   const config: RequestInit = {
-    ...options,
+    ...requestOptions,
     headers: {
       ...defaultHeaders,
-      ...options.headers,
+      ...requestOptions.headers,
     },
   };
 
@@ -189,15 +196,17 @@ export const apiRequest = async <T>(
       }
 
       // Show toast notification for errors
-      toast({
-        title: "Error",
-        description: errorMessage,
-        variant: "destructive",
-      });
+      if (!suppressToast) {
+        toast({
+          title: "Error",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      }
 
       // Create error and mark it as having shown toast (to prevent duplicate logging)
       const error = new Error(errorMessage);
-      (error as any).toastShown = true;
+      (error as any).toastShown = !suppressToast;
       (error as any).statusCode = response.status;
       // Preserve error data for better error handling
       if (errorData.errors) {
@@ -234,20 +243,24 @@ export const apiRequest = async <T>(
       
       // Check if it's a network error
       if (error.message.includes('fetch') || error.message.includes('Network') || error instanceof TypeError) {
-        toast({
-          title: "Network Error",
-          description: "Unable to connect to the server. Please check your internet connection.",
-          variant: "destructive",
-        });
-        (error as any).toastShown = true;
+        if (!suppressToast) {
+          toast({
+            title: "Network Error",
+            description: "Unable to connect to the server. Please check your internet connection.",
+            variant: "destructive",
+          });
+        }
+        (error as any).toastShown = !suppressToast;
       } else {
         // Show generic error toast for unexpected errors
-        toast({
-          title: "Error",
-          description: error.message || "An unexpected error occurred. Please try again.",
-          variant: "destructive",
-        });
-        (error as any).toastShown = true;
+        if (!suppressToast) {
+          toast({
+            title: "Error",
+            description: error.message || "An unexpected error occurred. Please try again.",
+            variant: "destructive",
+          });
+        }
+        (error as any).toastShown = !suppressToast;
       }
     }
     

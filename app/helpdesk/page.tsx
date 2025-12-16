@@ -181,12 +181,56 @@ export default function HelpdeskPage() {
     fetchTickets()
     fetchSLAWorkflows()
     fetchKnowledgeArticles()
-    fetchStats()
   }, [])
 
   useEffect(() => {
     fetchTickets()
   }, [priorityFilter, statusFilter, categoryFilter, searchTerm])
+
+  // Keep stats in sync with loaded tickets and knowledge base
+  useEffect(() => {
+    if (tickets.length === 0 && knowledgeBase.length === 0) {
+      setStats({
+        open_tickets: 0,
+        in_progress_tickets: 0,
+        resolved_tickets: 0,
+        avg_response_time: "0h",
+        sla_compliance: 0,
+        knowledge_articles: 0,
+      })
+      return
+    }
+
+    const openTickets = tickets.filter((t) => t.status === "open").length
+    const inProgressTickets = tickets.filter((t) => t.status === "in-progress").length
+    const resolvedTickets = tickets.filter((t) => t.status === "resolved").length
+
+    // Approximate average response time from available SLA data (in hours)
+    const ticketsWithSla = tickets.filter((t) => typeof t.sla_hours === "number" && t.sla_hours! > 0)
+    const avgResponseTime =
+      ticketsWithSla.length > 0
+        ? `${Math.round(
+            ticketsWithSla.reduce((sum, t) => sum + (t.sla_hours || 0), 0) / ticketsWithSla.length
+          )}h`
+        : "N/A"
+
+    // SLA compliance based on SLA status
+    const ticketsWithSlaStatus = tickets.filter((t) => t.sla_status)
+    const onTrackCount = ticketsWithSlaStatus.filter((t) => t.sla_status === "on-track").length
+    const slaCompliance =
+      ticketsWithSlaStatus.length > 0
+        ? Math.round((onTrackCount / ticketsWithSlaStatus.length) * 100)
+        : 0
+
+    setStats({
+      open_tickets: openTickets,
+      in_progress_tickets: inProgressTickets,
+      resolved_tickets: resolvedTickets,
+      avg_response_time: avgResponseTime,
+      sla_compliance: slaCompliance,
+      knowledge_articles: knowledgeBase.length,
+    })
+  }, [tickets, knowledgeBase])
 
   const handleCreateTicket = () => {
     setShowCreateTicketDialog(true)
@@ -219,7 +263,6 @@ export default function HelpdeskPage() {
         channel: "portal"
       })
       fetchTickets()
-      fetchStats()
     } catch (err) {
       console.error('Error creating ticket:', err)
       alert("Failed to create ticket. Please try again.")
@@ -431,7 +474,8 @@ export default function HelpdeskPage() {
   const fetchSLAWorkflows = async () => {
     try {
       const data = await apiRequest<SLAWorkflow[]>(getEndpointUrl('SLA_WORKFLOWS'), {
-        method: "GET"
+        method: "GET",
+        suppressToast: true, // Non-blocking; silently fail and log
       })
       setSlaWorkflows(data)
     } catch (err) {
@@ -450,17 +494,6 @@ export default function HelpdeskPage() {
       setKnowledgeBase(data)
     } catch (err) {
       console.error('Error fetching knowledge articles:', err)
-    }
-  }
-
-  const fetchStats = async () => {
-    try {
-      const data = await apiRequest<Stats>(getEndpointUrl('HELPDESK_TICKETS_STATS'), {
-        method: "GET"
-      })
-      setStats(data)
-    } catch (err) {
-      console.error('Error fetching stats:', err)
     }
   }
 
