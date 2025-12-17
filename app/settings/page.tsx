@@ -398,7 +398,7 @@ export default function SettingsPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="address">Address</Label>
-                <Textarea id="address" value={safeCompany.address} onChange={e => handleChange("address", e.target.value)} rows={3} disabled={!edit} />
+                <Textarea id="address" value={safeCompany.address || ""} onChange={e => handleChange("address", e.target.value)} rows={3} disabled={!edit} />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
