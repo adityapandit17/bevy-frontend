@@ -113,7 +113,7 @@ interface AttendanceStat {
 }
 
 export default function AttendanceLeavePage() {
-  const { user, isAuthenticated } = useAuth()
+  const { user, isAuthenticated, checkPermission } = useAuth()
   const searchParams = useSearchParams()
   const [date, setDate] = useState<Date | undefined>(new Date())
   const [month, setMonth] = useState<number>(new Date().getMonth())
@@ -220,8 +220,17 @@ export default function AttendanceLeavePage() {
 
   const fetchEmployees = async () => {
     try {
-      const res = await apiRequest<Employee[]>(getEndpointUrl('EMPLOYEES'))
-      setEmployees(Array.isArray(res) ? res : [])
+      const res = await apiRequest<any>(`${getEndpointUrl('EMPLOYEES')}?per_page=1000`)
+      
+      // Handle both paginated response { data: [...], pagination: {...} } and direct array
+      let employeeList: Employee[] = []
+      if (Array.isArray(res)) {
+        employeeList = res
+      } else if (res?.data && Array.isArray(res.data)) {
+        employeeList = res.data
+      }
+      
+      setEmployees(employeeList)
     } catch (error) {
       console.error('Error fetching employees:', error)
       setEmployees([])
@@ -743,10 +752,12 @@ export default function AttendanceLeavePage() {
           <p className="text-gray-600">Track employee attendance and manage leave requests</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => setShowAttendanceModal(true)}>
-            <CalendarIcon className="w-4 h-4 mr-2" />
-            Mark Attendance
-          </Button>
+          {checkPermission('attendance_records.approve') && (
+            <Button variant="outline" size="sm" onClick={() => setShowAttendanceModal(true)}>
+              <CalendarIcon className="w-4 h-4 mr-2" />
+              Mark Attendance
+            </Button>
+          )}
           <Button size="sm" onClick={() => setShowLeaveForm(true)}>
             <Plus className="w-4 h-4 mr-2" />
             Apply Leave
@@ -878,37 +889,38 @@ export default function AttendanceLeavePage() {
             </TabsList>
 
             <TabsContent value="attendance" className="space-y-4">
-              <Card>
-                <CardHeader className="pb-4">
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                    <div>
-                      <CardTitle className="flex items-center gap-2 text-lg font-semibold">
-                        <CalendarCheck className="w-5 h-5" />
-                        Attendance for {date ? date.toLocaleDateString() : "-"}
-                      </CardTitle>
-                      <CardDescription className="text-sm text-gray-600">
-                        {date ? date.toLocaleDateString("en-IN", {
-                          weekday: "long",
-                          year: "numeric",
-                          month: "long",
-                          day: "numeric",
-                        }) : "Select a date to view attendance."}
-                      </CardDescription>
+              {checkPermission('attendance_records.index') ? (
+                <Card>
+                  <CardHeader className="pb-4">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                      <div>
+                        <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+                          <CalendarCheck className="w-5 h-5" />
+                          Attendance for {date ? date.toLocaleDateString() : "-"}
+                        </CardTitle>
+                        <CardDescription className="text-sm text-gray-600">
+                          {date ? date.toLocaleDateString("en-IN", {
+                            weekday: "long",
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                          }) : "Select a date to view attendance."}
+                        </CardDescription>
+                      </div>
+                      {user?.employee_id && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={fetchPreviousRecords}
+                          className="flex items-center gap-2"
+                        >
+                          <Eye className="w-4 h-4" />
+                          Previous Records
+                        </Button>
+                      )}
                     </div>
-                    {user?.employee_id && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={fetchPreviousRecords}
-                        className="flex items-center gap-2"
-                      >
-                        <Eye className="w-4 h-4" />
-                        Previous Records
-                      </Button>
-                    )}
-                  </div>
-                </CardHeader>
-                <CardContent>
+                  </CardHeader>
+                  <CardContent>
                   <div className="flex flex-col sm:flex-row gap-4 mb-6">
                     <div className="relative flex-1">
                       <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
@@ -1013,6 +1025,17 @@ export default function AttendanceLeavePage() {
                   </div>
                 </CardContent>
               </Card>
+              ) : (
+                <Card>
+                  <CardContent className="py-8">
+                    <div className="text-center text-gray-500">
+                      <AlertCircle className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+                      <p className="text-lg font-medium">Access Denied</p>
+                      <p className="text-sm mt-2">You don't have permission to view attendance records.</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </TabsContent>
 
             <TabsContent value="leave" className="space-y-6">
@@ -1257,12 +1280,13 @@ export default function AttendanceLeavePage() {
           mode="self"
         />
       )}
-      <Dialog open={showAttendanceModal} onOpenChange={(open) => {
-        setShowAttendanceModal(open)
-        if (!open) {
-          setAttendanceForm({ employee_id: "", status: "present", check_in: "", check_out: "" })
-        }
-      }}>
+      {checkPermission('attendance_records.approve') && (
+        <Dialog open={showAttendanceModal} onOpenChange={(open) => {
+          setShowAttendanceModal(open)
+          if (!open) {
+            setAttendanceForm({ employee_id: "", status: "present", check_in: "", check_out: "" })
+          }
+        }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
@@ -1292,9 +1316,15 @@ export default function AttendanceLeavePage() {
                   <SelectValue placeholder="Select employee" />
                 </SelectTrigger>
                 <SelectContent>
-                  {employees.map(emp => (
-                    <SelectItem key={emp.id} value={String(emp.id)}>{emp.first_name} {emp.last_name}</SelectItem>
-                  ))}
+                  {employees.length > 0 ? (
+                    employees.map(emp => (
+                      <SelectItem key={emp.id} value={String(emp.id)}>{emp.first_name} {emp.last_name}</SelectItem>
+                    ))
+                  ) : (
+                    <div className="p-2 text-sm text-gray-500 text-center">
+                      No employees available
+                    </div>
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -1329,6 +1359,7 @@ export default function AttendanceLeavePage() {
           </form>
         </DialogContent>
       </Dialog>
+      )}
 
       {/* Attendance Details Dialog */}
       <Dialog open={showAttendanceDetails} onOpenChange={setShowAttendanceDetails}>

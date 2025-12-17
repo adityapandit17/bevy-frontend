@@ -467,10 +467,12 @@ export default function AttendancePage() {
           <p className="text-gray-600">Track employee attendance and manage leave requests</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => setShowAttendanceModal(true)}>
-            <CalendarIcon className="w-4 h-4 mr-2" />
-            Mark Attendance
-          </Button>
+          {checkPermission('attendance_records.approve') && (
+            <Button variant="outline" size="sm" onClick={() => setShowAttendanceModal(true)}>
+              <CalendarIcon className="w-4 h-4 mr-2" />
+              Mark Attendance
+            </Button>
+          )}
           <Button size="sm" onClick={() => setShowLeaveForm(true)}>
             <Plus className="w-4 h-4 mr-2" />
             Apply Leave
@@ -665,13 +667,14 @@ export default function AttendancePage() {
           </div>
 
           {/* Attendance Table */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Attendance Records</CardTitle>
-              <CardDescription>Recent attendance records for all employees</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Table>
+          {checkPermission('attendance_records.index') ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Attendance Records</CardTitle>
+                <CardDescription>Recent attendance records for all employees</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Employee</TableHead>
@@ -721,6 +724,17 @@ export default function AttendancePage() {
               </Table>
             </CardContent>
           </Card>
+          ) : (
+            <Card>
+              <CardContent className="py-8">
+                <div className="text-center text-gray-500">
+                  <AlertCircle className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+                  <p className="text-lg font-medium">Access Denied</p>
+                  <p className="text-sm mt-2">You don't have permission to view attendance records.</p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         {/* Leave Requests Tab */}

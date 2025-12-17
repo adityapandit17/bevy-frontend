@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react"
 import { apiRequest, getApiUrl, getEndpointUrl } from "@/lib/api"
+import { useAuth } from "@/lib/auth/auth.hooks"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -67,6 +68,7 @@ interface AttendanceMarkingProps {
 }
 
 export function AttendanceMarking({ isOpen, onClose, onSuccess }: AttendanceMarkingProps) {
+  const { checkPermission } = useAuth()
   const [employees, setEmployees] = useState<Employee[]>([])
   const [selectedEmployee, setSelectedEmployee] = useState<string>("")
   const [attendanceDate, setAttendanceDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'))
@@ -76,6 +78,9 @@ export function AttendanceMarking({ isOpen, onClose, onSuccess }: AttendanceMark
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+
+  // Check if user has permission to mark attendance
+  const canMarkAttendance = checkPermission('attendance_records.approve')
 
   // Load employees on component mount
   useEffect(() => {
@@ -88,16 +93,37 @@ export function AttendanceMarking({ isOpen, onClose, onSuccess }: AttendanceMark
     try {
       // Use authenticated API helper and handle paginated response shape
       const url = `${getEndpointUrl('EMPLOYEES')}?per_page=1000`
-      const data = await apiRequest<{ data: Employee[] }>(url)
-      setEmployees(data?.data || [])
+      const data = await apiRequest<any>(url)
+      
+      // Handle both paginated response { data: [...], pagination: {...} } and direct array
+      let employeeList: Employee[] = []
+      if (Array.isArray(data)) {
+        employeeList = data
+      } else if (data?.data && Array.isArray(data.data)) {
+        employeeList = data.data
+      }
+      
+      setEmployees(employeeList)
+      
+      if (employeeList.length === 0) {
+        console.warn('No employees found')
+      }
     } catch (error) {
       console.error('Error fetching employees:', error)
       setError('Failed to load employees')
+      setEmployees([])
     }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // Check permission before submitting
+    if (!canMarkAttendance) {
+      setError('You do not have permission to mark attendance')
+      return
+    }
+    
     setLoading(true)
     setError(null)
     setSuccess(null)
@@ -167,6 +193,11 @@ export function AttendanceMarking({ isOpen, onClose, onSuccess }: AttendanceMark
     }
   }
 
+  // Don't render if user doesn't have permission
+  if (!canMarkAttendance) {
+    return null
+  }
+
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[500px]">
@@ -216,19 +247,28 @@ export function AttendanceMarking({ isOpen, onClose, onSuccess }: AttendanceMark
                 <SelectValue placeholder="Select employee" />
               </SelectTrigger>
               <SelectContent>
-                {employees.map((employee) => (
-                  <SelectItem key={employee.id} value={employee.id.toString()}>
-                    <div className="flex items-center gap-2">
-                      <User className="w-4 h-4" />
-                      <div>
-                        <p className="font-medium">{employee.first_name} {employee.last_name}</p>
-                        <p className="text-sm text-gray-500">{employee.email}</p>
+                {employees.length > 0 ? (
+                  employees.map((employee) => (
+                    <SelectItem key={employee.id} value={employee.id.toString()}>
+                      <div className="flex items-center gap-2">
+                        <User className="w-4 h-4" />
+                        <div>
+                          <p className="font-medium">{employee.first_name} {employee.last_name}</p>
+                          <p className="text-sm text-gray-500">{employee.email}</p>
+                        </div>
                       </div>
-                    </div>
-                  </SelectItem>
-                ))}
+                    </SelectItem>
+                  ))
+                ) : (
+                  <div className="p-2 text-sm text-gray-500 text-center">
+                    No employees available
+                  </div>
+                )}
               </SelectContent>
             </Select>
+            {employees.length === 0 && !error && (
+              <p className="text-xs text-gray-500">Loading employees...</p>
+            )}
           </div>
 
           {/* Date Selection */}
