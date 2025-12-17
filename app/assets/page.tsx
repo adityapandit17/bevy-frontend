@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react"
 import { getApiUrl, getEndpointUrl, apiRequest } from "@/lib/api"
+import { useAuth } from "@/lib/auth/auth.hooks"
 import { toast } from "@/hooks/use-toast"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -114,6 +115,17 @@ interface AssetAllocation {
 }
 
 export default function AssetsPage() {
+  const { checkPermission } = useAuth()
+
+  // Permission checks for assets and allocations/reporting
+  const canViewAssets = checkPermission("assets.index")
+  const canCreateAssets = checkPermission("assets.create")
+  const canUpdateAssets = checkPermission("assets.update")
+  const canViewAllocations = checkPermission("asset_allocations.index")
+  const canCreateAllocations = checkPermission("asset_allocations.create")
+  const canViewReports = checkPermission("reports.index")
+  const canExportReports = checkPermission("reports.export")
+
   const [assets, setAssets] = useState<Asset[]>([])
   const [allocations, setAllocations] = useState<AssetAllocation[]>([])
   const [maintenanceRecords, setMaintenanceRecords] = useState<any[]>([])
@@ -903,18 +915,24 @@ export default function AssetsPage() {
           <p className="text-gray-600">Track, allocate, and manage all company assets</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm">
-            <Download className="w-4 h-4 mr-2" />
-            Export
-          </Button>
-          <Button variant="outline" size="sm">
-            <Upload className="w-4 h-4 mr-2" />
-            Import
-          </Button>
-          <Button size="sm" onClick={() => setShowAddAsset(true)}>
-            <Plus className="w-4 h-4 mr-2" />
-            Add Asset
-          </Button>
+          {(canViewReports || canExportReports) && (
+            <Button variant="outline" size="sm">
+              <Download className="w-4 h-4 mr-2" />
+              Export
+            </Button>
+          )}
+          {canCreateAssets && (
+            <Button variant="outline" size="sm">
+              <Upload className="w-4 h-4 mr-2" />
+              Import
+            </Button>
+          )}
+          {canCreateAssets && (
+            <Button size="sm" onClick={() => setShowAddAsset(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Add Asset
+            </Button>
+          )}
         </div>
       </div>
 
@@ -1020,9 +1038,9 @@ export default function AssetsPage() {
       <Tabs defaultValue="inventory" className="space-y-6">
         <TabsList className="grid w-full grid-cols-4 lg:w-96">
           <TabsTrigger value="inventory">Inventory</TabsTrigger>
-          <TabsTrigger value="allocations">Allocations</TabsTrigger>
-          <TabsTrigger value="maintenance">Maintenance</TabsTrigger>
-          <TabsTrigger value="reports">Reports</TabsTrigger>
+          {canViewAllocations && <TabsTrigger value="allocations">Allocations</TabsTrigger>}
+          {canViewAssets && <TabsTrigger value="maintenance">Maintenance</TabsTrigger>}
+          {(canViewReports || canExportReports) && <TabsTrigger value="reports">Reports</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="inventory" className="space-y-6">
@@ -1152,51 +1170,65 @@ export default function AssetsPage() {
                               <span className="font-medium">₹{asset.currentValue.toLocaleString()}</span>
                             </TableCell>
                             <TableCell>
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="sm">
-                                    <MoreHorizontal className="w-4 h-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                  <DropdownMenuItem onClick={() => handleViewAsset(asset)}>
-                                    <Eye className="w-4 h-4 mr-2" />
-                                    View Details
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => handleOpenEditAsset(asset)}>
-                                    <Edit className="w-4 h-4 mr-2" />
-                                    Edit Asset
-                                  </DropdownMenuItem>
-                                  {asset.assignedTo ? (
-                                    <DropdownMenuItem onClick={() => handleUnassignAsset(asset)}>
-                                      <UserMinus className="w-4 h-4 mr-2" />
-                                      Unassign
-                                    </DropdownMenuItem>
-                                  ) : (
-                                    <DropdownMenuItem onClick={() => handleOpenAllocate(asset)}>
-                                      <User className="w-4 h-4 mr-2" />
-                                      Allocate
-                                    </DropdownMenuItem>
-                                  )}
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem onClick={() => handleOpenMaintenance(asset)}>
-                                    <Wrench className="w-4 h-4 mr-2" />
-                                    Schedule Maintenance
-                                  </DropdownMenuItem>
-                                  {asset.status === "available" ? (
-                                    <DropdownMenuItem className="text-red-600" onClick={() => setRetiringAsset(asset)}>
-                                      <Trash2 className="w-4 h-4 mr-2" />
-                                      Retire Asset
-                                    </DropdownMenuItem>
-                                  ) : asset.status !== "assigned" ? (
-                                    <DropdownMenuItem onClick={() => setRetiringAsset(asset)}>
-                                      <CheckCircle className="w-4 h-4 mr-2" />
-                                      Available
-                                    </DropdownMenuItem>
-                                  ) : null}
-                                </DropdownMenuContent>
-                              </DropdownMenu>
+                              {(canViewAssets || canUpdateAssets || canCreateAllocations) && (
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="sm">
+                                      <MoreHorizontal className="w-4 h-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                    {canViewAssets && (
+                                      <DropdownMenuItem onClick={() => handleViewAsset(asset)}>
+                                        <Eye className="w-4 h-4 mr-2" />
+                                        View Details
+                                      </DropdownMenuItem>
+                                    )}
+                                    {canUpdateAssets && (
+                                      <DropdownMenuItem onClick={() => handleOpenEditAsset(asset)}>
+                                        <Edit className="w-4 h-4 mr-2" />
+                                        Edit Asset
+                                      </DropdownMenuItem>
+                                    )}
+                                    {canCreateAllocations && (
+                                      <>
+                                        {asset.assignedTo ? (
+                                          <DropdownMenuItem onClick={() => handleUnassignAsset(asset)}>
+                                            <UserMinus className="w-4 h-4 mr-2" />
+                                            Unassign
+                                          </DropdownMenuItem>
+                                        ) : (
+                                          <DropdownMenuItem onClick={() => handleOpenAllocate(asset)}>
+                                            <User className="w-4 h-4 mr-2" />
+                                            Allocate
+                                          </DropdownMenuItem>
+                                        )}
+                                      </>
+                                    )}
+                                    {canUpdateAssets && (
+                                      <>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem onClick={() => handleOpenMaintenance(asset)}>
+                                          <Wrench className="w-4 h-4 mr-2" />
+                                          Schedule Maintenance
+                                        </DropdownMenuItem>
+                                        {asset.status === "available" ? (
+                                          <DropdownMenuItem className="text-red-600" onClick={() => setRetiringAsset(asset)}>
+                                            <Trash2 className="w-4 h-4 mr-2" />
+                                            Retire Asset
+                                          </DropdownMenuItem>
+                                        ) : asset.status !== "assigned" ? (
+                                          <DropdownMenuItem onClick={() => setRetiringAsset(asset)}>
+                                            <CheckCircle className="w-4 h-4 mr-2" />
+                                            Available
+                                          </DropdownMenuItem>
+                                        ) : null}
+                                      </>
+                                    )}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              )}
                             </TableCell>
                           </TableRow>
                         )
@@ -1209,6 +1241,7 @@ export default function AssetsPage() {
           </Card>
         </TabsContent>
 
+        {canViewAllocations && (
         <TabsContent value="allocations" className="space-y-6">
           <Card>
             <CardHeader>
@@ -1261,7 +1294,9 @@ export default function AssetsPage() {
             </CardContent>
           </Card>
         </TabsContent>
+        )}
 
+        {canViewAssets && (
         <TabsContent value="maintenance" className="space-y-6">
           <Card>
             <CardHeader>
@@ -1361,7 +1396,9 @@ export default function AssetsPage() {
             </CardContent>
           </Card>
         </TabsContent>
+        )}
 
+        {(canViewReports || canExportReports) && (
         <TabsContent value="reports" className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card>
@@ -1417,6 +1454,7 @@ export default function AssetsPage() {
             </Card>
           </div>
         </TabsContent>
+        )}
       </Tabs>
 
       {/* Asset Details Dialog */}

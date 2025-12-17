@@ -20,6 +20,7 @@ import { EmployeeForm } from "@/components/forms/employee-form"
 import { useRouter } from "next/navigation"
 import { getEndpointUrl, getApiUrl, apiRequest } from "@/lib/api"
 import { ResourceGuard } from "@/lib/auth/auth.guards"
+import { useAuth } from "@/lib/auth/auth.hooks"
 import {
   Pagination,
   PaginationContent,
@@ -74,6 +75,21 @@ export default function EmployeesPage() {
   const [totalCount, setTotalCount] = useState(0)
   const [totalPages, setTotalPages] = useState(0)
   const router = useRouter()
+  const { checkPermission, checkRole } = useAuth()
+
+  // Permission checks
+  const canCreate = checkPermission("employees.create")
+  const canUpdate = checkPermission("employees.update")
+  const canDestroy = checkPermission("employees.destroy")
+  const canShow = checkPermission("employees.show")
+  const canViewPayroll = checkPermission("payrolls.show") || checkPermission("payrolls.index")
+
+  // Role checks
+  const isEmployeeOnly = checkRole("Employee")
+
+  // If user has no actions at all, hide the Actions menu button
+  const hasAnyEmployeeActions =
+    canUpdate || canShow || canViewPayroll || canDestroy
 
   // Fetch departments on mount
   useEffect(() => {
@@ -221,32 +237,62 @@ export default function EmployeesPage() {
         </div>
         <div className="flex flex-col gap-2">
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => router.push('/onboarding')} className="border-green-200 text-green-700 hover:bg-green-50">
-              <UserPlus className="w-4 h-4 mr-2" />
-              Onboarding
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => router.push('/offboarding')} className="border-red-200 text-red-700 hover:bg-red-50">
-              <UserMinus className="w-4 h-4 mr-2" />
-              Offboarding
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => router.push('/team-assignment')} className="border-blue-200 text-blue-700 hover:bg-blue-50">
-              <UserCheck className="w-4 h-4 mr-2" />
-              Team Management
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => router.push('/org-chart')} className="border-purple-200 text-purple-700 hover:bg-purple-50">
-              <Network className="w-4 h-4 mr-2" />
-              Org Chart
-            </Button>
-            <Button variant="outline" size="sm">
-              <Download className="w-4 h-4 mr-2" />
-              Export
-            </Button>
-            <Button size="sm" onClick={() => setShowForm(true)}>
-              <Plus className="w-4 h-4 mr-2" />
-              Add Employee
-            </Button>
+            {!isEmployeeOnly && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => router.push('/onboarding')}
+                  className="border-green-200 text-green-700 hover:bg-green-50"
+                >
+                  <UserPlus className="w-4 h-4 mr-2" />
+                  Onboarding
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => router.push('/offboarding')}
+                  className="border-red-200 text-red-700 hover:bg-red-50"
+                >
+                  <UserMinus className="w-4 h-4 mr-2" />
+                  Offboarding
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => router.push('/team-assignment')}
+                  className="border-blue-200 text-blue-700 hover:bg-blue-50"
+                >
+                  <UserCheck className="w-4 h-4 mr-2" />
+                  Team Management
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => router.push('/org-chart')}
+                  className="border-purple-200 text-purple-700 hover:bg-purple-50"
+                >
+                  <Network className="w-4 h-4 mr-2" />
+                  Org Chart
+                </Button>
+                <Button variant="outline" size="sm">
+                  <Download className="w-4 h-4 mr-2" />
+                  Export
+                </Button>
+              </>
+            )}
+            {canCreate && (
+              <Button size="sm" onClick={() => setShowForm(true)}>
+                <Plus className="w-4 h-4 mr-2" />
+                Add Employee
+              </Button>
+            )}
           </div>
-          <p className="text-xs text-gray-500">Manage new employee onboarding process and checklists</p>
+          {!isEmployeeOnly && (
+            <p className="text-xs text-gray-500">
+              Manage new employee onboarding process and checklists
+            </p>
+          )}
         </div>
       </div>
 
@@ -390,26 +436,53 @@ export default function EmployeesPage() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm">
-                            <MoreHorizontal className="w-4 h-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                          <DropdownMenuItem onClick={() => handleEditEmployee(employee)}>Edit Details</DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => router.push(`/employees/${employee.id}`)}>View Profile</DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => router.push(`/employees/${employee.id}/payroll`)}>View Payroll</DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onClick={() => handleToggleEmployeeStatus(employee)}
-                            className={employee.status === "active" ? "text-red-600" : "text-green-600"}
-                          >
-                            {employee.status === "active" ? "Deactivate" : "Activate"}
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      {hasAnyEmployeeActions && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm">
+                              <MoreHorizontal className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            {canUpdate && (
+                              <DropdownMenuItem onClick={() => handleEditEmployee(employee)}>Edit Details</DropdownMenuItem>
+                            )}
+                            {canShow && (
+                              <DropdownMenuItem onClick={() => router.push(`/employees/${employee.id}`)}>
+                                View Profile
+                              </DropdownMenuItem>
+                            )}
+                            {canViewPayroll && (
+                              <DropdownMenuItem onClick={() => router.push(`/employees/${employee.id}/payroll`)}>
+                                View Payroll
+                              </DropdownMenuItem>
+                            )}
+                            {canUpdate && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onClick={() => handleToggleEmployeeStatus(employee)}
+                                  className={employee.status === "active" ? "text-red-600" : "text-green-600"}
+                                >
+                                  {employee.status === "active" ? "Deactivate" : "Activate"}
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                            {canDestroy && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onClick={() => handleToggleEmployeeStatus(employee)}
+                                  className="text-red-600"
+                                >
+                                  Delete Employee
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
                     </TableCell>
                   </TableRow>
                   ))

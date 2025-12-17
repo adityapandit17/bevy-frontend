@@ -39,37 +39,130 @@ export function useAuth() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    try {
-      const token = localStorage.getItem(AUTH_CONFIG.tokenKey);
-      const userData = localStorage.getItem(AUTH_CONFIG.userKey);
+    const bootstrapAuthState = async () => {
+      try {
+        const token = localStorage.getItem(AUTH_CONFIG.tokenKey);
+        const userData = localStorage.getItem(AUTH_CONFIG.userKey);
 
-      if (token && userData) {
-        const user = JSON.parse(userData);
-        
-        // Transform roles from strings to objects if needed
-        const transformedRoles = (user.roles || []).map((r: any) => 
-          typeof r === 'string' ? { id: 0, name: r, description: '' } : r
-        );
-        
-        setState(prev => ({
-          ...prev,
-          user,
-          roles: transformedRoles,
-          permissions: user.permissions || [],
-          token,
-          isAuthenticated: true,
-          isLoading: false,
-          lastActivity: Date.now(),
-        }));
-      } else {
+        if (!token) {
+          // No token → definitely logged out
+          setState(prev => ({ ...prev, isLoading: false }));
+          return;
+        }
+
+        if (userData) {
+          // Start from whatever we have in localStorage so UI can render quickly
+          const storedUser = JSON.parse(userData);
+
+          // Transform roles from strings to objects if needed
+          const transformedRolesFromStorage = (storedUser.roles || []).map((r: any) =>
+            typeof r === 'string' ? { id: 0, name: r, description: '' } : r
+          );
+
+          setState(prev => ({
+            ...prev,
+            user: storedUser,
+            roles: transformedRolesFromStorage,
+            permissions: storedUser.permissions || [],
+            token,
+            isAuthenticated: true,
+            isLoading: false,
+            lastActivity: Date.now(),
+          }));
+        } else {
+          // We have a token but no cached user – still mark as loading while we fetch
+          setState(prev => ({ ...prev, isLoading: true, token }));
+        }
+
+        // Try to fetch the latest user data from the API so that
+        // any role/permission changes made after login are respected.
+        try {
+          const currentUser = await authService.current.getCurrentUser();
+
+          // Normalize roles & permissions from API
+          const transformedRoles = (currentUser.roles || []).map((r: any) =>
+            typeof r === 'string' ? { id: 0, name: r, description: '' } : r
+          );
+
+          const transformedPermissions =
+            currentUser.permissions?.map((p: any) =>
+              typeof p === 'string' ? { id: 0, name: p, display_name: p } : p
+            ) || [];
+
+          // Persist fresh user back to localStorage so subsequent loads are correct
+          authService.current.storeAuthData({
+            user: {
+              ...currentUser,
+              roles: transformedRoles,
+              permissions: transformedPermissions,
+            },
+            token,
+            roles: transformedRoles,
+            permissions: transformedPermissions,
+          });
+
+          setState(prev => ({
+            ...prev,
+            user: {
+              ...currentUser,
+              roles: transformedRoles,
+              permissions: transformedPermissions,
+            },
+            roles: transformedRoles,
+            permissions: transformedPermissions,
+            token,
+            isAuthenticated: true,
+            isLoading: false,
+            lastActivity: Date.now(),
+          }));
+        } catch (fetchError: any) {
+          // If token is invalid/expired, clear auth; otherwise just stop loading.
+          console.error('Failed to refresh current user data:', fetchError);
+
+          const status = (fetchError && fetchError.status) || (fetchError && fetchError.statusCode);
+          if (status === 401) {
+            localStorage.removeItem(AUTH_CONFIG.tokenKey);
+            localStorage.removeItem(AUTH_CONFIG.userKey);
+            setState(prev => ({
+              ...prev,
+              user: null,
+              roles: [],
+              permissions: [],
+              token: null,
+              isAuthenticated: false,
+              isLoading: false,
+              lastActivity: 0,
+            }));
+          } else {
+            setState(prev => ({
+              ...prev,
+              isLoading: false,
+            }));
+          }
+        }
+      } catch (error) {
+        // If parsing fails, clear and set to logged out state
+        localStorage.removeItem(AUTH_CONFIG.tokenKey);
+        localStorage.removeItem(AUTH_CONFIG.userKey);
         setState(prev => ({ ...prev, isLoading: false }));
       }
-    } catch (error) {
-      // If parsing fails, clear and set to logged out state
+    };
+
+    bootstrapAuthState().catch((err) => {
+      console.error('Auth bootstrap failed:', err);
       localStorage.removeItem(AUTH_CONFIG.tokenKey);
       localStorage.removeItem(AUTH_CONFIG.userKey);
-      setState(prev => ({ ...prev, isLoading: false }));
-    }
+      setState(prev => ({
+        ...prev,
+        user: null,
+        roles: [],
+        permissions: [],
+        token: null,
+        isAuthenticated: false,
+        isLoading: false,
+        lastActivity: 0,
+      }));
+    });
   }, []);
 
   // Cross-tab synchronization
@@ -203,7 +296,32 @@ export function useAuth() {
   }, []);
 
   const checkPermission = useCallback((permission: string): boolean => {
-    return state.permissions.some(p => p.name === permission);
+    if (!permission) return false;
+
+    // Normalize requested permission to dot format for comparison
+    const requested = permission.replace(':', '.');
+
+    const hasPermission = state.permissions.some((p: any) => {
+      const name = typeof p === 'string' ? p : p?.name;
+      if (!name) return false;
+
+      // Support both "resource.action" and "resource:action" formats
+      const normalized = name.replace(':', '.');
+      return normalized === requested;
+    });
+
+    if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+      // Debug logging to trace permission checks in dev
+      console.debug('[checkPermission]', {
+        requested,
+        permissions: state.permissions.map((p: any) =>
+          typeof p === 'string' ? p : p?.name || ''
+        ),
+        result: hasPermission,
+      });
+    }
+
+    return hasPermission;
   }, [state.permissions]);
 
   const checkRole = useCallback((role: string): boolean => {

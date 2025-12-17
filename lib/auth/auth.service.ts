@@ -30,6 +30,7 @@ export class AuthService {
   ): Promise<T> {
     const defaultHeaders: Record<string, string> = {
       'Content-Type': 'application/json',
+      'Accept': 'application/json',
     };
 
     // Only add token if skipToken is false (for login requests, skipToken should be true)
@@ -181,14 +182,23 @@ export class AuthService {
   public async getCurrentUser(): Promise<User> {
     const response = await this.makeRequest<{
       success: boolean;
-      data: User;
+      data: { user: User } | User;
     }>(API_ENDPOINTS.ME);
 
-    if (!response.success) {
+    if (!response || !response.success) {
       throw new AuthServiceError('Failed to get user data');
     }
 
-    return response.data;
+    // Support both { data: user } and { data: { user } } response shapes
+    const data: any = response.data;
+    const user: User | undefined =
+      (data && (data as any).user) ? (data as any).user : (data as User | undefined);
+
+    if (!user) {
+      throw new AuthServiceError('Invalid user data in response');
+    }
+
+    return user;
   }
 
   public async verifyToken(): Promise<boolean> {
