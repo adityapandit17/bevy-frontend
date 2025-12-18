@@ -82,7 +82,7 @@ const navItems: NavItem[] = [
     href: "/leave-management",
     icon: CalendarCheck,
     segment: "leave-management",
-    resourceKeys: ["leave_requests"],
+    resourceKeys: ["leave_management"],
   },
   {
     title: "Reports",
@@ -129,10 +129,6 @@ export function TopNav() {
 
   const canSee = (item: NavItem): boolean => {    
     if (item.segment === "dashboard") {
-      return true
-    }
-    
-    if (roleNames.has("Super Admin")) {
       return true
     }
     

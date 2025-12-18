@@ -1,6 +1,7 @@
 "use client"
 
-import type * as React from "react"
+import * as React from "react"
+import { useMemo } from "react"
 import {
   LayoutDashboard,
   Users,
@@ -167,7 +168,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { setOpenMobile } = useSidebar()
   const { permissions, roles } = useAuthContext()
 
-  const userResources = React.useMemo(() => {
+  const userResources = useMemo(() => {
     const set = new Set<string>()
     for (const p of permissions || []) {
       // Handle both string permissions and object permissions
@@ -181,7 +182,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     return set
   }, [permissions])
 
-  const roleNames = React.useMemo(() => {
+  const roleNames = useMemo(() => {
     const roleSet = new Set((roles || []).map(r => r.name))
     return roleSet
   }, [roles])
@@ -189,10 +190,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const canSee = (item: NavItem): boolean => {
 
     if (item.segment === "dashboard") {
-      return true
-    }
-
-    if (roleNames.has("Super Admin")) {
       return true
     }
 
