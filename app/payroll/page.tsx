@@ -37,6 +37,7 @@ import {
 } from "lucide-react"
 import { SalaryStructureForm } from "@/components/forms/salary-structure-form"
 import { ResourceGuard } from "@/lib/auth/auth.guards"
+import { useAuth } from "@/lib/auth/auth.hooks"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { format } from "date-fns"
@@ -76,6 +77,14 @@ export default function PayrollPage() {
   const [calculationBreakdown, setCalculationBreakdown] = useState<any>(null)
   const [loadingBreakdown, setLoadingBreakdown] = useState(false)
   const [selectedPayslip, setSelectedPayslip] = useState<any | null>(null)
+  const { checkPermission } = useAuth()
+
+  // Payroll permissions
+  const canPayrollIndex = checkPermission("payrolls.index")
+  const canPayrollCreate = checkPermission("payrolls.create")
+  const canPayrollUpdate = checkPermission("payrolls.update")
+  const canPayrollDestroy = checkPermission("payrolls.destroy")
+  const canPayrollShow = checkPermission("payrolls.show")
   
   // Parse month filter (e.g., "october-2024") to get year and month
   const parseMonthFilter = (filter: string) => {
@@ -1273,10 +1282,12 @@ export default function PayrollPage() {
             <Download className="w-4 h-4 mr-2" />
             Export Payroll
           </Button>
+          {canPayrollCreate && (
             <Button size="sm" onClick={handleOpenProcessDialog}>
-            <Calculator className="w-4 h-4 mr-2" />
+              <Calculator className="w-4 h-4 mr-2" />
               Process Payroll
-          </Button>
+            </Button>
+          )}
         </div>
       </div>
 
@@ -1303,11 +1314,12 @@ export default function PayrollPage() {
       {/* Tabs for Payroll Records and Salary Structures */}
       <Tabs defaultValue="records" className="space-y-6">
         <TabsList className="grid w-full grid-cols-2 lg:w-96">
-          <TabsTrigger value="records">Payroll Records</TabsTrigger>
-          <TabsTrigger value="structures">Salary Structures</TabsTrigger>
+          {canPayrollIndex && <TabsTrigger value="records">Payroll Records</TabsTrigger>}
+          {canPayrollIndex && <TabsTrigger value="structures">Salary Structures</TabsTrigger>}
         </TabsList>
 
-        <TabsContent value="records" className="space-y-6">
+        {canPayrollIndex && (
+          <TabsContent value="records" className="space-y-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -1392,13 +1404,15 @@ export default function PayrollPage() {
                       <TableHead>Deductions</TableHead>
                       <TableHead>Net Salary</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead className="w-12"></TableHead>
+                      {(canPayrollShow || canPayrollUpdate || canPayrollCreate) && (
+                        <TableHead className="w-12"></TableHead>
+                      )}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {paginatedPayrollRecords.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={7} className="text-center text-gray-500 py-8">
+                        <TableCell colSpan={(canPayrollShow || canPayrollUpdate || canPayrollCreate) ? 7 : 6} className="text-center text-gray-500 py-8">
                           No payroll records found.
                         </TableCell>
                       </TableRow>
@@ -1527,27 +1541,41 @@ export default function PayrollPage() {
                               <Badge className={getStatusColor(status)}>{status}</Badge>
                             </TableCell>
                             <TableCell>
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="sm">
-                                    <MoreHorizontal className="w-4 h-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                  <DropdownMenuItem onClick={() => handleViewCalculation(record.id)}>
-                                    <Calculator className="w-4 h-4 mr-2" />
-                                    View Calculation
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={handleViewPayslip}>View Payslip</DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => handleEditSalaryForEmployee(record.employee_id)}>
-                                    Edit Salary
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={handleDownloadPayslipPdf}>Download PDF</DropdownMenuItem>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem onClick={handleReprocessPayment}>Reprocess Payment</DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
+                              {(canPayrollShow || canPayrollUpdate || canPayrollCreate) && (
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="sm">
+                                      <MoreHorizontal className="w-4 h-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                    {canPayrollShow && (
+                                      <DropdownMenuItem onClick={() => handleViewCalculation(record.id)}>
+                                        <Calculator className="w-4 h-4 mr-2" />
+                                        View Calculation
+                                      </DropdownMenuItem>
+                                    )}
+                                    {canPayrollShow && (
+                                      <DropdownMenuItem onClick={handleViewPayslip}>View Payslip</DropdownMenuItem>
+                                    )}
+                                    {canPayrollUpdate && (
+                                      <DropdownMenuItem onClick={() => handleEditSalaryForEmployee(record.employee_id)}>
+                                        Edit Salary
+                                      </DropdownMenuItem>
+                                    )}
+                                    {canPayrollShow && (
+                                      <DropdownMenuItem onClick={handleDownloadPayslipPdf}>Download PDF</DropdownMenuItem>
+                                    )}
+                                    {canPayrollCreate && (
+                                      <>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem onClick={handleReprocessPayment}>Reprocess Payment</DropdownMenuItem>
+                                      </>
+                                    )}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              )}
                             </TableCell>
                           </TableRow>
                         )
@@ -1634,8 +1662,10 @@ export default function PayrollPage() {
             </CardContent>
           </Card>
         </TabsContent>
+        )}
 
-        <TabsContent value="structures" className="space-y-6">
+        {canPayrollIndex && (
+          <TabsContent value="structures" className="space-y-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -1685,25 +1715,31 @@ export default function PayrollPage() {
                               <Badge variant="outline" className="text-sm">
                                 Net: {formatCurrency(net)}
                               </Badge>
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-8 w-8">
-                                    <MoreHorizontal className="w-4 h-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                  <DropdownMenuItem onClick={() => handleEditSalaryStructure(structure)}>
-                                    Edit structure
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    className="text-red-600 focus:text-red-600"
-                                    onClick={() => handleDeleteSalaryStructure(structure.id)}
-                                  >
-                                    Delete structure
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
+                              {(canPayrollUpdate || canPayrollDestroy) && (
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                                      <MoreHorizontal className="w-4 h-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                    {canPayrollUpdate && (
+                                      <DropdownMenuItem onClick={() => handleEditSalaryStructure(structure)}>
+                                        Edit structure
+                                      </DropdownMenuItem>
+                                    )}
+                                    {canPayrollDestroy && (
+                                      <DropdownMenuItem
+                                        className="text-red-600 focus:text-red-600"
+                                        onClick={() => handleDeleteSalaryStructure(structure.id)}
+                                      >
+                                        Delete structure
+                                      </DropdownMenuItem>
+                                    )}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              )}
                             </div>
                           </div>
 
@@ -1742,18 +1778,21 @@ export default function PayrollPage() {
                 )}
               </div>
 
-              <div className="mt-6">
-                <Button onClick={() => {
-                  setEditingStructure(null)
-                  setShowForm(true)
-                }}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add New Structure
-                </Button>
-              </div>
+              {canPayrollCreate && (
+                <div className="mt-6">
+                  <Button onClick={() => {
+                    setEditingStructure(null)
+                    setShowForm(true)
+                  }}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add New Structure
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
+        )}
       </Tabs>
       {showForm && (
         <SalaryStructureForm
