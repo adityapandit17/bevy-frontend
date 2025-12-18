@@ -192,11 +192,19 @@ export default function PayrollPage() {
   const fetchPayrollRecords = async () => {
     setLoading(true)
     try {
-      const data = await apiRequest(getEndpointUrl('PAYROLLS'))
+      const data = await apiRequest(getEndpointUrl('PAYROLLS'), { suppressToast: true })
       // Ensure data is an array
       setPayrollRecords(Array.isArray(data) ? data : [])
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error fetching payroll records:", err)
+      // Only surface non-permission errors to the user
+      if (err && err.statusCode !== 403 && !err.toastShown) {
+        toast({
+          title: "Error",
+          description: err.message || "Failed to fetch payroll records",
+          variant: "destructive",
+        })
+      }
       setPayrollRecords([])
     } finally {
       setLoading(false)
@@ -206,11 +214,18 @@ export default function PayrollPage() {
   const fetchSalaryStructures = async () => {
     setLoading(true)
     try {
-      const data = await apiRequest(getEndpointUrl('SALARY_STRUCTURES'))
+      const data = await apiRequest(getEndpointUrl('SALARY_STRUCTURES'), { suppressToast: true })
       // Ensure data is an array
       setSalaryStructures(Array.isArray(data) ? data : [])
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error fetching salary structures:", err)
+      if (err && err.statusCode !== 403 && !err.toastShown) {
+        toast({
+          title: "Error",
+          description: err.message || "Failed to fetch salary structures",
+          variant: "destructive",
+        })
+      }
       setSalaryStructures([])
     } finally {
       setLoading(false)
@@ -219,21 +234,35 @@ export default function PayrollPage() {
 
   const fetchEmployees = async () => {
     try {
-      const data = await apiRequest(`${getEndpointUrl('EMPLOYEES')}?per_page=500`)
+      const data = await apiRequest(`${getEndpointUrl('EMPLOYEES')}?per_page=500`, { suppressToast: true })
       const list = Array.isArray(data) ? data : Array.isArray((data as any)?.data) ? (data as any).data : []
       setEmployees(list)
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error fetching employees:", err)
+      if (err && err.statusCode !== 403 && !err.toastShown) {
+        toast({
+          title: "Error",
+          description: err.message || "Failed to fetch employees",
+          variant: "destructive",
+        })
+      }
       setEmployees([])
     }
   }
 
   const fetchDepartments = async () => {
     try {
-      const data = await apiRequest(getEndpointUrl('DEPARTMENTS'))
+      const data = await apiRequest(getEndpointUrl('DEPARTMENTS'), { suppressToast: true })
       setDepartments(Array.isArray(data) ? data : [])
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error fetching departments:", err)
+      if (err && err.statusCode !== 403 && !err.toastShown) {
+        toast({
+          title: "Error",
+          description: err.message || "Failed to fetch departments",
+          variant: "destructive",
+        })
+      }
       setDepartments([])
     }
   }

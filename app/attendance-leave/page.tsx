@@ -166,10 +166,17 @@ export default function AttendanceLeavePage() {
   const fetchAttendance = async () => {
     setLoading(true)
     try {
-      const res = await apiRequest<AttendanceRecord[]>(getEndpointUrl('ATTENDANCE_RECORDS'))
+      const res = await apiRequest<AttendanceRecord[]>(getEndpointUrl('ATTENDANCE_RECORDS'), { suppressToast: true })
       setTodayAttendance(Array.isArray(res) ? res : [])
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching attendance:', error)
+      if (error?.statusCode !== 403 && !error?.toastShown) {
+        toast({
+          title: "Error",
+          description: error.message || "Failed to fetch attendance records",
+          variant: "destructive",
+        })
+      }
       setTodayAttendance([])
     } finally {
       setLoading(false)
@@ -186,7 +193,7 @@ export default function AttendanceLeavePage() {
         params.append('status', 'pending')
         url += `?${params.toString()}`
       }
-      const res = await apiRequest<any[]>(url)
+      const res = await apiRequest<any[]>(url, { suppressToast: true })
       // Map backend response to frontend format, preserving both formats for compatibility
       const mappedRequests = Array.isArray(res) ? res.map((item) => {
         const mapped = mapLeaveRequestFromBackend(item)
@@ -210,8 +217,15 @@ export default function AttendanceLeavePage() {
       if (managerPending) {
         setLeaveStatusFilter('pending')
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching leave requests:', error)
+      if (error?.statusCode !== 403 && !error?.toastShown) {
+        toast({
+          title: "Error",
+          description: error.message || "Failed to fetch leave requests",
+          variant: "destructive",
+        })
+      }
       setLeaveRequests([])
     } finally {
       setLoading(false)
@@ -220,7 +234,7 @@ export default function AttendanceLeavePage() {
 
   const fetchEmployees = async () => {
     try {
-      const res = await apiRequest<any>(`${getEndpointUrl('EMPLOYEES')}?per_page=1000`)
+      const res = await apiRequest<any>(`${getEndpointUrl('EMPLOYEES')}?per_page=1000`, { suppressToast: true })
       
       // Handle both paginated response { data: [...], pagination: {...} } and direct array
       let employeeList: Employee[] = []
@@ -231,18 +245,32 @@ export default function AttendanceLeavePage() {
       }
       
       setEmployees(employeeList)
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching employees:', error)
+      if (error?.statusCode !== 403 && !error?.toastShown) {
+        toast({
+          title: "Error",
+          description: error.message || "Failed to fetch employees",
+          variant: "destructive",
+        })
+      }
       setEmployees([])
     }
   }
 
   const fetchDepartments = async () => {
     try {
-      const res = await apiRequest<Department[]>(getEndpointUrl('DEPARTMENTS'))
+      const res = await apiRequest<Department[]>(getEndpointUrl('DEPARTMENTS'), { suppressToast: true })
       setDepartments(Array.isArray(res) ? res : [])
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching departments:', error)
+      if (error?.statusCode !== 403 && !error?.toastShown) {
+        toast({
+          title: "Error",
+          description: error.message || "Failed to fetch departments",
+          variant: "destructive",
+        })
+      }
       setDepartments([])
     }
   }
