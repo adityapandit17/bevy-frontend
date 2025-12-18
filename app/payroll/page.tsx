@@ -477,6 +477,8 @@ export default function PayrollPage() {
           esi: Number(formData.esi || 0),
           professional_tax: Number(formData.professionalTax || 0),
           income_tax: Number(formData.incomeTax || 0),
+          annual_ctc: Number(formData.annualCtc || 0),
+          monthly_ctc: Number(formData.monthlyCtc || 0),
           effective_from: formData.effective_from,
           effective_upto: formData.effective_upto || null,
         }
@@ -651,6 +653,10 @@ export default function PayrollPage() {
     const professionalTax = toMonthly(structure?.professional_tax ?? 0)
     const incomeTax = toMonthly(structure?.income_tax ?? 0)
     const leaveDeduction = amounts.deductions || 0
+
+    // Get CTC from structure (annual, convert to monthly)
+    const annualCtc = structure?.annual_ctc ?? 0
+    const monthlyCtc = structure?.monthly_ctc ?? 0
 
     // Calculate total deductions
     const totalDeductions = pf + esi + professionalTax + incomeTax + leaveDeduction
@@ -979,6 +985,18 @@ export default function PayrollPage() {
                     <span class="detail-label">Status:</span>
                     <span class="detail-value">${record.status || 'Paid'}</span>
                 </div>
+                ${annualCtc > 0 ? `
+                <div class="detail-row">
+                    <span class="detail-label">Annual CTC:</span>
+                    <span class="detail-value">${formatCurrencySafe(annualCtc)}</span>
+                </div>
+                ` : ''}
+                ${monthlyCtc > 0 ? `
+                <div class="detail-row">
+                    <span class="detail-label">Monthly CTC:</span>
+                    <span class="detail-value">${formatCurrencySafe(monthlyCtc)}</span>
+                </div>
+                ` : ''}
             </div>
         </div>
 
@@ -2322,6 +2340,26 @@ export default function PayrollPage() {
                   </CardContent>
                 </Card>
               </div>
+
+              {/* CTC Summary */}
+              {(calculationBreakdown.calculation?.annual_ctc > 0 || calculationBreakdown.calculation?.monthly_ctc > 0) && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Card>
+                    <CardContent className="pt-4">
+                      <div className="text-sm text-gray-500">Monthly CTC</div>
+                      <div className="text-2xl font-bold text-blue-600">{formatCurrencySafe(calculationBreakdown.calculation?.monthly_ctc || 0)}</div>
+                      <div className="text-xs text-gray-400 mt-1">Gross Earnings + Statutory Deductions (excludes leave deduction)</div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="pt-4">
+                      <div className="text-sm text-gray-500">Annual CTC</div>
+                      <div className="text-2xl font-bold text-blue-600">{formatCurrencySafe(calculationBreakdown.calculation?.annual_ctc || 0)}</div>
+                      <div className="text-xs text-gray-400 mt-1">Monthly CTC × 12</div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
 
               {/* Earnings & Deductions Breakdown */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

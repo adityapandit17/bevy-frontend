@@ -249,6 +249,8 @@ export default function EmployeePayrollPage() {
     const esi = toMonthly(structure.esi)
     const professionalTax = toMonthly(structure.professional_tax)
     const incomeTax = toMonthly(structure.income_tax)
+    const annualCtc = structure.annual_ctc || 0
+    const monthlyCtc = structure.monthly_ctc || 0
 
     const gross = basic + hra + allowances
     const totalDeductions = pf + esi + professionalTax + incomeTax
@@ -265,6 +267,8 @@ export default function EmployeePayrollPage() {
       gross,
       totalDeductions,
       net,
+      annualCtc,
+      monthlyCtc,
     }
   }
 

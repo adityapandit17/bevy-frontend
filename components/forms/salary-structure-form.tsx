@@ -227,6 +227,10 @@ export function SalaryStructureForm({ onClose, onSubmit, employees = [], departm
     const bonus = Number.parseFloat(String(formData.bonus || "")) || 0
     const totalAllowances = otherAllowances + bonus
 
+    // Calculate CTC from earnings and deductions
+    const calculatedAnnualCtc = grossSalary + totalDeductions
+    const calculatedMonthlyCtc = calculatedAnnualCtc / 12
+
     const payload = {
       employee_id: formData.employee_id,
       department_id: formData.department_id,
@@ -239,6 +243,8 @@ export function SalaryStructureForm({ onClose, onSubmit, employees = [], departm
       esi: formData.esi,
       professionalTax: formData.professionalTax,
       incomeTax: formData.incomeTax,
+      annualCtc: String(calculatedAnnualCtc.toFixed(2)),
+      monthlyCtc: String(calculatedMonthlyCtc.toFixed(2)),
       effective_from: formData.effective_from,
       effective_upto: formData.effective_upto,
     }
@@ -268,6 +274,8 @@ export function SalaryStructureForm({ onClose, onSubmit, employees = [], departm
         // Fetch existing structures for this employee
         fetchExistingStructures(value)
       }
+      // CTC fields are auto-calculated, so we don't allow manual changes
+      // But we still need to handle the onChange to prevent errors
       return updated
     })
     
@@ -300,11 +308,16 @@ export function SalaryStructureForm({ onClose, onSubmit, employees = [], departm
     const grossSalary = base + hra + allowances
     const totalDeductions = pf + esi + professionalTax + incomeTax
     const netSalary = grossSalary - totalDeductions
+    
+    // Annual CTC = Gross Salary (Earnings) + Total Deductions
+    const annualCtc = grossSalary + totalDeductions
+    // Monthly CTC = Annual CTC ÷ 12
+    const monthlyCtc = annualCtc / 12
 
-    return { grossSalary, totalDeductions, netSalary }
+    return { grossSalary, totalDeductions, netSalary, annualCtc, monthlyCtc }
   }
 
-  const { grossSalary, totalDeductions, netSalary } = calculateTotals()
+  const { grossSalary, totalDeductions, netSalary, annualCtc, monthlyCtc } = calculateTotals()
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -394,6 +407,35 @@ export function SalaryStructureForm({ onClose, onSubmit, employees = [], departm
                     onChange={(e) => handleChange("effective_upto", e.target.value)}
                     placeholder="Select end date"
                   />
+                </div>
+              </div>
+            </div>
+
+            {/* CTC Section - Before Earnings and Deductions */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-gray-900 text-blue-600">Cost to Company (CTC)</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="annualCtc">Annual CTC (₹/year)</Label>
+                  <Input
+                    id="annualCtc"
+                    type="number"
+                    value={annualCtc.toFixed(2)}
+                    readOnly
+                    className="bg-gray-50 cursor-not-allowed"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Auto-calculated: Gross Salary + Total Deductions</p>
+                </div>
+                <div>
+                  <Label htmlFor="monthlyCtc">Monthly CTC (₹/month)</Label>
+                  <Input
+                    id="monthlyCtc"
+                    type="number"
+                    value={monthlyCtc.toFixed(2)}
+                    readOnly
+                    className="bg-gray-50 cursor-not-allowed"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Auto-calculated: Annual CTC ÷ 12</p>
                 </div>
               </div>
             </div>
