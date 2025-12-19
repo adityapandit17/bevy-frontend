@@ -80,6 +80,8 @@ export default function PayrollPage() {
   const [selectedPayslip, setSelectedPayslip] = useState<any | null>(null)
   const [editingPayroll, setEditingPayroll] = useState<any | null>(null)
   const [showPayrollEditDialog, setShowPayrollEditDialog] = useState(false)
+  const [isEditingFromReviewModal, setIsEditingFromReviewModal] = useState(false)
+  const [temporaryPayrollEdits, setTemporaryPayrollEdits] = useState<Record<number, any>>({})
   const { checkPermission } = useAuth()
 
   // Payroll permissions
@@ -321,6 +323,52 @@ export default function PayrollPage() {
   const processPayroll = async () => {
     setProcessingPayroll(true)
     try {
+      // First, apply all temporary edits permanently
+      const editPromises = Object.entries(temporaryPayrollEdits).map(async ([employeeId, editData]) => {
+        if (editData.id) {
+          // Update existing payroll
+          return apiRequest(`${getEndpointUrl('PAYROLLS')}/${editData.id}`, {
+            method: "PUT",
+            body: JSON.stringify({
+              payroll: {
+                gross_salary: editData.gross_salary,
+                net_salary: editData.net_salary,
+                leave_deduction: editData.leave_deduction,
+                unpaid_days: editData.unpaid_days,
+                status: "processed"
+              }
+            })
+          })
+        } else {
+          // Create new payroll record
+          const monthInfo = parseMonthFilter(monthFilter)
+          const monthLabel = monthInfo 
+            ? `${["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"][monthInfo.month - 1]} ${monthInfo.year}`
+            : formatMonthDisplay(monthFilter)
+          
+          return apiRequest(getEndpointUrl('PAYROLLS'), {
+            method: "POST",
+            body: JSON.stringify({
+              payroll: {
+                employee_id: Number(employeeId),
+                month: monthLabel,
+                gross_salary: editData.gross_salary,
+                net_salary: editData.net_salary,
+                leave_deduction: editData.leave_deduction,
+                unpaid_days: editData.unpaid_days,
+                status: "processed"
+              }
+            })
+          })
+        }
+      })
+      
+      // Apply all temporary edits
+      if (editPromises.length > 0) {
+        await Promise.all(editPromises)
+      }
+      
+      // Now process the payroll
       const response = await apiRequest(getEndpointUrl("PAYROLL_PROCESS_MONTH"), {
         method: "POST",
         body: JSON.stringify({
@@ -328,9 +376,13 @@ export default function PayrollPage() {
           preview: false,
         }),
       })
+      
+      // Clear temporary edits after successful processing
+      setTemporaryPayrollEdits({})
+      
       toast({
         title: "Payroll processed",
-        description: `Processed payroll for ${formatMonthDisplay(monthFilter)}`,
+        description: `Processed payroll for ${formatMonthDisplay(monthFilter)}${Object.keys(temporaryPayrollEdits).length > 0 ? ' with your edits applied' : ''}.`,
       })
       setShowProcessDialog(false)
       // Refresh payroll records after processing
@@ -358,7 +410,7 @@ export default function PayrollPage() {
     fetchPayrollPreview()
   }
 
-  const handleEditSalaryForEmployee = async (employeeId: number) => {
+  const handleEditSalaryForEmployee = async (employeeId: number, fromReviewModal: boolean = false) => {
     try {
       const monthInfo = parseMonthFilter(monthFilter)
       const monthLabel = monthInfo 
@@ -407,6 +459,7 @@ export default function PayrollPage() {
           }
         }
         setEditingPayroll(existingPayroll)
+        setIsEditingFromReviewModal(fromReviewModal)
         setShowPayrollEditDialog(true)
         return
       }
@@ -415,8 +468,11 @@ export default function PayrollPage() {
       if (payrollPreview && Array.isArray(payrollPreview.payrolls)) {
         const previewData = payrollPreview.payrolls.find((p: any) => p.employee_id === employeeId)
         if (previewData) {
+          // Check if there are temporary edits for this employee
+          const tempEdit = temporaryPayrollEdits[employeeId]
+          
           // If preview has 0 values, use calculated values from structure
-          const payrollToEdit = (previewData.gross_salary === 0 || previewData.net_salary === 0)
+          let payrollToEdit = (previewData.gross_salary === 0 || previewData.net_salary === 0)
             ? {
                 ...previewData,
                 gross_salary: calculatedGross || previewData.gross_salary,
@@ -426,10 +482,26 @@ export default function PayrollPage() {
               }
             : previewData
           
+          // Merge temporary edits if they exist
+          if (tempEdit) {
+            payrollToEdit = {
+              ...payrollToEdit,
+              ...tempEdit
+            }
+          }
+          
           setEditingPayroll(payrollToEdit)
+          setIsEditingFromReviewModal(fromReviewModal)
           setShowPayrollEditDialog(true)
           return
         }
+      }
+      
+      // If editing from review modal but no preview data, still set the flag
+      if (fromReviewModal) {
+        setIsEditingFromReviewModal(true)
+      } else {
+        setIsEditingFromReviewModal(false)
       }
       
       // Priority 3: Calculate from salary structure as fallback
@@ -445,6 +517,7 @@ export default function PayrollPage() {
         }
         
         setEditingPayroll(calculatedPayroll)
+        setIsEditingFromReviewModal(fromReviewModal)
         setShowPayrollEditDialog(true)
         return
       }
@@ -465,6 +538,53 @@ export default function PayrollPage() {
 
   const handleSavePayrollEdit = async (updatedData: any) => {
     try {
+      // If editing from review modal, store changes temporarily
+      if (isEditingFromReviewModal) {
+        const employeeId = updatedData.employee_id || updatedData.id
+        setTemporaryPayrollEdits((prev) => ({
+          ...prev,
+          [employeeId]: {
+            gross_salary: updatedData.gross_salary,
+            net_salary: updatedData.net_salary,
+            leave_deduction: updatedData.leave_deduction,
+            unpaid_days: updatedData.unpaid_days,
+            id: updatedData.id, // Preserve ID if it exists
+            employee_id: employeeId
+          }
+        }))
+        
+        // Update the preview to reflect temporary changes
+        if (payrollPreview && Array.isArray(payrollPreview.payrolls)) {
+          const updatedPreview = {
+            ...payrollPreview,
+            payrolls: payrollPreview.payrolls.map((p: any) => {
+              if (p.employee_id === employeeId) {
+                return {
+                  ...p,
+                  gross_salary: updatedData.gross_salary,
+                  net_salary: updatedData.net_salary,
+                  leave_deduction: updatedData.leave_deduction,
+                  unpaid_days: updatedData.unpaid_days
+                }
+              }
+              return p
+            })
+          }
+          setPayrollPreview(updatedPreview)
+        }
+        
+        toast({
+          title: "Changes saved temporarily",
+          description: "Changes will be applied when you proceed to process payroll.",
+        })
+        
+        setShowPayrollEditDialog(false)
+        setEditingPayroll(null)
+        setIsEditingFromReviewModal(false)
+        return
+      }
+      
+      // Normal edit flow - save permanently to database
       if (updatedData.id) {
         // Update existing payroll
         await apiRequest(`${getEndpointUrl('PAYROLLS')}/${updatedData.id}`, {
@@ -510,6 +630,7 @@ export default function PayrollPage() {
       
       setShowPayrollEditDialog(false)
       setEditingPayroll(null)
+      setIsEditingFromReviewModal(false)
       // Refresh preview and records
       await fetchPayrollPreview()
       await fetchPayrollRecords()
@@ -2332,6 +2453,10 @@ export default function PayrollPage() {
 
       {/* Payroll processing review */}
       <Dialog open={showProcessDialog} onOpenChange={(open) => {
+        if (!open) {
+          // Clear temporary edits when closing the dialog
+          setTemporaryPayrollEdits({})
+        }
         setShowProcessDialog(open)
         if (open) fetchPayrollPreview()
       }}>
@@ -2407,19 +2532,41 @@ export default function PayrollPage() {
                   <TableBody>
                     {Array.isArray(payrollPreview.payrolls) && payrollPreview.payrolls.length > 0 ? (
                       payrollPreview.payrolls.map((preview: any) => {
+                        // Merge temporary edits if they exist
+                        const tempEdit = temporaryPayrollEdits[preview.employee_id]
+                        const displayData = tempEdit ? {
+                          ...preview,
+                          gross_salary: tempEdit.gross_salary,
+                          net_salary: tempEdit.net_salary,
+                          leave_deduction: tempEdit.leave_deduction,
+                          unpaid_days: tempEdit.unpaid_days
+                        } : preview
+                        
                         return (
                           <TableRow key={preview.employee_id || preview.id}>
                             <TableCell>
                               <div className="font-medium text-gray-900">{getEmployeeName(preview.employee_id)}</div>
                               <div className="text-sm text-gray-500">ID: {preview.employee_id}</div>
                             </TableCell>
-                            <TableCell>{formatCurrencySafe(preview.gross_salary)}</TableCell>
-                            <TableCell className="font-semibold text-green-700">{formatCurrencySafe(preview.net_salary)}</TableCell>
-                            <TableCell>{preview.unpaid_days ?? "—"}</TableCell>
-                            <TableCell className="text-red-600">{formatCurrencySafe(preview.leave_deduction)}</TableCell>
+                            <TableCell>
+                              {formatCurrencySafe(displayData.gross_salary)}
+                              {tempEdit && <span className="ml-2 text-xs text-blue-600">(edited)</span>}
+                            </TableCell>
+                            <TableCell className="font-semibold text-green-700">
+                              {formatCurrencySafe(displayData.net_salary)}
+                              {tempEdit && <span className="ml-2 text-xs text-blue-600">(edited)</span>}
+                            </TableCell>
+                            <TableCell>
+                              {displayData.unpaid_days ?? "—"}
+                              {tempEdit && <span className="ml-2 text-xs text-blue-600">(edited)</span>}
+                            </TableCell>
+                            <TableCell className="text-red-600">
+                              {formatCurrencySafe(displayData.leave_deduction)}
+                              {tempEdit && <span className="ml-2 text-xs text-blue-600">(edited)</span>}
+                            </TableCell>
                             {canPayrollUpdate && (
                               <TableCell className="text-right">
-                                <Button size="sm" variant="outline" onClick={() => handleEditSalaryForEmployee(preview.employee_id)}>
+                                <Button size="sm" variant="outline" onClick={() => handleEditSalaryForEmployee(preview.employee_id, true)}>
                                   Edit salary
                                 </Button>
                               </TableCell>
