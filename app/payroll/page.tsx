@@ -1598,7 +1598,7 @@ export default function PayrollPage() {
                       <TableHead>Employee</TableHead>
                       <TableHead>Basic Salary</TableHead>
                       <TableHead>Allowances</TableHead>
-                      <TableHead>Deductions</TableHead>
+                      <TableHead>Leave Deduction</TableHead>
                       <TableHead>Net Salary</TableHead>
                       <TableHead>Status</TableHead>
                       {(canPayrollShow || canPayrollUpdate || canPayrollCreate) && (
