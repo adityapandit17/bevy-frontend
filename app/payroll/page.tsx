@@ -36,6 +36,7 @@ import {
   Printer,
 } from "lucide-react"
 import { SalaryStructureForm } from "@/components/forms/salary-structure-form"
+import { PayrollEditForm } from "@/components/forms/payroll-edit-form"
 import { ResourceGuard } from "@/lib/auth/auth.guards"
 import { useAuth } from "@/lib/auth/auth.hooks"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -77,6 +78,8 @@ export default function PayrollPage() {
   const [calculationBreakdown, setCalculationBreakdown] = useState<any>(null)
   const [loadingBreakdown, setLoadingBreakdown] = useState(false)
   const [selectedPayslip, setSelectedPayslip] = useState<any | null>(null)
+  const [editingPayroll, setEditingPayroll] = useState<any | null>(null)
+  const [showPayrollEditDialog, setShowPayrollEditDialog] = useState(false)
   const { checkPermission } = useAuth()
 
   // Payroll permissions
@@ -355,18 +358,165 @@ export default function PayrollPage() {
     fetchPayrollPreview()
   }
 
-  const handleEditSalaryForEmployee = (employeeId: number) => {
-    const monthInfo = parseMonthFilter(monthFilter)
-    const structure = monthInfo ? getStructureForMonth(employeeId, monthInfo.year, monthInfo.month) : null
-
-    if (structure) {
-      setEditingStructure(structure)
-      setShowForm(true)
-      setShowProcessDialog(false)
-    } else {
+  const handleEditSalaryForEmployee = async (employeeId: number) => {
+    try {
+      const monthInfo = parseMonthFilter(monthFilter)
+      const monthLabel = monthInfo 
+        ? `${["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"][monthInfo.month - 1]} ${monthInfo.year}`
+        : formatMonthDisplay(monthFilter)
+      
+      // Get salary structure first to calculate correct values
+      let calculatedGross = 0
+      let calculatedNet = 0
+      let calculatedLeaveDeduction = 0
+      let calculatedUnpaidDays = 0
+      
+      if (monthInfo) {
+        const structure = getStructureForMonth(employeeId, monthInfo.year, monthInfo.month)
+        if (structure) {
+          const toMonthly = (val: number) => (val || 0) / 12
+          const basic = toMonthly(structure.basic || 0)
+          const hra = toMonthly(structure.hra || 0)
+          const allowances = toMonthly(structure.allowances || 0)
+          calculatedGross = basic + hra + allowances
+          
+          const pf = toMonthly(structure.pf || 0)
+          const esi = toMonthly(structure.esi || 0)
+          const professionalTax = toMonthly(structure.professional_tax || 0)
+          const incomeTax = toMonthly(structure.income_tax || 0)
+          const totalDeductions = pf + esi + professionalTax + incomeTax
+          calculatedNet = calculatedGross - totalDeductions
+        }
+      }
+      
+      // Priority 1: Try to find existing processed payroll record from database
+      let existingPayroll = payrollRecords.find((r: any) => 
+        r.employee_id === employeeId && r.month === monthLabel
+      )
+      
+      // If found but has 0 values, use calculated values from structure
+      if (existingPayroll) {
+        if (existingPayroll.gross_salary === 0 || existingPayroll.net_salary === 0) {
+          // Use calculated values from structure if payroll has 0 values
+          existingPayroll = {
+            ...existingPayroll,
+            gross_salary: calculatedGross || existingPayroll.gross_salary,
+            net_salary: calculatedNet || existingPayroll.net_salary,
+            leave_deduction: existingPayroll.leave_deduction || calculatedLeaveDeduction,
+            unpaid_days: existingPayroll.unpaid_days || calculatedUnpaidDays
+          }
+        }
+        setEditingPayroll(existingPayroll)
+        setShowPayrollEditDialog(true)
+        return
+      }
+      
+      // Priority 2: Use preview data if available (from review modal)
+      if (payrollPreview && Array.isArray(payrollPreview.payrolls)) {
+        const previewData = payrollPreview.payrolls.find((p: any) => p.employee_id === employeeId)
+        if (previewData) {
+          // If preview has 0 values, use calculated values from structure
+          const payrollToEdit = (previewData.gross_salary === 0 || previewData.net_salary === 0)
+            ? {
+                ...previewData,
+                gross_salary: calculatedGross || previewData.gross_salary,
+                net_salary: calculatedNet || previewData.net_salary,
+                leave_deduction: previewData.leave_deduction || calculatedLeaveDeduction,
+                unpaid_days: previewData.unpaid_days || calculatedUnpaidDays
+              }
+            : previewData
+          
+          setEditingPayroll(payrollToEdit)
+          setShowPayrollEditDialog(true)
+          return
+        }
+      }
+      
+      // Priority 3: Calculate from salary structure as fallback
+      if (calculatedGross > 0) {
+        const calculatedPayroll = {
+          employee_id: employeeId,
+          month: monthLabel,
+          gross_salary: calculatedGross,
+          net_salary: calculatedNet,
+          leave_deduction: calculatedLeaveDeduction,
+          unpaid_days: calculatedUnpaidDays,
+          status: "draft"
+        }
+        
+        setEditingPayroll(calculatedPayroll)
+        setShowPayrollEditDialog(true)
+        return
+      }
+      
       toast({
-        title: "No salary structure",
-        description: "Add a salary structure for this employee before processing.",
+        title: "No payroll data",
+        description: "No payroll data found for this employee for this month.",
+        variant: "destructive",
+      })
+    } catch (err: any) {
+      toast({
+        title: "Error loading payroll",
+        description: err?.message || "Failed to load payroll data",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleSavePayrollEdit = async (updatedData: any) => {
+    try {
+      if (updatedData.id) {
+        // Update existing payroll
+        await apiRequest(`${getEndpointUrl('PAYROLLS')}/${updatedData.id}`, {
+          method: "PUT",
+          body: JSON.stringify({
+            payroll: {
+              gross_salary: updatedData.gross_salary,
+              net_salary: updatedData.net_salary,
+              leave_deduction: updatedData.leave_deduction,
+              unpaid_days: updatedData.unpaid_days,
+              status: updatedData.status || "processed"
+            }
+          })
+        })
+        toast({
+          title: "Payroll updated",
+          description: "Payroll record has been updated successfully.",
+        })
+      } else {
+        // Create new payroll record
+        const monthInfo = parseMonthFilter(monthFilter)
+        const monthLabel = monthInfo 
+          ? `${["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"][monthInfo.month - 1]} ${monthInfo.year}`
+          : formatMonthDisplay(monthFilter)
+        
+        await apiRequest(getEndpointUrl('PAYROLLS'), {
+          method: "POST",
+          body: JSON.stringify({
+            payroll: {
+              employee_id: updatedData.employee_id,
+              month: monthLabel,
+              gross_salary: updatedData.gross_salary,
+              net_salary: updatedData.net_salary,
+              status: updatedData.status || "processed"
+            }
+          })
+        })
+        toast({
+          title: "Payroll created",
+          description: "Payroll record has been created successfully.",
+        })
+      }
+      
+      setShowPayrollEditDialog(false)
+      setEditingPayroll(null)
+      // Refresh preview and records
+      await fetchPayrollPreview()
+      await fetchPayrollRecords()
+    } catch (err: any) {
+      toast({
+        title: "Failed to save payroll",
+        description: err?.message || "Please try again",
         variant: "destructive",
       })
     }
@@ -2249,7 +2399,9 @@ export default function PayrollPage() {
                       <TableHead>Net</TableHead>
                       <TableHead>Unpaid Days</TableHead>
                       <TableHead>Leave Deduction</TableHead>
-                      <TableHead className="w-32 text-right">Actions</TableHead>
+                      {canPayrollUpdate && (
+                        <TableHead className="w-32 text-right">Actions</TableHead>
+                      )}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -2265,17 +2417,19 @@ export default function PayrollPage() {
                             <TableCell className="font-semibold text-green-700">{formatCurrencySafe(preview.net_salary)}</TableCell>
                             <TableCell>{preview.unpaid_days ?? "—"}</TableCell>
                             <TableCell className="text-red-600">{formatCurrencySafe(preview.leave_deduction)}</TableCell>
-                            <TableCell className="text-right">
-                              <Button size="sm" variant="outline" onClick={() => handleEditSalaryForEmployee(preview.employee_id)}>
-                                Edit salary
-                              </Button>
-                            </TableCell>
+                            {canPayrollUpdate && (
+                              <TableCell className="text-right">
+                                <Button size="sm" variant="outline" onClick={() => handleEditSalaryForEmployee(preview.employee_id)}>
+                                  Edit salary
+                                </Button>
+                              </TableCell>
+                            )}
                           </TableRow>
                         )
                       })
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center text-gray-500 py-6">
+                        <TableCell colSpan={canPayrollUpdate ? 6 : 5} className="text-center text-gray-500 py-6">
                           No employees found for this month.
                         </TableCell>
                       </TableRow>
@@ -2503,6 +2657,30 @@ export default function PayrollPage() {
             </div>
           ) : (
             <div className="text-center text-gray-500 py-8">No calculation data available</div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Payroll Edit Dialog */}
+      <Dialog open={showPayrollEditDialog} onOpenChange={setShowPayrollEditDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit Payroll for {editingPayroll ? getEmployeeName(editingPayroll.employee_id) : ""}</DialogTitle>
+            <DialogDescription>
+              Edit payroll details for {formatMonthDisplay(monthFilter)}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {editingPayroll && (
+            <PayrollEditForm
+              payroll={editingPayroll}
+              month={formatMonthDisplay(monthFilter)}
+              onSave={handleSavePayrollEdit}
+              onCancel={() => {
+                setShowPayrollEditDialog(false)
+                setEditingPayroll(null)
+              }}
+            />
           )}
         </DialogContent>
       </Dialog>
