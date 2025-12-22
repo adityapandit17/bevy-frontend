@@ -15,7 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Users, Search, Filter, Plus, MoreHorizontal, Mail, Phone, MapPin, Calendar, Download, UserPlus, UserMinus, UserCheck, Network, ChevronLeft, ChevronRight } from "lucide-react"
+import { Users, Search, Filter, Plus, MoreHorizontal, Mail, Phone, MapPin, Calendar, Download, UserPlus, UserMinus, UserCheck, Network, ChevronLeft, ChevronRight, AlertCircle } from "lucide-react"
 import { EmployeeForm } from "@/components/forms/employee-form"
 import { useRouter } from "next/navigation"
 import { getEndpointUrl, getApiUrl, apiRequest } from "@/lib/api"
@@ -78,6 +78,7 @@ export default function EmployeesPage() {
   const { checkPermission, checkRole } = useAuth()
 
   // Permission checks
+  const canIndex = checkPermission("employees.index")
   const canCreate = checkPermission("employees.create")
   const canUpdate = checkPermission("employees.update")
   const canDestroy = checkPermission("employees.destroy")
@@ -94,17 +95,20 @@ export default function EmployeesPage() {
   // Fetch departments on mount
   useEffect(() => {
     fetchDepartments()
-    fetchAllEmployeesForStats()
-  }, [])
+    if (canIndex) {
+      fetchAllEmployeesForStats()
+    }
+  }, [canIndex])
 
   // Fetch paginated employees when filters or page change
   useEffect(() => {
+    if (!canIndex) return
     const timeoutId = setTimeout(() => {
       fetchEmployees()
     }, searchTerm ? 300 : 0) // Debounce search
 
     return () => clearTimeout(timeoutId)
-  }, [searchTerm, departmentFilter, currentPage, perPage])
+  }, [searchTerm, departmentFilter, currentPage, perPage, canIndex])
 
   // Reset to page 1 when filters or perPage change
   useEffect(() => {
@@ -314,276 +318,288 @@ export default function EmployeesPage() {
       </div>
 
       {/* Filters and Search */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Users className="w-5 h-5" />
-            Employee Directory
-          </CardTitle>
-          <CardDescription>
-            Total {totalCount} employees • Showing {employees.length} on page {currentPage} of {totalPages}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col sm:flex-row gap-4 mb-6">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <Input
-                placeholder="Search employees..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
+      {canIndex ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="w-5 h-5" />
+              Employee Directory
+            </CardTitle>
+            <CardDescription>
+              Total {totalCount} employees • Showing {employees.length} on page {currentPage} of {totalPages}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col sm:flex-row gap-4 mb-6">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <Input
+                  placeholder="Search employees..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
+                <SelectTrigger className="w-full sm:w-48">
+                  <Filter className="w-4 h-4 mr-2" />
+                  <SelectValue placeholder="Department" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Departments</SelectItem>
+                  {departments.map((dept) => (
+                    <SelectItem key={dept.id} value={dept.name}>
+                      {dept.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
-              <SelectTrigger className="w-full sm:w-48">
-                <Filter className="w-4 h-4 mr-2" />
-                <SelectValue placeholder="Department" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Departments</SelectItem>
-                {departments.map((dept) => (
-                  <SelectItem key={dept.id} value={dept.name}>
-                    {dept.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
 
-          {/* Employee Table */}
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Employee</TableHead>
-                  <TableHead>Department</TableHead>
-                  <TableHead>Contact</TableHead>
-                  <TableHead>Location</TableHead>
-                  <TableHead>Join Date</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="w-12"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loading ? (
+            {/* Employee Table */}
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-gray-500">
-                      Loading employees...
-                    </TableCell>
+                    <TableHead>Employee</TableHead>
+                    <TableHead>Department</TableHead>
+                    <TableHead>Contact</TableHead>
+                    <TableHead>Location</TableHead>
+                    <TableHead>Join Date</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="w-12"></TableHead>
                   </TableRow>
-                ) : employees.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-gray-500">
-                      No employees found
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  employees.map((employee) => (
-                  <TableRow key={employee.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-medium text-sm">
-                          {employee.first_name?.[0]}{employee.last_name?.[0]}
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-8 text-gray-500">
+                        Loading employees...
+                      </TableCell>
+                    </TableRow>
+                  ) : employees.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-8 text-gray-500">
+                        No employees found
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    employees.map((employee) => (
+                    <TableRow key={employee.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-medium text-sm">
+                            {employee.first_name?.[0]}{employee.last_name?.[0]}
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-900">{employee.first_name} {employee.last_name}</p>
+                            <p className="text-sm text-gray-500">{employee.id}</p>
+                          </div>
                         </div>
+                      </TableCell>
+                      <TableCell>
                         <div>
-                          <p className="font-medium text-gray-900">{employee.first_name} {employee.last_name}</p>
-                          <p className="text-sm text-gray-500">{employee.id}</p>
+                          <p className="font-medium text-gray-900">
+                            {(() => {
+                              const department = departments.find(dept => dept.id === employee.department_id)
+                              return department ? department.name : `Department ${employee.department_id}`
+                            })()}
+                          </p>
+                          <p className="text-sm text-gray-500">{employee.designation}</p>
                         </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div>
-                        <p className="font-medium text-gray-900">
-                          {(() => {
-                            const department = departments.find(dept => dept.id === employee.department_id)
-                            return department ? department.name : `Department ${employee.department_id}`
-                          })()}
-                        </p>
-                        <p className="text-sm text-gray-500">{employee.designation}</p>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="space-y-1">
+                      </TableCell>
+                      <TableCell>
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2 text-sm text-gray-600">
+                            <Mail className="w-3 h-3" />
+                            <span className="truncate">{employee.email}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-gray-600">
+                            <Phone className="w-3 h-3" />
+                            <span>{employee.phone}</span>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
                         <div className="flex items-center gap-2 text-sm text-gray-600">
-                          <Mail className="w-3 h-3" />
-                          <span className="truncate">{employee.email}</span>
+                          <MapPin className="w-3 h-3" />
+                          <span>{employee.location || '-'}</span>
                         </div>
+                      </TableCell>
+                      <TableCell>
                         <div className="flex items-center gap-2 text-sm text-gray-600">
-                          <Phone className="w-3 h-3" />
-                          <span>{employee.phone}</span>
+                          <Calendar className="w-3 h-3" />
+                          <span>{employee.date_of_joining ? new Date(employee.date_of_joining).toLocaleDateString() : '-'}</span>
                         </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <MapPin className="w-3 h-3" />
-                        <span>{employee.location || '-'}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <Calendar className="w-3 h-3" />
-                        <span>{employee.date_of_joining ? new Date(employee.date_of_joining).toLocaleDateString() : '-'}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={employee.status === "active" ? "default" : "secondary"}
-                        className={employee.status === "active" ? "bg-green-100 text-green-800" : ""}
-                      >
-                        {employee.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {hasAnyEmployeeActions && (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm">
-                              <MoreHorizontal className="w-4 h-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                            {canUpdate && (
-                              <DropdownMenuItem onClick={() => handleEditEmployee(employee)}>Edit Details</DropdownMenuItem>
-                            )}
-                            {canShow && (
-                              <DropdownMenuItem onClick={() => router.push(`/employees/${employee.id}`)}>
-                                View Profile
-                              </DropdownMenuItem>
-                            )}
-                            {canViewPayroll && (
-                              <DropdownMenuItem onClick={() => router.push(`/employees/${employee.id}/payroll`)}>
-                                View Payroll
-                              </DropdownMenuItem>
-                            )}
-                            {canUpdate && (
-                              <>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                  onClick={() => handleToggleEmployeeStatus(employee)}
-                                  className={employee.status === "active" ? "text-red-600" : "text-green-600"}
-                                >
-                                  {employee.status === "active" ? "Deactivate" : "Activate"}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={employee.status === "active" ? "default" : "secondary"}
+                          className={employee.status === "active" ? "bg-green-100 text-green-800" : ""}
+                        >
+                          {employee.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {hasAnyEmployeeActions && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm">
+                                <MoreHorizontal className="w-4 h-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                              {canUpdate && (
+                                <DropdownMenuItem onClick={() => handleEditEmployee(employee)}>Edit Details</DropdownMenuItem>
+                              )}
+                              {canShow && (
+                                <DropdownMenuItem onClick={() => router.push(`/employees/${employee.id}`)}>
+                                  View Profile
                                 </DropdownMenuItem>
-                              </>
-                            )}
-                            {canDestroy && (
-                              <>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                  onClick={() => handleToggleEmployeeStatus(employee)}
-                                  className="text-red-600"
-                                >
-                                  Delete Employee
+                              )}
+                              {canViewPayroll && (
+                                <DropdownMenuItem onClick={() => router.push(`/employees/${employee.id}/payroll`)}>
+                                  View Payroll
                                 </DropdownMenuItem>
-                              </>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-
-          {/* Pagination */}
-          {totalCount > 0 && (
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-6 border-t">
-              <div className="text-sm text-gray-600">
-                Showing {((currentPage - 1) * perPage) + 1} to {Math.min(currentPage * perPage, totalCount)} of {totalCount} employees
-              </div>
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-600">Per page:</span>
-                  <Select value={perPage.toString()} onValueChange={(value) => setPerPage(Number(value))}>
-                    <SelectTrigger className="w-20">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="5">5</SelectItem>
-                      <SelectItem value="10">10</SelectItem>
-                      <SelectItem value="25">25</SelectItem>
-                      <SelectItem value="50">50</SelectItem>
-                      <SelectItem value="100">100</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                {totalPages > 1 && (
-                <Pagination>
-                <PaginationContent>
-                  <PaginationItem>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={(e) => {
-                        e.preventDefault()
-                        setCurrentPage((prev) => Math.max(1, prev - 1))
-                      }}
-                      disabled={currentPage === 1}
-                      className="gap-1"
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                      <span>Previous</span>
-                    </Button>
-                  </PaginationItem>
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
-                    if (
-                      page === 1 ||
-                      page === totalPages ||
-                      (page >= currentPage - 1 && page <= currentPage + 1)
-                    ) {
-                      return (
-                        <PaginationItem key={page}>
-                          <Button
-                            variant={currentPage === page ? "default" : "outline"}
-                            size="sm"
-                            onClick={(e) => {
-                              e.preventDefault()
-                              setCurrentPage(page)
-                            }}
-                            className="w-10"
-                          >
-                            {page}
-                          </Button>
-                        </PaginationItem>
-                      )
-                    } else if (page === currentPage - 2 || page === currentPage + 2) {
-                      return (
-                        <PaginationItem key={page}>
-                          <PaginationEllipsis />
-                        </PaginationItem>
-                      )
-                    }
-                    return null
-                  })}
-                  <PaginationItem>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={(e) => {
-                        e.preventDefault()
-                        setCurrentPage((prev) => Math.min(totalPages, prev + 1))
-                      }}
-                      disabled={currentPage === totalPages}
-                      className="gap-1"
-                    >
-                      <span>Next</span>
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-                  </PaginationItem>
-                </PaginationContent>
-              </Pagination>
-              )}
-              </div>
+                              )}
+                              {canUpdate && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    onClick={() => handleToggleEmployeeStatus(employee)}
+                                    className={employee.status === "active" ? "text-red-600" : "text-green-600"}
+                                  >
+                                    {employee.status === "active" ? "Deactivate" : "Activate"}
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                              {canDestroy && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    onClick={() => handleToggleEmployeeStatus(employee)}
+                                    className="text-red-600"
+                                  >
+                                    Delete Employee
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
             </div>
-          )}
-        </CardContent>
-      </Card>
+
+            {/* Pagination */}
+            {totalCount > 0 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-6 border-t">
+                <div className="text-sm text-gray-600">
+                  Showing {((currentPage - 1) * perPage) + 1} to {Math.min(currentPage * perPage, totalCount)} of {totalCount} employees
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-600">Per page:</span>
+                    <Select value={perPage.toString()} onValueChange={(value) => setPerPage(Number(value))}>
+                      <SelectTrigger className="w-20">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="5">5</SelectItem>
+                        <SelectItem value="10">10</SelectItem>
+                        <SelectItem value="25">25</SelectItem>
+                        <SelectItem value="50">50</SelectItem>
+                        <SelectItem value="100">100</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {totalPages > 1 && (
+                  <Pagination>
+                  <PaginationContent>
+                    <PaginationItem>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          setCurrentPage((prev) => Math.max(1, prev - 1))
+                        }}
+                        disabled={currentPage === 1}
+                        className="gap-1"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                        <span>Previous</span>
+                      </Button>
+                    </PaginationItem>
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                      if (
+                        page === 1 ||
+                        page === totalPages ||
+                        (page >= currentPage - 1 && page <= currentPage + 1)
+                      ) {
+                        return (
+                          <PaginationItem key={page}>
+                            <Button
+                              variant={currentPage === page ? "default" : "outline"}
+                              size="sm"
+                              onClick={(e) => {
+                                e.preventDefault()
+                                setCurrentPage(page)
+                              }}
+                              className="w-10"
+                            >
+                              {page}
+                            </Button>
+                          </PaginationItem>
+                        )
+                      } else if (page === currentPage - 2 || page === currentPage + 2) {
+                        return (
+                          <PaginationItem key={page}>
+                            <PaginationEllipsis />
+                          </PaginationItem>
+                        )
+                      }
+                      return null
+                    })}
+                    <PaginationItem>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          setCurrentPage((prev) => Math.min(totalPages, prev + 1))
+                        }}
+                        disabled={currentPage === totalPages}
+                        className="gap-1"
+                      >
+                        <span>Next</span>
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
+                )}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardContent className="py-8">
+            <div className="text-center text-gray-500">
+              <AlertCircle className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+              <p className="text-lg font-medium">Access Denied</p>
+              <p className="text-sm mt-2">You don't have permission to view employee records.</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
       <EmployeeForm 
         open={showForm} 
         onClose={() => { setShowForm(false); setEditEmployee(null); }} 
