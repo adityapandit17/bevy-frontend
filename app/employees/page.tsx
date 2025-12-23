@@ -285,7 +285,7 @@ export default function EmployeesPage() {
                 </Button>
               </>
             )}
-            {canCreate && (
+            {canCreate && canIndex && (
               <Button size="sm" onClick={() => setShowForm(true)}>
                 <Plus className="w-4 h-4 mr-2" />
                 Add Employee
