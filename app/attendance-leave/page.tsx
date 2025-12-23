@@ -786,10 +786,12 @@ export default function AttendanceLeavePage() {
               Mark Attendance
             </Button>
           )}
-          <Button size="sm" onClick={() => setShowLeaveForm(true)}>
-            <Plus className="w-4 h-4 mr-2" />
-            Apply Leave
-          </Button>
+          {checkPermission('leave_requests.index') && (
+            <Button size="sm" onClick={() => setShowLeaveForm(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Apply Leave
+            </Button>
+          )}
         </div>
       </div>
 
@@ -1067,234 +1069,246 @@ export default function AttendanceLeavePage() {
             </TabsContent>
 
             <TabsContent value="leave" className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Users className="w-5 h-5" />
-                    Leave Requests
-                  </CardTitle>
-                  <CardDescription>Manage employee leave applications</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex flex-col sm:flex-row gap-4 mb-6">
-                    <div className="relative flex-1">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                      <Input 
-                        placeholder="Search leave requests..." 
-                        className="pl-10"
-                        value={leaveSearchTerm}
-                        onChange={(e) => setLeaveSearchTerm(e.target.value)}
-                      />
+              {checkPermission('leave_requests.index') ? (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Users className="w-5 h-5" />
+                      Leave Requests
+                    </CardTitle>
+                    <CardDescription>Manage employee leave applications</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-col sm:flex-row gap-4 mb-6">
+                      <div className="relative flex-1">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                        <Input 
+                          placeholder="Search leave requests..." 
+                          className="pl-10"
+                          value={leaveSearchTerm}
+                          onChange={(e) => setLeaveSearchTerm(e.target.value)}
+                        />
+                      </div>
+                      <Select value={leaveStatusFilter} onValueChange={setLeaveStatusFilter}>
+                        <SelectTrigger className="w-full sm:w-48">
+                          <SelectValue placeholder="Filter by status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Status</SelectItem>
+                          <SelectItem value="pending">Pending</SelectItem>
+                          <SelectItem value="approved">Approved</SelectItem>
+                          <SelectItem value="rejected">Rejected</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
-                    <Select value={leaveStatusFilter} onValueChange={setLeaveStatusFilter}>
-                      <SelectTrigger className="w-full sm:w-48">
-                        <SelectValue placeholder="Filter by status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Status</SelectItem>
-                        <SelectItem value="pending">Pending</SelectItem>
-                        <SelectItem value="approved">Approved</SelectItem>
-                        <SelectItem value="rejected">Rejected</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
 
-                  <div className="rounded-md border overflow-hidden">
-                    <div className="overflow-x-auto">
-                      <Table>
-                        <TableHeader className="sticky top-0 bg-white z-10">
-                          <TableRow>
-                            <TableHead>Employee</TableHead>
-                            <TableHead>Leave Type</TableHead>
-                            <TableHead>Duration</TableHead>
-                            <TableHead>Days</TableHead>
-                            <TableHead>Reason</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead className="w-12"></TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {filteredLeaveRequests.length === 0 ? (
+                    <div className="rounded-md border overflow-hidden">
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader className="sticky top-0 bg-white z-10">
                             <TableRow>
-                              <TableCell colSpan={7} className="text-center text-gray-500 py-8">
-                                No leave requests found.
-                              </TableCell>
+                              <TableHead>Employee</TableHead>
+                              <TableHead>Leave Type</TableHead>
+                              <TableHead>Duration</TableHead>
+                              <TableHead>Days</TableHead>
+                              <TableHead>Reason</TableHead>
+                              <TableHead>Status</TableHead>
+                              <TableHead className="w-12"></TableHead>
                             </TableRow>
-                          ) : (
-                            paginatedLeaveRequests.map((request) => (
-                            <TableRow key={request.id}>
-                              <TableCell>
-                                <div>
-                                  <p className="font-medium text-gray-900">{getEmployeeName(request.employee_id)}</p>
-                                  <p className="text-sm text-gray-500">
-                                    {request.employee_id} • {getDepartmentName(request.department_id)}
-                                  </p>
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                <span className="text-sm text-gray-600">
-                                  {request.leaveTypeLabel || request.leave_type_label || request.leaveType || request.leave_type || 'N/A'}
-                                </span>
-                              </TableCell>
-                              <TableCell>
-                                <div className="text-sm text-gray-600">
-                                  {(() => {
-                                    const startDateStr = request.startDate || request.start_date
-                                    const endDateStr = request.endDate || request.end_date
-                                    const formattedStart = request.formattedStartDate || request.formatted_start_date
-                                    const formattedEnd = request.formattedEndDate || request.formatted_end_date
-                                    
-                                    if (startDateStr && endDateStr) {
-                                      return (
+                          </TableHeader>
+                          <TableBody>
+                            {filteredLeaveRequests.length === 0 ? (
+                              <TableRow>
+                                <TableCell colSpan={7} className="text-center text-gray-500 py-8">
+                                  No leave requests found.
+                                </TableCell>
+                              </TableRow>
+                            ) : (
+                              paginatedLeaveRequests.map((request) => (
+                              <TableRow key={request.id}>
+                                <TableCell>
+                                  <div>
+                                    <p className="font-medium text-gray-900">{getEmployeeName(request.employee_id)}</p>
+                                    <p className="text-sm text-gray-500">
+                                      {request.employee_id} • {getDepartmentName(request.department_id)}
+                                    </p>
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <span className="text-sm text-gray-600">
+                                    {request.leaveTypeLabel || request.leave_type_label || request.leaveType || request.leave_type || 'N/A'}
+                                  </span>
+                                </TableCell>
+                                <TableCell>
+                                  <div className="text-sm text-gray-600">
+                                    {(() => {
+                                      const startDateStr = request.startDate || request.start_date
+                                      const endDateStr = request.endDate || request.end_date
+                                      const formattedStart = request.formattedStartDate || request.formatted_start_date
+                                      const formattedEnd = request.formattedEndDate || request.formatted_end_date
+                                      
+                                      if (startDateStr && endDateStr) {
+                                        return (
+                                          <>
+                                            <p>
+                                              {formattedStart || (startDateStr ? format(new Date(startDateStr), 'MMM dd, yyyy') : 'N/A')}
+                                            </p>
+                                            <p className="text-gray-500">
+                                              to {formattedEnd || (endDateStr ? format(new Date(endDateStr), 'MMM dd, yyyy') : 'N/A')}
+                                            </p>
+                                          </>
+                                        )
+                                      }
+                                      return <span className="text-gray-400">Date not available</span>
+                                    })()}
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <span className="font-medium text-gray-900">{request.days} days</span>
+                                </TableCell>
+                                <TableCell>
+                                  <span className="text-sm text-gray-600 max-w-32 truncate">{request.reason}</span>
+                                </TableCell>
+                                <TableCell>
+                                  <Badge className={getLeaveStatusColor(request.status)}>
+                                    {request.statusLabel || request.status || 'Unknown'}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell>
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button variant="ghost" size="sm" disabled={actionLoading === request.id}>
+                                        {actionLoading === request.id ? (
+                                          <RefreshCw className="w-4 h-4 animate-spin" />
+                                        ) : (
+                                          <MoreHorizontal className="w-4 h-4" />
+                                        )}
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                      <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                      <DropdownMenuItem onClick={() => handleViewLeaveDetails(request)}>
+                                        <Eye className="w-4 h-4 mr-2" />
+                                        View Details
+                                      </DropdownMenuItem>
+                                      {(request.status?.toLowerCase() === "pending" || request.statusLabel?.toLowerCase() === "pending") && (
                                         <>
-                                          <p>
-                                            {formattedStart || (startDateStr ? format(new Date(startDateStr), 'MMM dd, yyyy') : 'N/A')}
-                                          </p>
-                                          <p className="text-gray-500">
-                                            to {formattedEnd || (endDateStr ? format(new Date(endDateStr), 'MMM dd, yyyy') : 'N/A')}
-                                          </p>
+                                          <DropdownMenuItem
+                                            onClick={() => handleApprove(request.id)}
+                                            disabled={actionLoading === request.id}
+                                            className="text-green-600"
+                                          >
+                                            <CheckCircle className="w-4 h-4 mr-2" />
+                                            Approve
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem
+                                            onClick={() => handleReject(request.id)}
+                                            disabled={actionLoading === request.id}
+                                            className="text-red-600"
+                                          >
+                                            <XCircle className="w-4 h-4 mr-2" />
+                                            Reject
+                                          </DropdownMenuItem>
                                         </>
-                                      )
-                                    }
-                                    return <span className="text-gray-400">Date not available</span>
-                                  })()}
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                <span className="font-medium text-gray-900">{request.days} days</span>
-                              </TableCell>
-                              <TableCell>
-                                <span className="text-sm text-gray-600 max-w-32 truncate">{request.reason}</span>
-                              </TableCell>
-                              <TableCell>
-                                <Badge className={getLeaveStatusColor(request.status)}>
-                                  {request.statusLabel || request.status || 'Unknown'}
-                                </Badge>
-                              </TableCell>
-                              <TableCell>
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="sm" disabled={actionLoading === request.id}>
-                                      {actionLoading === request.id ? (
-                                        <RefreshCw className="w-4 h-4 animate-spin" />
-                                      ) : (
-                                        <MoreHorizontal className="w-4 h-4" />
                                       )}
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end">
-                                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                    <DropdownMenuItem onClick={() => handleViewLeaveDetails(request)}>
-                                      <Eye className="w-4 h-4 mr-2" />
-                                      View Details
-                                    </DropdownMenuItem>
-                                    {(request.status?.toLowerCase() === "pending" || request.statusLabel?.toLowerCase() === "pending") && (
-                                      <>
-                                        <DropdownMenuItem
-                                          onClick={() => handleApprove(request.id)}
-                                          disabled={actionLoading === request.id}
-                                          className="text-green-600"
-                                        >
-                                          <CheckCircle className="w-4 h-4 mr-2" />
-                                          Approve
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem
-                                          onClick={() => handleReject(request.id)}
-                                          disabled={actionLoading === request.id}
-                                          className="text-red-600"
-                                        >
-                                          <XCircle className="w-4 h-4 mr-2" />
-                                          Reject
-                                        </DropdownMenuItem>
-                                      </>
-                                    )}
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              </TableCell>
-                            </TableRow>
-                            ))
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                </TableCell>
+                              </TableRow>
+                              ))
+                            )}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
+
+                    {/* Leave pagination (matching Leave Management style) */}
+                    {filteredLeaveRequests.length > 0 && (
+                      <div className="flex flex-col md:flex-row items-center justify-between gap-4 mt-4 text-sm text-gray-600">
+                        {/* Showing text */}
+                        <div>
+                          {filteredLeaveRequests.length === 0 ? (
+                            <span>Showing 0 results</span>
+                          ) : (
+                            <span>
+                              Showing {leavePageStartIndex + 1} to{" "}
+                              {Math.min(leavePageEndIndex, filteredLeaveRequests.length)} of{" "}
+                              {filteredLeaveRequests.length} leave requests
+                            </span>
                           )}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  </div>
-
-                  {/* Leave pagination (matching Leave Management style) */}
-                  {filteredLeaveRequests.length > 0 && (
-                    <div className="flex flex-col md:flex-row items-center justify-between gap-4 mt-4 text-sm text-gray-600">
-                      {/* Showing text */}
-                      <div>
-                        {filteredLeaveRequests.length === 0 ? (
-                          <span>Showing 0 results</span>
-                        ) : (
-                          <span>
-                            Showing {leavePageStartIndex + 1} to{" "}
-                            {Math.min(leavePageEndIndex, filteredLeaveRequests.length)} of{" "}
-                            {filteredLeaveRequests.length} leave requests
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Per-page selector + numbered pagination */}
-                      <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-2 text-sm text-gray-700">
-                          <span>Per page:</span>
-                          <Select
-                            value={leavePageSize.toString()}
-                            onValueChange={(value) => {
-                              setLeavePageSize(Number(value))
-                            }}
-                          >
-                            <SelectTrigger className="w-20">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="5">5</SelectItem>
-                              <SelectItem value="10">10</SelectItem>
-                              <SelectItem value="20">20</SelectItem>
-                              <SelectItem value="50">50</SelectItem>
-                            </SelectContent>
-                          </Select>
                         </div>
 
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleLeavePageChange(leaveCurrentPageSafe - 1)}
-                            disabled={leaveCurrentPageSafe === 1}
-                          >
-                            ‹ Previous
-                          </Button>
+                        {/* Per-page selector + numbered pagination */}
+                        <div className="flex items-center gap-4">
+                          <div className="flex items-center gap-2 text-sm text-gray-700">
+                            <span>Per page:</span>
+                            <Select
+                              value={leavePageSize.toString()}
+                              onValueChange={(value) => {
+                                setLeavePageSize(Number(value))
+                              }}
+                            >
+                              <SelectTrigger className="w-20">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="5">5</SelectItem>
+                                <SelectItem value="10">10</SelectItem>
+                                <SelectItem value="20">20</SelectItem>
+                                <SelectItem value="50">50</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
 
-                          {Array.from({ length: leaveTotalPages }, (_, index) => {
-                            const page = index + 1
-                            return (
-                              <Button
-                                key={page}
-                                variant={page === leaveCurrentPageSafe ? "default" : "outline"}
-                                size="sm"
-                                onClick={() => handleLeavePageChange(page)}
-                              >
-                                {page}
-                              </Button>
-                            )
-                          })}
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleLeavePageChange(leaveCurrentPageSafe - 1)}
+                              disabled={leaveCurrentPageSafe === 1}
+                            >
+                              ‹ Previous
+                            </Button>
 
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleLeavePageChange(leaveCurrentPageSafe + 1)}
-                            disabled={leaveCurrentPageSafe === leaveTotalPages}
-                          >
-                            Next ›
-                          </Button>
+                            {Array.from({ length: leaveTotalPages }, (_, index) => {
+                              const page = index + 1
+                              return (
+                                <Button
+                                  key={page}
+                                  variant={page === leaveCurrentPageSafe ? "default" : "outline"}
+                                  size="sm"
+                                  onClick={() => handleLeavePageChange(page)}
+                                >
+                                  {page}
+                                </Button>
+                              )
+                            })}
+
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleLeavePageChange(leaveCurrentPageSafe + 1)}
+                              disabled={leaveCurrentPageSafe === leaveTotalPages}
+                            >
+                              Next ›
+                            </Button>
+                          </div>
                         </div>
                       </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card>
+                  <CardContent className="py-8">
+                    <div className="text-center text-gray-500">
+                      <AlertCircle className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+                      <p className="text-lg font-medium">Access Denied</p>
+                      <p className="text-sm mt-2">You don't have permission to view leave requests.</p>
                     </div>
-                  )}
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              )}
             </TabsContent>
           </Tabs>
         </div>
