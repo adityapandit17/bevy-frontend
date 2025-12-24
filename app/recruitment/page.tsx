@@ -29,6 +29,7 @@ import {
   MapPin,
   DollarSign,
   TrendingUp,
+  AlertCircle,
 } from "lucide-react"
 import { JobOpeningForm } from "@/components/forms/job-opening-form"
 import { InterviewFormUI } from "@/components/forms/interview-form-ui"
@@ -63,10 +64,15 @@ export default function RecruitmentPage() {
   const router = useRouter()
   const { checkPermission, roles } = useAuthContext()
 
+  // Check if user is Super Admin
+  const isSuperAdmin = roles?.some((r: any) => r?.name === "Super Admin")
+
   // Check permissions for UI controls
+  const canViewCandidatesIndex = checkPermission("candidates.index")
   const canViewCandidates = checkPermission("candidates.index") || checkPermission("candidates.show")
   const canCreateCandidates = checkPermission("candidates.create")
   const canUpdateCandidates = checkPermission("candidates.update")
+  const canViewJobOpeningsIndex = checkPermission("job_openings.index")
   const canViewJobOpenings = checkPermission("job_openings.index") || checkPermission("job_openings.show")
   const canShowJobOpenings = checkPermission("job_openings.show")
   const canCreateJobOpenings = checkPermission("job_openings.create")
@@ -561,6 +567,7 @@ export default function RecruitmentPage() {
 
         {(canViewJobOpenings) && (
           <TabsContent value="jobs" className="space-y-6">
+            {canViewJobOpeningsIndex ? (
             <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -683,11 +690,23 @@ export default function RecruitmentPage() {
               </div>
             </CardContent>
           </Card>
+            ) : (
+              <Card>
+                <CardContent className="py-8">
+                  <div className="text-center text-gray-500">
+                    <AlertCircle className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+                    <p className="text-lg font-medium">Access Denied</p>
+                    <p className="text-sm mt-2">You don't have permission to view job openings.</p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
         )}
 
         {(canViewCandidates || isSuperAdmin) && (
           <TabsContent value="candidates" className="space-y-6">
+            {canViewCandidatesIndex ? (
             <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -812,6 +831,17 @@ export default function RecruitmentPage() {
               </div>
             </CardContent>
           </Card>
+            ) : (
+              <Card>
+                <CardContent className="py-8">
+                  <div className="text-center text-gray-500">
+                    <AlertCircle className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+                    <p className="text-lg font-medium">Access Denied</p>
+                    <p className="text-sm mt-2">You don't have permission to view candidates.</p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
         )}
       </Tabs>
