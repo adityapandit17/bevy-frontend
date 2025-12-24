@@ -88,7 +88,7 @@ const navItems: NavItem[] = [
     href: "/recruitment",
     icon: Briefcase,
     segment: "recruitment",
-    resourceKeys: ["candidates", "interviews"],
+    resourceKeys: ["candidates", "job_openings", "interviews"],
   },
   {
     title: "Performance",

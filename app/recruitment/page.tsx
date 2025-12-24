@@ -34,6 +34,8 @@ import { JobOpeningForm } from "@/components/forms/job-opening-form"
 import { InterviewFormUI } from "@/components/forms/interview-form-ui"
 import { EmployeeForm } from "@/components/forms/employee-form"
 import { useRouter } from "next/navigation"
+import { ResourceGuard } from "@/lib/auth/auth.guards"
+import { useAuthContext } from "@/lib/auth"
 
 export default function RecruitmentPage() {
   const [searchTerm, setSearchTerm] = useState("")
@@ -59,6 +61,21 @@ export default function RecruitmentPage() {
   const [showEmployeeForm, setShowEmployeeForm] = useState(false)
   const [candidateForEmployee, setCandidateForEmployee] = useState(null)
   const router = useRouter()
+  const { checkPermission, roles } = useAuthContext()
+
+  // Check permissions for UI controls
+  const canViewCandidates = checkPermission("candidates.index") || checkPermission("candidates.show")
+  const canCreateCandidates = checkPermission("candidates.create")
+  const canUpdateCandidates = checkPermission("candidates.update")
+  const canViewJobOpenings = checkPermission("job_openings.index") || checkPermission("job_openings.show")
+  const canShowJobOpenings = checkPermission("job_openings.show")
+  const canCreateJobOpenings = checkPermission("job_openings.create")
+  const canUpdateJobOpenings = checkPermission("job_openings.update")
+  const canDeleteJobOpenings = checkPermission("job_openings.destroy")
+  const canViewInterviews = checkPermission("interviews.index") || checkPermission("interviews.show")
+  const canCreateInterviews = checkPermission("interviews.create")
+  const canUpdateInterviews = checkPermission("interviews.update")
+  
 
   useEffect(() => {
     fetchDepartments()
@@ -478,6 +495,7 @@ export default function RecruitmentPage() {
   }
 
   return (
+    <ResourceGuard resourceKeys={["candidates", "job_openings", "interviews"]} pageName="Recruitment">
     <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -487,18 +505,24 @@ export default function RecruitmentPage() {
         </div>
         <div className="flex flex-col gap-2">
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => router.push('/ats')} className="border-blue-200 text-blue-700 hover:bg-blue-50">
-              <TrendingUp className="w-4 h-4 mr-2" />
-              ATS
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => handleScheduleInterview()}>
-              <Calendar className="w-4 h-4 mr-2" />
-              Schedule Interview
-            </Button>
-            <Button size="sm" onClick={() => setShowForm(true)}>
-              <Plus className="w-4 h-4 mr-2" />
-              Post Job
-            </Button>
+            {(canViewCandidates) && (
+              <Button variant="outline" size="sm" onClick={() => router.push('/ats')} className="border-blue-200 text-blue-700 hover:bg-blue-50">
+                <TrendingUp className="w-4 h-4 mr-2" />
+                ATS
+              </Button>
+            )}
+            {(canCreateInterviews) && (
+              <Button variant="outline" size="sm" onClick={() => handleScheduleInterview()}>
+                <Calendar className="w-4 h-4 mr-2" />
+                Schedule Interview
+              </Button>
+            )}
+            {(canCreateJobOpenings) && (
+              <Button size="sm" onClick={() => setShowForm(true)}>
+                <Plus className="w-4 h-4 mr-2" />
+                Post Job
+              </Button>
+            )}
           </div>
           <p className="text-xs text-gray-500">Track candidates through the recruitment pipeline</p>
         </div>
@@ -525,14 +549,19 @@ export default function RecruitmentPage() {
       </div>
 
       {/* Tabs for Job Openings and Candidates */}
-      <Tabs defaultValue="jobs" className="space-y-6">
+      <Tabs defaultValue={(canViewJobOpenings) ? "jobs" : "candidates"} className="space-y-6">
         <TabsList className="grid w-full grid-cols-2 lg:w-96">
-          <TabsTrigger value="jobs">Job Openings</TabsTrigger>
-          <TabsTrigger value="candidates">Candidates</TabsTrigger>
+          {(canViewJobOpenings) && (
+            <TabsTrigger value="jobs">Job Openings</TabsTrigger>
+          )}
+          {(canViewCandidates) && (
+            <TabsTrigger value="candidates">Candidates</TabsTrigger>
+          )}
         </TabsList>
 
-        <TabsContent value="jobs" className="space-y-6">
-          <Card>
+        {(canViewJobOpenings) && (
+          <TabsContent value="jobs" className="space-y-6">
+            <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Briefcase className="w-5 h-5" />
@@ -601,29 +630,51 @@ export default function RecruitmentPage() {
                           <Badge className={getStatusColor(job.status)}>{job.status}</Badge>
                         </TableCell>
                         <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm">
-                                <MoreHorizontal className="w-4 h-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                              <DropdownMenuItem onClick={() => handleEditJob(job)}>Edit Job</DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => router.push(`/recruitment/${job.id}`)}>View Applications</DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                className={job.status === "closed" ? "text-green-600" : "text-red-600"}
-                                onClick={() =>
-                                  job.status === "closed"
-                                    ? handleActivateJob(job)
-                                    : handleDeactivateJob(job)
-                                }
-                              >
-                                {job.status === "closed" ? "Open Job" : "Close Job"}
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                          {(() => {
+                            // Check if there are any visible actions
+                            const hasEditJob = canUpdateJobOpenings
+                            const hasViewApplications = canShowJobOpenings 
+                            const hasOpenCloseJob = canUpdateJobOpenings 
+                            const hasAnyActions = hasEditJob || hasViewApplications || hasOpenCloseJob
+
+                            if (!hasAnyActions) {
+                              return null
+                            }
+
+                            return (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="sm">
+                                    <MoreHorizontal className="w-4 h-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                  {hasEditJob && (
+                                    <DropdownMenuItem onClick={() => handleEditJob(job)}>Edit Job</DropdownMenuItem>
+                                  )}
+                                  {hasViewApplications && (
+                                    <DropdownMenuItem onClick={() => router.push(`/recruitment/${job.id}`)}>View Applications</DropdownMenuItem>
+                                  )}
+                                  {((canUpdateJobOpenings || canViewJobOpenings) && (canDeleteJobOpenings || isSuperAdmin)) && (
+                                    <DropdownMenuSeparator />
+                                  )}
+                                  {hasOpenCloseJob && (
+                                  <DropdownMenuItem
+                                    className={job.status === "closed" ? "text-green-600" : "text-red-600"}
+                                    onClick={() =>
+                                      job.status === "closed"
+                                        ? handleActivateJob(job)
+                                        : handleDeactivateJob(job)
+                                    }
+                                  >
+                                    {job.status === "closed" ? "Open Job" : "Close Job"}
+                                  </DropdownMenuItem>
+                                  )}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            )
+                          })()}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -632,10 +683,12 @@ export default function RecruitmentPage() {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
+          </TabsContent>
+        )}
 
-        <TabsContent value="candidates" className="space-y-6">
-          <Card>
+        {(canViewCandidates || isSuperAdmin) && (
+          <TabsContent value="candidates" className="space-y-6">
+            <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Users className="w-5 h-5" />
@@ -759,7 +812,8 @@ export default function RecruitmentPage() {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
+          </TabsContent>
+        )}
       </Tabs>
 
       {showForm && (
@@ -792,5 +846,6 @@ export default function RecruitmentPage() {
         initialData={getEmployeeInitialData()}
       />
     </div>
+    </ResourceGuard>
   )
 }

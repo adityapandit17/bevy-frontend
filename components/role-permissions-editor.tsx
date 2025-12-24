@@ -48,6 +48,7 @@ const permissionModules: PermissionModule[] = [
   { name: "leave_requests", label: "Leave Requests", icon: "🏖️" },
   { name: "leave_management", label: "Leave Management", icon: "📋", singlePermission: true },
   { name: "candidates", label: "Recruitment", icon: "🎯" },
+  { name: "job_openings", label: "Job Openings", icon: "📝" },
   { name: "interviews", label: "Interviews", icon: "💼" },
   { name: "performance_reviews", label: "Performance", icon: "📊" },
   { name: "assets", label: "Asset Management", icon: "🏢" },
@@ -254,6 +255,13 @@ export default function RolePermissionsEditor() {
       const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : undefined })
       const json = await res.json()
       const perms: Permission[] = (json.permissions || []).map((p: any) => ({ id: p.id, name: p.name, resource: p.resource, action: p.action, description: p.description, granted: !!p.granted }))
+      // Debug: Check if job_openings permissions are in the response
+      const jobOpeningsPerms = perms.filter(p => p.resource === 'job_openings')
+      if (jobOpeningsPerms.length > 0) {
+        console.log('✅ Job openings permissions found:', jobOpeningsPerms.length, jobOpeningsPerms.map(p => p.name))
+      } else {
+        console.warn('⚠️ No job_openings permissions in API response. Total permissions:', perms.length, 'Resources:', [...new Set(perms.map(p => p.resource))])
+      }
       setRolePermissions(perms)
     } catch (e) {
       toast({ title: "Error", description: "Failed to load permissions", variant: "destructive" })
@@ -522,26 +530,52 @@ export default function RolePermissionsEditor() {
                       {(() => {
                         // Build modules dynamically from loaded permissions
                         const mergedAll = rolePermissions
-                        const modulesFromTemplate = Array.from(new Set(mergedAll.map(p => p.resource)))
+                        const modulesFromTemplate = Array.from(new Set(mergedAll.map(p => p.resource))).sort()
                         const modulesToShow = selectedModule === "all" ? modulesFromTemplate : [selectedModule]
                         const mergedForRole = rolePermissions
+
+                        // Debug: Log modules being rendered
+                        console.log('📋 All modules from permissions:', modulesFromTemplate)
+                        if (modulesFromTemplate.includes('job_openings')) {
+                          console.log('✅ job_openings found in modulesFromTemplate at index:', modulesFromTemplate.indexOf('job_openings'))
+                        } else {
+                          console.warn('⚠️ job_openings NOT in modulesFromTemplate. Available modules:', modulesFromTemplate)
+                          console.warn('⚠️ job_openings permissions in rolePermissions:', mergedAll.filter(p => p.resource === 'job_openings').map(p => p.name))
+                        }
 
                         return modulesToShow.map((module) => {
                           const moduleInfo = permissionModules.find(m => m.name === module)
                           const isSinglePermission = moduleInfo?.singlePermission || false
                           // For single permission modules, only show the index permission (or first one if no index)
                           let permissions = mergedForRole.filter(p => p.resource === module)
+                          
+                          // Debug: Log job_openings module rendering
+                          if (module === 'job_openings') {
+                            console.log('🔍 Rendering job_openings module:', {
+                              moduleInfo,
+                              permissionsCount: permissions.length,
+                              permissions: permissions.map(p => p.name),
+                              isSinglePermission
+                            })
+                          }
+                          
                           if (isSinglePermission) {
                             // Filter to only show index permission, or first permission if no index exists
                             const indexPermission = permissions.find(p => p.action === "index")
                             permissions = indexPermission ? [indexPermission] : (permissions.length > 0 ? [permissions[0]] : [])
                           }
                           
+                          // Don't render if no permissions (shouldn't happen, but safety check)
+                          if (permissions.length === 0) {
+                            console.warn(`⚠️ Module ${module} has no permissions, skipping render`)
+                            return null
+                          }
+                          
                           return (
                             <div key={module} className="border rounded-lg p-4">
                               <div className="flex items-center gap-2 mb-3">
-                                <span className="text-lg">{moduleInfo?.icon}</span>
-                                <h4 className="font-medium text-gray-900">{moduleInfo?.label || module}</h4>
+                                <span className="text-lg">{moduleInfo?.icon || "📋"}</span>
+                                <h4 className="font-medium text-gray-900">{moduleInfo?.label || module.replace('_', ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}</h4>
                                 {!isSinglePermission && (
                                   <Badge variant="outline" className="text-xs">
                                     {permissions.filter(p => p.granted).length}/{permissions.length} granted

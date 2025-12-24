@@ -195,8 +195,13 @@ export const apiRequest = async <T>(
         errorMessage = `Request failed with status ${response.status || 'unknown'}. ${response.statusText || 'Please check your connection and try again'}`;
       }
 
-      // Show toast notification for errors
-      if (!suppressToast) {
+      // Suppress toast for "Insufficient permissions" errors (403 Forbidden)
+      const isInsufficientPermissionsError = response.status === 403 && 
+        (errorMessage.toLowerCase().includes('insufficient permissions') || 
+         errorMessage.toLowerCase().includes('insufficient permission'));
+
+      // Show toast notification for errors (except insufficient permissions)
+      if (!suppressToast && !isInsufficientPermissionsError) {
         toast({
           title: "Error",
           description: errorMessage,
