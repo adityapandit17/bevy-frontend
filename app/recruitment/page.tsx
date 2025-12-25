@@ -555,18 +555,13 @@ export default function RecruitmentPage() {
       </div>
 
       {/* Tabs for Job Openings and Candidates */}
-      <Tabs defaultValue={(canViewJobOpenings) ? "jobs" : "candidates"} className="space-y-6">
+      <Tabs defaultValue="jobs" className="space-y-6">
         <TabsList className="grid w-full grid-cols-2 lg:w-96">
-          {(canViewJobOpenings) && (
-            <TabsTrigger value="jobs">Job Openings</TabsTrigger>
-          )}
-          {(canViewCandidates) && (
-            <TabsTrigger value="candidates">Candidates</TabsTrigger>
-          )}
+          <TabsTrigger value="jobs">Job Openings</TabsTrigger>
+          <TabsTrigger value="candidates">Candidates</TabsTrigger>
         </TabsList>
 
-        {(canViewJobOpenings) && (
-          <TabsContent value="jobs" className="space-y-6">
+        <TabsContent value="jobs" className="space-y-6">
             {canViewJobOpeningsIndex ? (
             <Card>
             <CardHeader>
@@ -702,10 +697,8 @@ export default function RecruitmentPage() {
               </Card>
             )}
           </TabsContent>
-        )}
 
-        {(canViewCandidates || isSuperAdmin) && (
-          <TabsContent value="candidates" className="space-y-6">
+        <TabsContent value="candidates" className="space-y-6">
             {canViewCandidatesIndex ? (
             <Card>
             <CardHeader>
@@ -843,7 +836,6 @@ export default function RecruitmentPage() {
               </Card>
             )}
           </TabsContent>
-        )}
       </Tabs>
 
       {showForm && (
