@@ -81,6 +81,7 @@ export default function RecruitmentPage() {
   const canViewInterviews = checkPermission("interviews.index") || checkPermission("interviews.show")
   const canCreateInterviews = checkPermission("interviews.create")
   const canUpdateInterviews = checkPermission("interviews.update")
+  const canCreateEmployees = checkPermission("employees.create")
   
 
   useEffect(() => {
@@ -806,7 +807,7 @@ export default function RecruitmentPage() {
                                         </DropdownMenuItem>
                                         <DropdownMenuItem>Send Message</DropdownMenuItem>
                                         <DropdownMenuSeparator />
-                                        {candidate.status === "hired" && (
+                                        {candidate.status === "hired" && canCreateEmployees && (
                                           <DropdownMenuItem onClick={() => handleMoveToNextStage(candidate)}>Move to Next Stage</DropdownMenuItem>
                                         )}
                                         <DropdownMenuItem className="text-red-600" onClick={() => handleRejectApplication(candidate)}>Reject Application</DropdownMenuItem>
