@@ -135,8 +135,15 @@ export function CandidateForm({ candidate, onSave, onCancel, isLoading = false }
       setFormData(prev => ({
         ...prev,
         ...candidate,
-        first_name,
-        last_name,
+        first_name: first_name || "",
+        last_name: last_name || "",
+        email: candidate.email || "",
+        phone: candidate.phone || "",
+        position: candidate.position || "",
+        experience: candidate.experience || "",
+        location: candidate.location || "",
+        applied_date: candidate.applied_date || prev.applied_date,
+        last_contact: candidate.last_contact || prev.last_contact,
         date_of_birth: candidate.date_of_birth || prev.date_of_birth,
         skills: Array.isArray(candidate.skills)
           ? candidate.skills
@@ -146,6 +153,11 @@ export function CandidateForm({ candidate, onSave, onCancel, isLoading = false }
               .filter(Boolean),
         resume: candidate.resume || prev.resume,
         cover_letter: candidate.cover_letter || prev.cover_letter,
+        education: candidate.education || "",
+        current_company: candidate.current_company || "",
+        expected_salary: candidate.expected_salary || "",
+        availability: candidate.availability || "",
+        notes: candidate.notes || "",
         department:
           departmentOptions.includes(candidate.department)
             ? candidate.department
@@ -326,7 +338,7 @@ export function CandidateForm({ candidate, onSave, onCancel, isLoading = false }
               <Label htmlFor="first_name">First Name *</Label>
               <Input
                 id="first_name"
-                value={formData.first_name}
+                value={formData.first_name || ""}
                 onChange={(e) => handleInputChange("first_name", e.target.value)}
                 placeholder="Enter first name"
                 className={errors.first_name ? "border-red-500" : ""}
@@ -338,7 +350,7 @@ export function CandidateForm({ candidate, onSave, onCancel, isLoading = false }
               <Label htmlFor="last_name">Last Name *</Label>
               <Input
                 id="last_name"
-                value={formData.last_name}
+                value={formData.last_name || ""}
                 onChange={(e) => handleInputChange("last_name", e.target.value)}
                 placeholder="Enter last name"
                 className={errors.last_name ? "border-red-500" : ""}
@@ -351,7 +363,7 @@ export function CandidateForm({ candidate, onSave, onCancel, isLoading = false }
               <Input
                 id="email"
                 type="email"
-                value={formData.email}
+                value={formData.email || ""}
                 onChange={(e) => handleInputChange("email", e.target.value)}
                 placeholder="Enter email address"
                 className={errors.email ? "border-red-500" : ""}
@@ -375,7 +387,7 @@ export function CandidateForm({ candidate, onSave, onCancel, isLoading = false }
               <Label htmlFor="phone">Phone *</Label>
               <Input
                 id="phone"
-                value={formData.phone}
+                value={formData.phone || ""}
                 onChange={(e) => handleInputChange("phone", e.target.value)}
                 placeholder="Enter phone number"
                 className={errors.phone ? "border-red-500" : ""}
@@ -387,7 +399,7 @@ export function CandidateForm({ candidate, onSave, onCancel, isLoading = false }
               <Label htmlFor="location">Location *</Label>
               <Input
                 id="location"
-                value={formData.location}
+                value={formData.location || ""}
                 onChange={(e) => handleInputChange("location", e.target.value)}
                 placeholder="Enter location"
                 className={errors.location ? "border-red-500" : ""}
@@ -402,7 +414,7 @@ export function CandidateForm({ candidate, onSave, onCancel, isLoading = false }
               <Label htmlFor="position">Position *</Label>
               <Input
                 id="position"
-                value={formData.position}
+                value={formData.position || ""}
                 onChange={(e) => handleInputChange("position", e.target.value)}
                 placeholder="Enter position title"
                 className={errors.position ? "border-red-500" : ""}
@@ -436,7 +448,7 @@ export function CandidateForm({ candidate, onSave, onCancel, isLoading = false }
               <Label htmlFor="experience">Experience *</Label>
               <Input
                 id="experience"
-                value={formData.experience}
+                value={formData.experience || ""}
                 onChange={(e) => handleInputChange("experience", e.target.value)}
                 placeholder="e.g., 3 years"
                 className={errors.experience ? "border-red-500" : ""}
@@ -469,7 +481,7 @@ export function CandidateForm({ candidate, onSave, onCancel, isLoading = false }
               <Label htmlFor="education">Education</Label>
               <Input
                 id="education"
-                value={formData.education}
+                value={formData.education || ""}
                 onChange={(e) => handleInputChange("education", e.target.value)}
                 placeholder="Enter education details"
               />
@@ -479,7 +491,7 @@ export function CandidateForm({ candidate, onSave, onCancel, isLoading = false }
               <Label htmlFor="current_company">Current Company</Label>
               <Input
                 id="current_company"
-                value={formData.current_company}
+                value={formData.current_company || ""}
                 onChange={(e) => handleInputChange("current_company", e.target.value)}
                 placeholder="Enter current company"
               />
@@ -489,7 +501,7 @@ export function CandidateForm({ candidate, onSave, onCancel, isLoading = false }
               <Label htmlFor="expected_salary">Expected Salary</Label>
               <Input
                 id="expected_salary"
-                value={formData.expected_salary}
+                value={formData.expected_salary || ""}
                 onChange={(e) => handleInputChange("expected_salary", e.target.value)}
                 placeholder="Enter expected salary"
               />
@@ -499,7 +511,7 @@ export function CandidateForm({ candidate, onSave, onCancel, isLoading = false }
               <Label htmlFor="availability">Availability</Label>
               <Input
                 id="availability"
-                value={formData.availability}
+                value={formData.availability || ""}
                 onChange={(e) => handleInputChange("availability", e.target.value)}
                 placeholder="e.g., 2 weeks notice"
               />
@@ -513,7 +525,7 @@ export function CandidateForm({ candidate, onSave, onCancel, isLoading = false }
               <Input
                 id="applied_date"
                 type="date"
-                value={formData.applied_date}
+                value={formData.applied_date || ""}
                 onChange={(e) => handleInputChange("applied_date", e.target.value)}
                 className={errors.applied_date ? "border-red-500" : ""}
               />
@@ -525,7 +537,7 @@ export function CandidateForm({ candidate, onSave, onCancel, isLoading = false }
               <Input
                 id="last_contact"
                 type="date"
-                value={formData.last_contact}
+                value={formData.last_contact || ""}
                 onChange={(e) => handleInputChange("last_contact", e.target.value)}
                 className={errors.last_contact ? "border-red-500" : ""}
               />
@@ -722,7 +734,7 @@ export function CandidateForm({ candidate, onSave, onCancel, isLoading = false }
             <Label htmlFor="notes">Notes</Label>
             <Textarea
               id="notes"
-              value={formData.notes}
+              value={formData.notes || ""}
               onChange={(e) => handleInputChange("notes", e.target.value)}
               placeholder="Enter any additional notes about the candidate"
               rows={4}

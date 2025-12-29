@@ -1241,7 +1241,7 @@ HR Team`
                 <div>
                   <h3 className="text-lg font-medium mb-3">Notes</h3>
                   <Textarea
-                    value={selectedCandidate.notes}
+                    value={selectedCandidate.notes || ""}
                     onChange={(e) => {
                       setCandidates(prev => prev.map(candidate => 
                         candidate.id === selectedCandidate.id 
@@ -1731,7 +1731,7 @@ HR Team`
                 <Textarea
                   id="feedback"
                   placeholder="Enter feedback about the interview..."
-                  value={completeInterviewData.feedback}
+                  value={completeInterviewData.feedback || ""}
                   onChange={(e) => setCompleteInterviewData({ ...completeInterviewData, feedback: e.target.value })}
                   rows={5}
                 />
