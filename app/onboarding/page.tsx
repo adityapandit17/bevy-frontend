@@ -42,6 +42,7 @@ import {
   MessageSquare,
   X,
   Loader2,
+  Trash2,
 } from "lucide-react"
 
 interface OnboardingTask {
@@ -568,6 +569,41 @@ export default function OnboardingPage() {
     setUploadFiles(prev => prev.filter((_, i) => i !== index))
   }
 
+  const handleDeleteDocument = async (task: OnboardingTask, documentIndex: number) => {
+    if (!task.documents || !Array.isArray(task.documents) || task.documents.length === 0) return
+    
+    // Confirm deletion
+    if (!confirm('Are you sure you want to delete this document?')) {
+      return
+    }
+
+    try {
+      // Get current documents array
+      const currentDocuments = [...task.documents]
+      // Remove the document at the specified index
+      currentDocuments.splice(documentIndex, 1)
+      
+      // Update the task with the updated documents list
+      await apiRequest(getApiUrl(`/onboarding_tasks/${task.id}`), {
+        method: 'PATCH',
+        body: JSON.stringify({
+          onboarding_task: {
+            documents: currentDocuments.join(', ')
+          }
+        })
+      })
+      
+      // Refresh the data
+      await fetchOnboardingEmployees()
+      await fetchStats()
+      
+      alert('Document deleted successfully!')
+    } catch (error: any) {
+      console.error('Error deleting document:', error)
+      alert(`Error deleting document: ${error?.message || 'Please try again.'}`)
+    }
+  }
+
   const handleConfirmUpload = async () => {
     if (!uploadTask || uploadFiles.length === 0) return
 
@@ -948,14 +984,25 @@ export default function OnboardingPage() {
                                 <span>Due: {task.due_date}</span>
                               </div>
                             </div>
-                            {task.documents && task.documents.length > 0 && (
+                            {task.documents && Array.isArray(task.documents) && task.documents.length > 0 && (
                               <div className="mt-3 pt-3 border-t">
                                 <p className="text-xs font-medium text-gray-600 mb-2">Required Documents:</p>
                                 <div className="flex flex-wrap gap-2">
                                   {task.documents.map((doc, index) => (
-                                    <Badge key={index} variant="outline" className="text-xs">
-                                      <FileText className="w-3 h-3 mr-1" />
-                                      {doc}
+                                    <Badge key={index} variant="outline" className="text-xs flex items-center gap-1 pr-0.5">
+                                      <FileText className="w-3 h-3" />
+                                      <span className="max-w-[200px] truncate">{doc}</span>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          handleDeleteDocument(task, index)
+                                        }}
+                                        className="h-5 w-5 p-0 hover:bg-red-50 hover:text-red-600 ml-0.5 -mr-0.5"
+                                      >
+                                        <Trash2 className="w-3 h-3" />
+                                      </Button>
                                     </Badge>
                                   ))}
                                 </div>
