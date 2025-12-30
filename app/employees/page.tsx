@@ -89,8 +89,9 @@ export default function EmployeesPage() {
   const isEmployeeOnly = checkRole("Employee")
 
   // If user has no actions at all, hide the Actions menu button
+  // Note: canViewPayroll alone doesn't show any option (requires canShow too)
   const hasAnyEmployeeActions =
-    canUpdate || canShow || canViewPayroll || canDestroy
+    canUpdate || canShow || canDestroy
 
   // Fetch departments on mount
   useEffect(() => {
@@ -458,7 +459,7 @@ export default function EmployeesPage() {
                                   View Profile
                                 </DropdownMenuItem>
                               )}
-                              {canViewPayroll && (
+                              {canViewPayroll && canShow && (
                                 <DropdownMenuItem onClick={() => router.push(`/employees/${employee.id}/payroll`)}>
                                   View Payroll
                                 </DropdownMenuItem>
