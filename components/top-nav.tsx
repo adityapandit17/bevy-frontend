@@ -17,6 +17,7 @@ import {
   Search,
   User,
   MoreHorizontal as More,
+  MessageSquare,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -48,6 +49,12 @@ const navItems: NavItem[] = [
     href: "/dashboard",
     icon: LayoutDashboard,
     segment: "dashboard",
+  },
+  {
+    title: "Chat",
+    href: "/chat",
+    icon: MessageSquare,
+    segment: "chat",
   },
   {
     title: "Employees",

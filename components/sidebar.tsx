@@ -21,6 +21,7 @@ import {
   Zap,
   Shirt,
   UserCheck,
+  MessageSquare,
 } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
 
@@ -54,6 +55,12 @@ const navItems: NavItem[] = [
     href: "/dashboard",
     icon: LayoutDashboard,
     segment: "dashboard",
+  },
+  {
+    title: "Chat",
+    href: "/chat",
+    icon: MessageSquare,
+    segment: "chat",
   },
   {
     title: "Employees",
