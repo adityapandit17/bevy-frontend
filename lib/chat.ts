@@ -224,17 +224,19 @@ export class ChatCable {
       // Add connection event handlers
       if (this.consumer.connection) {
         this.consumer.connection.addEventListener('open', () => {
-          console.log('ActionCable WebSocket connected');
+          console.log('✅ ActionCable WebSocket connected successfully');
         });
         
         this.consumer.connection.addEventListener('close', () => {
-          console.log('ActionCable WebSocket disconnected');
+          console.log('❌ ActionCable WebSocket disconnected');
           this.consumer = null;
         });
         
         this.consumer.connection.addEventListener('error', (error: any) => {
-          console.warn('ActionCable WebSocket error:', error);
+          console.error('❌ ActionCable WebSocket error:', error);
         });
+      } else {
+        console.warn('⚠️ ActionCable consumer created but connection not available');
       }
     } catch (error) {
       // Silently fail - real-time updates won't work but app continues
@@ -250,14 +252,18 @@ export class ChatCable {
       // Try to connect asynchronously
       this.connect().then(() => {
         if (this.consumer) {
+          console.log('ActionCable connected, subscribing to channel:', channelId);
           this.doSubscribe(channelId, callback);
+        } else {
+          console.warn('ActionCable connection failed, cannot subscribe to channel:', channelId);
         }
-      }).catch(() => {
-        // Silently fail - real-time updates won't work but app continues
+      }).catch((error) => {
+        console.error('Failed to connect ActionCable:', error);
       });
       return null;
     }
 
+    console.log('ActionCable already connected, subscribing to channel:', channelId);
     return this.doSubscribe(channelId, callback);
   }
 
@@ -277,11 +283,22 @@ export class ChatCable {
           },
           {
             received: (data: any) => {
+              console.log('ActionCable received data:', data);
               if (data.type === 'message' && data.message) {
+                // Ensure message has required fields
+                const message = {
+                  ...data.message,
+                  user_name: data.message.user_name || '',
+                  user_email: data.message.user_email || '',
+                };
+                console.log('Processing message for channel:', message.channel_id);
                 // Find the callback for this channel
-                const channelCallback = this.subscriptions.get(data.message.channel_id);
+                const channelCallback = this.subscriptions.get(message.channel_id);
                 if (channelCallback) {
-                  channelCallback(data.message);
+                  console.log('Calling callback for channel:', message.channel_id);
+                  channelCallback(message);
+                } else {
+                  console.warn('No callback found for channel:', message.channel_id);
                 }
               } else if (data.type === 'channel_updated') {
                 // Handle channel updates
@@ -289,13 +306,22 @@ export class ChatCable {
                 if (channelCallback) {
                   channelCallback(data);
                 }
+              } else if (data.type === 'huddle_started' || data.type === 'huddle_updated' || data.type === 'huddle_ended') {
+                // Handle huddle events - pass to channel callback
+                const channelCallback = this.subscriptions.get(data.huddle?.channel_id || data.channel_id);
+                if (channelCallback) {
+                  channelCallback(data);
+                }
               }
             },
             connected: () => {
-              console.log('Subscribed to ChatChannel');
+              console.log('✅ Subscribed to ChatChannel - ready to receive messages');
             },
             disconnected: () => {
-              console.log('Disconnected from ChatChannel');
+              console.log('❌ Disconnected from ChatChannel');
+            },
+            rejected: () => {
+              console.error('❌ Subscription to ChatChannel was rejected');
             },
           }
         );

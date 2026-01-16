@@ -22,6 +22,7 @@ import {
   Shirt,
   UserCheck,
   MessageSquare,
+  Shield,
 } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
 
@@ -166,6 +167,13 @@ const navItems: NavItem[] = [
     icon: Settings,
     segment: "settings",
     resourceKeys: ["settings"],
+  },
+  {
+    title: "Super Admin",
+    href: "/super-admin",
+    icon: Shield,
+    segment: "super-admin",
+    requiredRolesOr: ["Super Admin"],
   },
 ]
 

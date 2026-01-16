@@ -38,12 +38,25 @@ import {
   Lock,
   Loader2,
   UserPlus,
+  Mic,
+  MicOff,
+  PhoneOff,
+  ChevronUp,
+  ChevronDown,
+  X,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { chatApi, ChatCable, Channel, Message } from "@/lib/chat"
 import { useAuthContext } from "@/lib/auth"
 import { apiRequest, getApiUrl } from "@/lib/api"
 import { toast } from "@/hooks/use-toast"
+import { WebRTCCallManager, CallData } from "@/lib/webrtc-call"
+import { CallNotification } from "@/components/call/call-notification"
+import { CallAudio } from "@/components/call/call-audio"
+import { AUTH_CONFIG } from "@/config/auth.config"
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000'
+import { huddleApi, Huddle, HuddleWebRTC } from "@/lib/huddle"
 
 interface User {
   id: number
@@ -76,8 +89,36 @@ export default function ChatPage() {
   const [loadingUsers, setLoadingUsers] = useState(false)
   const [creating, setCreating] = useState(false)
 
+  // Add members dialog state
+  const [showAddMembersDialog, setShowAddMembersDialog] = useState(false)
+  const [selectedMembersToAdd, setSelectedMembersToAdd] = useState<number[]>([])
+  const [addingMembers, setAddingMembers] = useState(false)
+
   // Emoji picker state
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+
+  // Huddle state
+  const [activeHuddle, setActiveHuddle] = useState<Huddle | null>(null)
+  const [huddleWebRTC, setHuddleWebRTC] = useState<HuddleWebRTC | null>(null)
+  const [isInHuddle, setIsInHuddle] = useState(false)
+  const [isMuted, setIsMuted] = useState(false)
+  const [huddleLoading, setHuddleLoading] = useState(false)
+  const [huddlePanelExpanded, setHuddlePanelExpanded] = useState(false)
+
+  // WebRTC Call state
+  const [callManager] = useState(() => {
+    return new WebRTCCallManager(
+      (call) => setCurrentCall(call),
+      (stream) => setRemoteStream(stream),
+      () => {
+        setCurrentCall(null)
+        setRemoteStream(null)
+      }
+    )
+  })
+  const [currentCall, setCurrentCall] = useState<CallData | null>(null)
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null)
+  const [callMuted, setCallMuted] = useState(false)
 
   // Common emojis
   const commonEmojis = [
@@ -108,8 +149,158 @@ export default function ChatPage() {
     return () => {
       clearTimeout(connectTimer)
       cable.disconnect()
+      // Clean up huddle on unmount
+      if (huddleWebRTC) {
+        huddleWebRTC.disconnect()
+      }
+      // Clean up call on unmount
+      if (currentCall) {
+        callManager.endCall()
+      }
     }
   }, [])
+
+  // Setup ActionCable listener for incoming calls when currentUser is available
+  useEffect(() => {
+    if (!currentUser?.id) return
+
+    let callSubscription: any = null
+
+    const setupCallListener = async () => {
+      try {
+        const ActionCableModule = await import('@rails/actioncable')
+        const ActionCable = ActionCableModule.default || ActionCableModule
+        const token = localStorage.getItem(AUTH_CONFIG.tokenKey)
+        
+        if (!token) {
+          console.warn('No token available for call listener')
+          return
+        }
+
+        const protocol = API_BASE_URL.startsWith('https') ? 'wss' : 'ws'
+        const baseUrl = API_BASE_URL.replace(/^https?/, protocol)
+        const cableUrl = `${baseUrl}/cable?token=${encodeURIComponent(token)}`
+        
+        const consumer = ActionCable.createConsumer(cableUrl)
+
+        // Subscribe to user's call channel
+        callSubscription = consumer.subscriptions.create(
+          {
+            channel: 'CallChannel',
+            user_id: currentUser.id,
+          },
+          {
+            connected: () => {
+              console.log('✅ CallChannel connected for user:', currentUser.id)
+            },
+            disconnected: () => {
+              console.log('❌ CallChannel disconnected')
+            },
+            rejected: () => {
+              console.error('❌ CallChannel subscription rejected')
+            },
+            received: async (data: any) => {
+              console.log('📞 CallChannel received:', data, 'currentCall:', currentCall)
+              
+              // Only handle incoming call offers (not outgoing ones)
+              if (data.type === 'call-offer' && !currentCall) {
+                // Verify this is actually for the current user
+                const recipientId = data.to?.id || data.to_id
+                if (recipientId === currentUser?.id) {
+                  console.log('📞 Incoming call offer received - showing notification')
+                  await handleIncomingCall(data)
+                } else {
+                  console.log('⚠️ Call offer received but not for current user, ignoring')
+                }
+              } else if (data.type === 'call-answer' && currentCall && currentCall.direction === 'outgoing') {
+                console.log('✅ Call answer received - forwarding to call manager')
+                // Forward to call manager's signaling handler
+                // The call manager's subscription will handle it
+              } else if (data.type === 'call-reject' || data.type === 'call-end') {
+                console.log('❌ Call rejected or ended')
+                callManager.endCall()
+              } else if (data.type === 'ice-candidate' && currentCall) {
+                console.log('🧊 ICE candidate received - forwarding to call manager')
+                // Forward to call manager's signaling handler
+              }
+            },
+          }
+        )
+      } catch (error) {
+        console.error('Failed to setup call listener:', error)
+      }
+    }
+
+    setupCallListener()
+
+    return () => {
+      if (callSubscription) {
+        callSubscription.unsubscribe()
+        console.log('Call subscription cleaned up')
+      }
+    }
+  }, [currentUser?.id])
+
+  const handleIncomingCall = async (data: any) => {
+    console.log('📞 Handling incoming call:', data)
+    const callData: CallData = {
+      callId: data.callId,
+      from: data.from,
+      to: data.to || {
+        id: currentUser?.id || 0,
+        name: currentUser?.name || '',
+        email: currentUser?.email || '',
+      },
+      state: 'ringing',
+      direction: 'incoming',
+    }
+
+    try {
+      await callManager.handleIncomingCall(callData, data.offer)
+      console.log('✅ Incoming call handled successfully')
+    } catch (error) {
+      console.error('❌ Failed to handle incoming call:', error)
+    }
+  }
+
+  // Load active huddle when channel changes
+  useEffect(() => {
+    if (selectedChannel) {
+      loadActiveHuddle()
+    } else {
+      setActiveHuddle(null)
+      setIsInHuddle(false)
+    }
+  }, [selectedChannel])
+
+  // Subscribe to huddle updates via ActionCable
+  useEffect(() => {
+    if (!selectedChannel) return
+
+    const subscription = cable.subscribeToChannel(selectedChannel.id, (data: any) => {
+      if (data.type === 'huddle_started' || data.type === 'huddle_updated') {
+        setActiveHuddle(data.huddle)
+        // If current user is a participant, join WebRTC
+        const isParticipant = data.huddle.participants.some((p: any) => p.id === currentUser?.id)
+        if (isParticipant && !isInHuddle) {
+          joinHuddleWebRTC(data.huddle)
+        } else if (!isParticipant && isInHuddle) {
+          // User was removed from huddle
+          leaveHuddle()
+        }
+      } else if (data.type === 'huddle_ended') {
+        if (activeHuddle?.id === data.huddle_id) {
+          leaveHuddle()
+        }
+      }
+    })
+
+    return () => {
+      if (subscription) {
+        cable.unsubscribeFromChannel(selectedChannel.id)
+      }
+    }
+  }, [selectedChannel, currentUser])
 
   // Subscribe to channel updates when channel is selected
   useEffect(() => {
@@ -118,12 +309,39 @@ export default function ChatPage() {
       
       // Subscribe to real-time updates (may fail silently if ActionCable not available)
       const subscription = cable.subscribeToChannel(selectedChannel.id, (message: Message) => {
+        console.log('ActionCable received message:', message)
         setMessages((prev) => {
-          // Avoid duplicates - check by id
-          if (prev.some((m) => m.id === message.id && m.channel_id === message.channel_id)) {
+          // Only process messages for the current channel
+          if (message.channel_id !== selectedChannel.id) {
+            console.log('Ignoring message for different channel:', message.channel_id)
             return prev
           }
-          return [...prev, message]
+          
+          // Avoid duplicates - check by id and channel_id
+          const isDuplicate = prev.some((m) => 
+            m.id === message.id && 
+            m.channel_id === message.channel_id
+          )
+          if (isDuplicate) {
+            console.log('Skipping duplicate message:', message.id)
+            return prev
+          }
+          
+          // Ensure message has user data
+          if (!message.user_name && !message.user_email) {
+            console.warn('Message missing user data:', message)
+          }
+          
+          console.log('Adding new message from ActionCable:', message.id, 'User:', message.user_name || message.user_email)
+          
+          // Insert message in chronological order
+          const newMessages = [...prev, message].sort((a, b) => {
+            const timeA = new Date(a.created_at).getTime()
+            const timeB = new Date(b.created_at).getTime()
+            return timeA - timeB
+          })
+          
+          return newMessages
         })
         scrollToBottom()
       })
@@ -147,6 +365,13 @@ export default function ChatPage() {
       loadUsers()
     }
   }, [showCreateDialog, createChannelType])
+
+  // Load users when add members dialog opens
+  useEffect(() => {
+    if (showAddMembersDialog) {
+      loadUsers()
+    }
+  }, [showAddMembersDialog])
 
   const loadChannels = async () => {
     try {
@@ -201,12 +426,19 @@ export default function ChatPage() {
 
     try {
       setSending(true)
-      const newMessage = await chatApi.sendMessage(selectedChannel.id, messageInput.trim())
-      setMessages((prev) => [...prev, newMessage])
-      setMessageInput("")
-      scrollToBottom()
+      const messageContent = messageInput.trim()
+      setMessageInput("") // Clear input immediately for better UX
+      
+      // Send message - ActionCable will add it to the list when received
+      // So we don't need to add it manually from the API response
+      await chatApi.sendMessage(selectedChannel.id, messageContent)
+      
+      // Don't add message here - let ActionCable handle it for consistency
+      // This ensures the message has proper user data from the broadcast
     } catch (error) {
       console.error("Failed to send message:", error)
+      // Restore input on error
+      setMessageInput(messageContent)
       toast({
         title: "Error",
         description: "Failed to send message",
@@ -294,6 +526,47 @@ export default function ChatPage() {
     )
   }
 
+  const toggleMemberSelection = (userId: number) => {
+    setSelectedMembersToAdd((prev) =>
+      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
+    )
+  }
+
+  const handleAddMembers = async () => {
+    if (!selectedChannel || selectedMembersToAdd.length === 0 || addingMembers) return
+
+    try {
+      setAddingMembers(true)
+      const updatedChannel = await chatApi.addMembers(selectedChannel.id, selectedMembersToAdd)
+      
+      // Update the channel in the list
+      setChannels((prev) =>
+        prev.map((ch) => (ch.id === updatedChannel.id ? updatedChannel : ch))
+      )
+      
+      // Update selected channel if it's the current one
+      if (selectedChannel.id === updatedChannel.id) {
+        setSelectedChannel(updatedChannel)
+      }
+
+      setShowAddMembersDialog(false)
+      setSelectedMembersToAdd([])
+      toast({
+        title: "Success",
+        description: `${selectedMembersToAdd.length} member(s) added successfully`,
+      })
+    } catch (error: any) {
+      console.error("Failed to add members:", error)
+      toast({
+        title: "Error",
+        description: error.message || "Failed to add members",
+        variant: "destructive",
+      })
+    } finally {
+      setAddingMembers(false)
+    }
+  }
+
   const insertEmoji = (emoji: string) => {
     setMessageInput((prev) => prev + emoji)
     setShowEmojiPicker(false)
@@ -316,6 +589,245 @@ export default function ChatPage() {
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+  }
+
+  // Huddle functions
+  const loadActiveHuddle = async () => {
+    if (!selectedChannel) return
+
+    try {
+      const huddles = await huddleApi.getHuddles(selectedChannel.id)
+      const active = huddles.find((h) => h.status === 'active')
+      if (active) {
+        setActiveHuddle(active)
+        // Check if current user is a participant
+        const isParticipant = active.participants.some((p) => p.id === currentUser?.id)
+        if (isParticipant && !isInHuddle) {
+          await joinHuddleWebRTC(active)
+        }
+      } else {
+        setActiveHuddle(null)
+        setIsInHuddle(false)
+      }
+    } catch (error) {
+      console.error("Failed to load huddles:", error)
+    }
+  }
+
+  const startHuddle = async () => {
+    if (!selectedChannel || huddleLoading) return
+
+    try {
+      setHuddleLoading(true)
+      const huddle = await huddleApi.startHuddle(selectedChannel.id)
+      setActiveHuddle(huddle)
+      await joinHuddleWebRTC(huddle)
+      toast({
+        title: "Huddle Started",
+        description: "Voice call is now active",
+      })
+    } catch (error: any) {
+      console.error("Failed to start huddle:", error)
+      toast({
+        title: "Error",
+        description: error.message || "Failed to start huddle",
+        variant: "destructive",
+      })
+    } finally {
+      setHuddleLoading(false)
+    }
+  }
+
+  const joinHuddle = async () => {
+    if (!selectedChannel || !activeHuddle || huddleLoading) return
+
+    try {
+      setHuddleLoading(true)
+      const huddle = await huddleApi.joinHuddle(selectedChannel.id, activeHuddle.id)
+      setActiveHuddle(huddle)
+      await joinHuddleWebRTC(huddle)
+      toast({
+        title: "Joined Huddle",
+        description: "You're now in the voice call",
+      })
+    } catch (error: any) {
+      console.error("Failed to join huddle:", error)
+      toast({
+        title: "Error",
+        description: error.message || "Failed to join huddle",
+        variant: "destructive",
+      })
+    } finally {
+      setHuddleLoading(false)
+    }
+  }
+
+  const joinHuddleWebRTC = async (huddle: Huddle) => {
+    if (!currentUser) return
+
+    try {
+      // Disconnect existing WebRTC if any
+      if (huddleWebRTC) {
+        await huddleWebRTC.disconnect()
+      }
+
+      const webrtc = new HuddleWebRTC(
+        huddle.id,
+        currentUser.id,
+        () => {
+          // Participants update callback
+          loadActiveHuddle()
+        },
+        (error) => {
+          toast({
+            title: "WebRTC Error",
+            description: error.message,
+            variant: "destructive",
+          })
+        }
+      )
+
+      await webrtc.initialize()
+      setHuddleWebRTC(webrtc)
+      setIsInHuddle(true)
+      setIsMuted(webrtc.isMuted())
+    } catch (error: any) {
+      console.error("Failed to initialize WebRTC:", error)
+      toast({
+        title: "Microphone Access Required",
+        description: error.message || "Please allow microphone access to join the huddle",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const leaveHuddle = async () => {
+    if (!selectedChannel || !activeHuddle) return
+
+    try {
+      if (huddleWebRTC) {
+        await huddleWebRTC.disconnect()
+        setHuddleWebRTC(null)
+      }
+
+      await huddleApi.leaveHuddle(selectedChannel.id, activeHuddle.id)
+      setIsInHuddle(false)
+      setIsMuted(false)
+      
+      // Reload huddle to get updated state
+      await loadActiveHuddle()
+      
+      toast({
+        title: "Left Huddle",
+        description: "You've left the voice call",
+      })
+    } catch (error: any) {
+      console.error("Failed to leave huddle:", error)
+      toast({
+        title: "Error",
+        description: error.message || "Failed to leave huddle",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const toggleMute = async () => {
+    if (!huddleWebRTC) return
+
+    try {
+      if (isMuted) {
+        await huddleWebRTC.unmute()
+        setIsMuted(false)
+      } else {
+        await huddleWebRTC.mute()
+        setIsMuted(true)
+      }
+    } catch (error) {
+      console.error("Failed to toggle mute:", error)
+    }
+  }
+
+  const endHuddle = async () => {
+    if (!selectedChannel || !activeHuddle) return
+
+    try {
+      if (huddleWebRTC) {
+        await huddleWebRTC.disconnect()
+        setHuddleWebRTC(null)
+      }
+
+      await huddleApi.endHuddle(selectedChannel.id, activeHuddle.id)
+      setActiveHuddle(null)
+      setIsInHuddle(false)
+      setIsMuted(false)
+      
+      toast({
+        title: "Huddle Ended",
+        description: "Voice call has been ended",
+      })
+    } catch (error: any) {
+      console.error("Failed to end huddle:", error)
+      toast({
+        title: "Error",
+        description: error.message || "Failed to end huddle",
+        variant: "destructive",
+      })
+    }
+  }
+
+  // WebRTC Call functions
+  const startCall = async (toUser: { id: number; name: string; email: string }) => {
+    if (!currentUser) return
+
+    try {
+      await callManager.startCall(
+        {
+          id: currentUser.id,
+          name: currentUser.name,
+          email: currentUser.email,
+        },
+        toUser
+      )
+    } catch (error: any) {
+      console.error("Failed to start call:", error)
+      toast({
+        title: "Call Failed",
+        description: error.message || "Failed to start call. Please check microphone permissions.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const acceptCall = async () => {
+    try {
+      await callManager.acceptCall()
+    } catch (error: any) {
+      console.error("Failed to accept call:", error)
+      toast({
+        title: "Error",
+        description: "Failed to accept call",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const rejectCall = () => {
+    if (currentCall) {
+      callManager.rejectCall(currentCall.callId)
+    }
+  }
+
+  const endCall = () => {
+    callManager.endCall()
+  }
+
+  const toggleCallMute = () => {
+    if (callMuted) {
+      callManager.unmute()
+    } else {
+      callManager.mute()
+    }
+    setCallMuted(callManager.isMuted())
   }
 
   const formatTime = (dateString: string) => {
@@ -380,11 +892,17 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] bg-background">
-      {/* Left Sidebar - Channels/Conversations */}
-      <div className="w-64 border-r border-border bg-card flex flex-col">
-        {/* Header */}
-        <div className="p-4 border-b border-border">
+    <div className="flex flex-col h-[calc(100vh-4rem)] bg-background relative">
+      {/* Main Chat Area - Adjust height when huddle is active */}
+      <div className={cn(
+        "flex flex-1 overflow-hidden",
+        activeHuddle && activeHuddle.status === 'active' && !huddlePanelExpanded && "mb-16",
+        activeHuddle && activeHuddle.status === 'active' && huddlePanelExpanded && "mb-64"
+      )}>
+        {/* Left Sidebar - Channels/Conversations */}
+        <div className="w-64 border-r border-border bg-card flex flex-col">
+          {/* Header */}
+          <div className="p-4 border-b border-border">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-semibold">Chat</h2>
             <Button
@@ -517,14 +1035,14 @@ export default function ChatPage() {
             )}
           </div>
         </ScrollArea>
-      </div>
+        </div>
 
-      {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col">
-        {selectedChannel ? (
-          <>
-            {/* Chat Header */}
-            <div className="h-14 border-b border-border bg-card flex items-center justify-between px-4">
+        {/* Main Chat Area */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {selectedChannel ? (
+            <>
+              {/* Chat Header */}
+              <div className="h-14 border-b border-border bg-card flex items-center justify-between px-4">
               <div className="flex items-center gap-3">
                 {selectedChannel.channel_type === "channel" && (
                   <>
@@ -562,15 +1080,53 @@ export default function ChatPage() {
                 )}
               </div>
               <div className="flex items-center gap-2">
-                {selectedChannel.channel_type === "direct" && (
-                  <>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                {/* Call/Huddle Buttons - Show appropriate button based on channel type */}
+                {selectedChannel.channel_type === "direct" ? (
+                  // Direct messages: Show WebRTC call button
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => {
+                      const otherMember = selectedChannel.members.find((m) => m.id !== currentUser?.id)
+                      if (otherMember && currentUser) {
+                        startCall(otherMember)
+                      }
+                    }}
+                    disabled={!!currentCall || huddleLoading}
+                    title="Start Voice Call"
+                  >
+                    {huddleLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : currentCall ? (
+                      <PhoneOff className="h-4 w-4 text-destructive" />
+                    ) : (
                       <Phone className="h-4 w-4" />
+                    )}
+                  </Button>
+                ) : (
+                  // Channels/Groups: Show huddle button (only if no active huddle)
+                  (!activeHuddle || activeHuddle.status !== 'active') && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={startHuddle}
+                      disabled={huddleLoading || !!currentCall}
+                      title="Start Huddle"
+                    >
+                      {huddleLoading ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Phone className="h-4 w-4" />
+                      )}
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                      <Video className="h-4 w-4" />
-                    </Button>
-                  </>
+                  )
+                )}
+                {selectedChannel.channel_type === "direct" && (
+                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <Video className="h-4 w-4" />
+                  </Button>
                 )}
                 <Button variant="ghost" size="icon" className="h-8 w-8">
                   <Info className="h-4 w-4" />
@@ -585,9 +1141,23 @@ export default function ChatPage() {
             <ScrollArea className="flex-1" ref={messagesContainerRef}>
               <div className="p-4 space-y-4">
                 {messages.map((message, index) => {
-                  // Safely get user name with fallback
-                  const userName = message.user_name || message.user_email?.split('@')[0] || "Unknown User"
-                  const userEmail = message.user_email || ""
+                  // Ensure both are numbers for comparison
+                  const currentUserId = currentUser?.id ? Number(currentUser.id) : null
+                  const messageUserId = message.user_id ? Number(message.user_id) : null
+                  const isCurrentUser = currentUserId !== null && messageUserId !== null && currentUserId === messageUserId
+                  
+                  // Safely get user name with fallback - use currentUser data if it's the current user's message
+                  let userName = message.user_name || message.user_email?.split('@')[0] || ""
+                  let userEmail = message.user_email || ""
+                  
+                  if (isCurrentUser) {
+                    // For current user's messages, use currentUser data as fallback
+                    userName = userName || currentUser?.name || currentUser?.email?.split('@')[0] || "You"
+                    userEmail = userEmail || currentUser?.email || ""
+                  } else {
+                    // For other users, use message data or fallback to "Unknown User"
+                    userName = userName || "Unknown User"
+                  }
                   
                   const showAvatar =
                     index === 0 ||
@@ -597,8 +1167,6 @@ export default function ChatPage() {
                       new Date(message.created_at).getTime() -
                         new Date(messages[index - 1].created_at).getTime() >
                         300000) // 5 minutes
-
-                  const isCurrentUser = message.user_id === currentUser?.id
 
                   // Ensure unique key - combine channel_id, id, and index for uniqueness
                   // Use index as part of key to ensure uniqueness even if IDs are duplicated
@@ -615,7 +1183,7 @@ export default function ChatPage() {
                       {showAvatar && (
                         <Avatar className="h-8 w-8 shrink-0">
                           <AvatarFallback>
-                            {(message.user_name || message.user_email || "U").charAt(0).toUpperCase()}
+                            {userName.charAt(0).toUpperCase()}
                           </AvatarFallback>
                         </Avatar>
                       )}
@@ -634,7 +1202,7 @@ export default function ChatPage() {
                             )}
                           >
                             <span className="font-semibold text-sm">
-                              {message.user_name || message.user_email || "Unknown User"}
+                              {userName}
                             </span>
                             <span className="text-xs text-muted-foreground">
                               {message.created_at ? formatMessageTime(message.created_at) : ""}
@@ -745,60 +1313,150 @@ export default function ChatPage() {
             </div>
           </div>
         )}
-      </div>
+        </div>
 
-      {/* Right Sidebar - Channel Info */}
-      {selectedChannel && (
-        <div className="w-64 border-l border-border bg-card p-4">
-          <div className="space-y-6">
-            <div>
-              <h4 className="font-semibold mb-3">About</h4>
-              {selectedChannel.channel_type === "channel" && (
-                <div className="space-y-2 text-sm">
-                  <p className="text-muted-foreground">
-                    {selectedChannel.is_private ? "Private channel" : "Public channel"}
-                  </p>
-                  {selectedChannel.description && (
-                    <p className="text-muted-foreground">{selectedChannel.description}</p>
-                  )}
-                </div>
-              )}
-              {selectedChannel.channel_type === "direct" && (
-                <div className="space-y-2 text-sm">
-                  <p className="text-muted-foreground">Direct message</p>
-                </div>
-              )}
-              {selectedChannel.channel_type === "group" && (
-                <div className="space-y-2 text-sm">
-                  <p className="text-muted-foreground">
-                    {selectedChannel.members_count} members
-                  </p>
+        {/* Right Sidebar - Channel Info */}
+        {selectedChannel && (
+          <div className="w-64 border-l border-border bg-card p-4">
+            <div className="space-y-6">
+              <div>
+                <h4 className="font-semibold mb-3">About</h4>
+                {selectedChannel.channel_type === "channel" && (
+                  <div className="space-y-2 text-sm">
+                    <p className="text-muted-foreground">
+                      {selectedChannel.is_private ? "Private channel" : "Public channel"}
+                    </p>
+                    {selectedChannel.description && (
+                      <p className="text-muted-foreground">{selectedChannel.description}</p>
+                    )}
+                  </div>
+                )}
+                {selectedChannel.channel_type === "direct" && (
+                  <div className="space-y-2 text-sm">
+                    <p className="text-muted-foreground">Direct message</p>
+                  </div>
+                )}
+                {selectedChannel.channel_type === "group" && (
+                  <div className="space-y-2 text-sm">
+                    <p className="text-muted-foreground">
+                      {selectedChannel.members_count} members
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {(selectedChannel.channel_type === "group" ||
+                selectedChannel.channel_type === "channel") && (
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="font-semibold">Members</h4>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={() => setShowAddMembersDialog(true)}
+                      title="Add Members"
+                    >
+                      <UserPlus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="space-y-2">
+                    {selectedChannel.members.map((member) => (
+                      <div key={member.id} className="flex items-center gap-2">
+                        <Avatar className="h-8 w-8">
+                          <AvatarFallback>{member.name.charAt(0)}</AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{member.name}</p>
+                          <p className="text-xs text-muted-foreground truncate">{member.email}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
+          </div>
+        )}
+      </div>
 
-            {(selectedChannel.channel_type === "group" ||
-              selectedChannel.channel_type === "channel") && (
-              <div>
-                <h4 className="font-semibold mb-3">Members</h4>
-                <div className="space-y-2">
-                  {selectedChannel.members.map((member) => (
-                    <div key={member.id} className="flex items-center gap-2">
-                      <Avatar className="h-8 w-8">
-                        <AvatarFallback>{member.name.charAt(0)}</AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{member.name}</p>
-                        <p className="text-xs text-muted-foreground truncate">{member.email}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+      {/* Add Members Dialog */}
+      <Dialog open={showAddMembersDialog} onOpenChange={setShowAddMembersDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add Members</DialogTitle>
+            <DialogDescription>
+              Select users to add to {selectedChannel?.name}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {loadingUsers ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
+            ) : (
+              <ScrollArea className="h-64">
+                <div className="space-y-2">
+                  {availableUsers
+                    .filter((user) => !selectedChannel?.members.some((m) => m.id === user.id))
+                    .map((user) => (
+                      <div
+                        key={user.id}
+                        className="flex items-center gap-3 p-2 rounded-md hover:bg-accent cursor-pointer"
+                        onClick={() => toggleMemberSelection(user.id)}
+                      >
+                        <Checkbox
+                          checked={selectedMembersToAdd.includes(user.id)}
+                          onCheckedChange={() => toggleMemberSelection(user.id)}
+                        />
+                        <Avatar className="h-8 w-8">
+                          <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{user.name}</p>
+                          <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                        </div>
+                      </div>
+                    ))}
+                  {availableUsers.filter(
+                    (user) => !selectedChannel?.members.some((m) => m.id === user.id)
+                  ).length === 0 && (
+                    <div className="text-center py-8 text-sm text-muted-foreground">
+                      All users are already members
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
             )}
           </div>
-        </div>
-      )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowAddMembersDialog(false)
+                setSelectedMembersToAdd([])
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAddMembers}
+              disabled={selectedMembersToAdd.length === 0 || addingMembers}
+            >
+              {addingMembers ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Adding...
+                </>
+              ) : (
+                `Add ${selectedMembersToAdd.length > 0 ? `(${selectedMembersToAdd.length})` : ""}`
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Create Channel/Conversation Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
@@ -985,6 +1643,166 @@ export default function ChatPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Huddle Panel - Slack-style bottom bar */}
+      {activeHuddle && activeHuddle.status === 'active' && (
+        <div className={cn(
+          "fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border shadow-lg transition-all duration-300",
+          huddlePanelExpanded ? "h-64" : "h-16"
+        )}>
+          {/* Collapsed View */}
+          <div className="h-16 flex items-center justify-between px-4">
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+                <Phone className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-medium text-sm truncate">
+                  {selectedChannel?.name || "Huddle"}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {activeHuddle.participants_count} {activeHuddle.participants_count === 1 ? 'person' : 'people'} in call
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              {isInHuddle && (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9"
+                    onClick={toggleMute}
+                    title={isMuted ? "Unmute" : "Mute"}
+                  >
+                    {isMuted ? (
+                      <MicOff className="h-4 w-4 text-destructive" />
+                    ) : (
+                      <Mic className="h-4 w-4" />
+                    )}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9"
+                    onClick={leaveHuddle}
+                    title="Leave Huddle"
+                  >
+                    <PhoneOff className="h-4 w-4 text-destructive" />
+                  </Button>
+                </>
+              )}
+              {!isInHuddle && (
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={joinHuddle}
+                  disabled={huddleLoading}
+                >
+                  {huddleLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    "Join"
+                  )}
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9"
+                onClick={() => setHuddlePanelExpanded(!huddlePanelExpanded)}
+              >
+                {huddlePanelExpanded ? (
+                  <ChevronDown className="h-4 w-4" />
+                ) : (
+                  <ChevronUp className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+          </div>
+
+          {/* Expanded View */}
+          {huddlePanelExpanded && (
+            <div className="h-48 border-t border-border p-4 overflow-y-auto">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="font-semibold text-sm">Participants</h3>
+                  <p className="text-xs text-muted-foreground">
+                    {activeHuddle.participants_count} {activeHuddle.participants_count === 1 ? 'person' : 'people'} in call
+                  </p>
+                </div>
+                {activeHuddle.started_by.id === currentUser?.id && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={endHuddle}
+                  >
+                    End Call
+                  </Button>
+                )}
+              </div>
+              
+              <div className="space-y-2">
+                {activeHuddle.participants.map((participant) => {
+                  const isCurrentUserParticipant = participant.id === currentUser?.id
+                  return (
+                    <div
+                      key={participant.id}
+                      className={cn(
+                        "flex items-center gap-3 p-2 rounded-md",
+                        isCurrentUserParticipant && "bg-accent"
+                      )}
+                    >
+                      <Avatar className="h-8 w-8">
+                        <AvatarFallback>
+                          {participant.name.charAt(0).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-sm truncate">
+                          {participant.name}
+                          {isCurrentUserParticipant && (
+                            <span className="text-xs text-muted-foreground ml-1">(You)</span>
+                          )}
+                        </div>
+                        <div className="text-xs text-muted-foreground truncate">
+                          {participant.email}
+                        </div>
+                      </div>
+                      {isCurrentUserParticipant && (
+                        <div className="flex items-center gap-1">
+                          {isMuted ? (
+                            <MicOff className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <Mic className="h-4 w-4 text-green-500" />
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* WebRTC Call Notification */}
+      {currentCall && (
+        <>
+          <CallNotification
+            call={currentCall}
+            onAccept={acceptCall}
+            onReject={rejectCall}
+            onEnd={endCall}
+            onMuteToggle={toggleCallMute}
+            isMuted={callMuted}
+          />
+          {remoteStream && <CallAudio stream={remoteStream} />}
+        </>
+      )}
     </div>
   )
 }
