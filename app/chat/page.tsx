@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Input } from "@/components/ui/input"
@@ -102,23 +102,44 @@ export default function ChatPage() {
   const [huddleWebRTC, setHuddleWebRTC] = useState<HuddleWebRTC | null>(null)
   const [isInHuddle, setIsInHuddle] = useState(false)
   const [isMuted, setIsMuted] = useState(false)
+  const [isVideoEnabled, setIsVideoEnabled] = useState(true)
   const [huddleLoading, setHuddleLoading] = useState(false)
   const [huddlePanelExpanded, setHuddlePanelExpanded] = useState(false)
+  const localVideoRef = useRef<HTMLVideoElement>(null)
+  const remoteVideoRefs = useRef<Map<number, HTMLVideoElement>>(new Map())
 
   // WebRTC Call state
+  const [currentCall, setCurrentCall] = useState<CallData | null>(null)
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null)
+  const [callMuted, setCallMuted] = useState(false)
+  const [callDuration, setCallDuration] = useState(0)
+  
   const [callManager] = useState(() => {
     return new WebRTCCallManager(
-      (call) => setCurrentCall(call),
+      (call) => {
+        setCurrentCall(call)
+      },
       (stream) => setRemoteStream(stream),
       () => {
         setCurrentCall(null)
         setRemoteStream(null)
+        setCallDuration(0)
       }
     )
   })
-  const [currentCall, setCurrentCall] = useState<CallData | null>(null)
-  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null)
-  const [callMuted, setCallMuted] = useState(false)
+  
+  // Track call duration when call is connected
+  useEffect(() => {
+    if (currentCall?.state === 'connected') {
+      const interval = setInterval(() => {
+        const duration = callManager.getCallDuration()
+        setCallDuration(duration)
+      }, 1000)
+      return () => clearInterval(interval)
+    } else {
+      setCallDuration(0)
+    }
+  }, [currentCall?.state, callManager])
 
   // Common emojis
   const commonEmojis = [
@@ -160,89 +181,27 @@ export default function ChatPage() {
     }
   }, [])
 
-  // Setup ActionCable listener for incoming calls when currentUser is available
-  useEffect(() => {
-    if (!currentUser?.id) return
-
-    let callSubscription: any = null
-
-    const setupCallListener = async () => {
-      try {
-        const ActionCableModule = await import('@rails/actioncable')
-        const ActionCable = ActionCableModule.default || ActionCableModule
-        const token = localStorage.getItem(AUTH_CONFIG.tokenKey)
-        
-        if (!token) {
-          console.warn('No token available for call listener')
-          return
-        }
-
-        const protocol = API_BASE_URL.startsWith('https') ? 'wss' : 'ws'
-        const baseUrl = API_BASE_URL.replace(/^https?/, protocol)
-        const cableUrl = `${baseUrl}/cable?token=${encodeURIComponent(token)}`
-        
-        const consumer = ActionCable.createConsumer(cableUrl)
-
-        // Subscribe to user's call channel
-        callSubscription = consumer.subscriptions.create(
-          {
-            channel: 'CallChannel',
-            user_id: currentUser.id,
-          },
-          {
-            connected: () => {
-              console.log('✅ CallChannel connected for user:', currentUser.id)
-            },
-            disconnected: () => {
-              console.log('❌ CallChannel disconnected')
-            },
-            rejected: () => {
-              console.error('❌ CallChannel subscription rejected')
-            },
-            received: async (data: any) => {
-              console.log('📞 CallChannel received:', data, 'currentCall:', currentCall)
-              
-              // Only handle incoming call offers (not outgoing ones)
-              if (data.type === 'call-offer' && !currentCall) {
-                // Verify this is actually for the current user
-                const recipientId = data.to?.id || data.to_id
-                if (recipientId === currentUser?.id) {
-                  console.log('📞 Incoming call offer received - showing notification')
-                  await handleIncomingCall(data)
-                } else {
-                  console.log('⚠️ Call offer received but not for current user, ignoring')
-                }
-              } else if (data.type === 'call-answer' && currentCall && currentCall.direction === 'outgoing') {
-                console.log('✅ Call answer received - forwarding to call manager')
-                // Forward to call manager's signaling handler
-                // The call manager's subscription will handle it
-              } else if (data.type === 'call-reject' || data.type === 'call-end') {
-                console.log('❌ Call rejected or ended')
-                callManager.endCall()
-              } else if (data.type === 'ice-candidate' && currentCall) {
-                console.log('🧊 ICE candidate received - forwarding to call manager')
-                // Forward to call manager's signaling handler
-              }
-            },
-          }
-        )
-      } catch (error) {
-        console.error('Failed to setup call listener:', error)
-      }
-    }
-
-    setupCallListener()
-
-    return () => {
-      if (callSubscription) {
-        callSubscription.unsubscribe()
-        console.log('Call subscription cleaned up')
-      }
-    }
-  }, [currentUser?.id])
-
-  const handleIncomingCall = async (data: any) => {
+  // Handle incoming call - use useCallback to ensure it's stable
+  const handleIncomingCall = useCallback(async (data: any) => {
     console.log('📞 Handling incoming call:', data)
+    
+    // Validate offer is present
+    if (!data.offer) {
+      console.error('❌ No offer in call data:', data)
+      toast({
+        title: "Call Error",
+        description: "Invalid call data received. Missing offer.",
+        variant: "destructive",
+      })
+      return
+    }
+    
+    // Check if we're already in a call by checking callManager's state
+    if (callManager.getCurrentCall()) {
+      console.log('⚠️ Already in a call, ignoring incoming call')
+      return
+    }
+    
     const callData: CallData = {
       callId: data.callId,
       from: data.from,
@@ -256,12 +215,164 @@ export default function ChatPage() {
     }
 
     try {
+      console.log('📞 Passing call data to callManager:', {
+        callId: callData.callId,
+        from: callData.from.id,
+        to: callData.to.id,
+        hasOffer: !!data.offer,
+        offerType: data.offer?.type
+      })
       await callManager.handleIncomingCall(callData, data.offer)
       console.log('✅ Incoming call handled successfully')
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Failed to handle incoming call:', error)
+      const errorMessage = error?.message || "Failed to handle incoming call"
+      toast({
+        title: "Call Error",
+        description: errorMessage,
+        variant: "destructive",
+      })
     }
-  }
+  }, [currentUser])
+
+  // Setup ActionCable listener for incoming calls when currentUser is available
+  useEffect(() => {
+    if (!currentUser?.id) {
+      console.log('⏳ Waiting for currentUser to setup call listener')
+      return
+    }
+
+    let callSubscription: any = null
+    let consumer: any = null
+
+    const setupCallListener = async () => {
+      try {
+        console.log('🔧 Setting up call listener for user:', currentUser.id)
+        const ActionCableModule = await import('@rails/actioncable')
+        const ActionCable = ActionCableModule.default || ActionCableModule
+        const token = localStorage.getItem(AUTH_CONFIG.tokenKey)
+        
+        if (!token) {
+          console.warn('⚠️ No token available for call listener')
+          return
+        }
+
+        const protocol = API_BASE_URL.startsWith('https') ? 'wss' : 'ws'
+        const baseUrl = API_BASE_URL.replace(/^https?/, protocol)
+        const cableUrl = `${baseUrl}/cable?token=${encodeURIComponent(token)}`
+        
+        console.log('🔌 Creating ActionCable consumer:', cableUrl.substring(0, 50) + '...')
+        consumer = ActionCable.createConsumer(cableUrl)
+
+        // Wait a bit for consumer to connect
+        await new Promise(resolve => setTimeout(resolve, 100))
+
+        // Subscribe to user's call channel
+        console.log('📡 Subscribing to CallChannel for user:', currentUser.id)
+        callSubscription = consumer.subscriptions.create(
+          {
+            channel: 'CallChannel',
+            user_id: Number(currentUser.id), // Ensure user_id is a number
+          },
+          {
+            connected: () => {
+              console.log('✅ CallChannel connected successfully for user:', currentUser.id)
+            },
+            disconnected: () => {
+              console.log('❌ CallChannel disconnected for user:', currentUser.id)
+            },
+            rejected: () => {
+              console.error('❌ CallChannel subscription REJECTED for user:', currentUser.id)
+              toast({
+                title: "Call Channel Error",
+                description: "Failed to connect to call channel. Please refresh the page.",
+                variant: "destructive",
+              })
+            },
+            received: async (data: any) => {
+              console.log('📞 CallChannel received data:', data.type, data)
+              
+              // Only handle incoming call offers (not outgoing ones)
+              if (data.type === 'call-offer') {
+                // Verify this is actually for the current user
+                const recipientId = data.to?.id || data.to_id
+                console.log('📞 Call offer check - recipientId:', recipientId, 'currentUser.id:', currentUser.id)
+                if (recipientId === currentUser?.id) {
+                  // Check if we're already in a call
+                  const existingCall = callManager.getCurrentCall()
+                  if (!existingCall) {
+                    console.log('📞 Incoming call offer received - showing notification')
+                    await handleIncomingCall(data)
+                  } else {
+                    console.log('⚠️ Already in a call, ignoring incoming call offer')
+                  }
+                } else {
+                  console.log('⚠️ Call offer received but not for current user (recipientId:', recipientId, '!= currentUser.id:', currentUser.id, ')')
+                }
+              } else if (data.type === 'call-answer') {
+                console.log('✅ Call answer received - forwarding to call manager')
+                callManager.handleSignalingMessage(data)
+              } else if (data.type === 'call-reject') {
+                console.log('❌ Call rejected')
+                const currentCall = callManager.getCurrentCall()
+                if (currentCall && currentCall.direction === 'outgoing') {
+                  // Show message to caller that call was declined
+                  const recipientName = currentCall.to.name
+                  toast({
+                    title: "Call Declined",
+                    description: `${recipientName} declined your call`,
+                    variant: "default",
+                  })
+                  
+                  // Create call history message
+                  if (selectedChannel) {
+                    try {
+                      await chatApi.sendMessage(
+                        selectedChannel.id,
+                        `📞 Call to ${recipientName} was declined`
+                      )
+                    } catch (error) {
+                      console.error('Failed to create call history message:', error)
+                    }
+                  }
+                }
+                callManager.endCall()
+              } else if (data.type === 'call-end') {
+                console.log('❌ Call ended')
+                callManager.endCall()
+              } else if (data.type === 'ice-candidate') {
+                console.log('🧊 ICE candidate received - forwarding to call manager')
+                callManager.handleSignalingMessage(data)
+              }
+            },
+          }
+        )
+        
+        console.log('✅ Call subscription created:', callSubscription ? 'success' : 'failed')
+      } catch (error: any) {
+        console.error('❌ Failed to setup call listener:', error)
+        toast({
+          title: "Call Setup Error",
+          description: error.message || "Failed to setup call listener",
+          variant: "destructive",
+        })
+      }
+    }
+
+    setupCallListener()
+
+    return () => {
+      console.log('🧹 Cleaning up call listener')
+      if (callSubscription) {
+        callSubscription.unsubscribe()
+        console.log('✅ Call subscription unsubscribed')
+      }
+      if (consumer) {
+        consumer.disconnect()
+        console.log('✅ Consumer disconnected')
+      }
+    }
+  }, [currentUser?.id, handleIncomingCall])
 
   // Load active huddle when channel changes
   useEffect(() => {
@@ -372,6 +483,17 @@ export default function ChatPage() {
       loadUsers()
     }
   }, [showAddMembersDialog])
+
+  // Attach local video stream when huddleWebRTC is initialized
+  useEffect(() => {
+    if (huddleWebRTC && localVideoRef.current) {
+      const localStream = huddleWebRTC.getLocalStream()
+      if (localStream && localVideoRef.current) {
+        localVideoRef.current.srcObject = localStream
+        setIsVideoEnabled(huddleWebRTC.isVideoEnabled())
+      }
+    }
+  }, [huddleWebRTC])
 
   const loadChannels = async () => {
     try {
@@ -662,7 +784,7 @@ export default function ChatPage() {
     }
   }
 
-  const joinHuddleWebRTC = async (huddle: Huddle) => {
+  const joinHuddleWebRTC = async (huddle: Huddle, enableVideo: boolean = true) => {
     if (!currentUser) return
 
     try {
@@ -687,10 +809,11 @@ export default function ChatPage() {
         }
       )
 
-      await webrtc.initialize()
+      await webrtc.initialize(enableVideo)
       setHuddleWebRTC(webrtc)
       setIsInHuddle(true)
       setIsMuted(webrtc.isMuted())
+      setIsVideoEnabled(webrtc.isVideoEnabled())
     } catch (error: any) {
       console.error("Failed to initialize WebRTC:", error)
       toast({
@@ -777,7 +900,7 @@ export default function ChatPage() {
 
   // WebRTC Call functions
   const startCall = async (toUser: { id: number; name: string; email: string }) => {
-    if (!currentUser) return
+    if (!currentUser || !selectedChannel) return
 
     try {
       await callManager.startCall(
@@ -788,6 +911,16 @@ export default function ChatPage() {
         },
         toUser
       )
+      
+      // Create call history message when call starts
+      try {
+        await chatApi.sendMessage(
+          selectedChannel.id,
+          `📞 Calling ${toUser.name}...`
+        )
+      } catch (error) {
+        console.error('Failed to create call history message:', error)
+      }
     } catch (error: any) {
       console.error("Failed to start call:", error)
       toast({
@@ -798,26 +931,108 @@ export default function ChatPage() {
     }
   }
 
+  const [acceptingCall, setAcceptingCall] = useState(false)
+  
   const acceptCall = async () => {
+    // Prevent double-clicks
+    if (acceptingCall) {
+      console.log('⚠️ Call acceptance already in progress')
+      return
+    }
+    
     try {
+      setAcceptingCall(true)
+      console.log('📞 Accept call button clicked')
+      console.log('📊 Current call state:', currentCall?.state)
+      console.log('📊 Current call:', currentCall)
+      
+      // Check if call exists
+      if (!currentCall) {
+        console.error('❌ No current call to accept')
+        toast({
+          title: "Call Error",
+          description: "No call to accept",
+          variant: "destructive",
+        })
+        return
+      }
+      
+      // Check if call is in ringing state
+      if (currentCall.state !== 'ringing') {
+        console.warn('⚠️ Call is not in ringing state:', currentCall.state)
+        toast({
+          title: "Call Error",
+          description: `Call is not in a state that can be accepted. Current state: ${currentCall.state}`,
+          variant: "destructive",
+        })
+        return
+      }
+      
       await callManager.acceptCall()
+      console.log('✅ Call accepted successfully')
+      
+      // Create call history message when call is accepted
+      if (selectedChannel && currentCall) {
+        const callerName = currentCall.from.name
+        try {
+          await chatApi.sendMessage(
+            selectedChannel.id,
+            `📞 Call from ${callerName} was answered`
+          )
+        } catch (error) {
+          console.error('Failed to create call history message:', error)
+        }
+      }
     } catch (error: any) {
-      console.error("Failed to accept call:", error)
+      console.error("❌ Failed to accept call:", error)
+      const errorMessage = error?.message || "Failed to accept call. Please try again."
       toast({
-        title: "Error",
-        description: "Failed to accept call",
+        title: "Call Error",
+        description: errorMessage,
         variant: "destructive",
       })
+    } finally {
+      setAcceptingCall(false)
     }
   }
 
-  const rejectCall = () => {
+  const rejectCall = async () => {
     if (currentCall) {
+      const callerName = currentCall.from.name
+      
+      // Create call history message for declined call
+      if (selectedChannel) {
+        try {
+          await chatApi.sendMessage(
+            selectedChannel.id,
+            `📞 Call from ${callerName} was declined`
+          )
+        } catch (error) {
+          console.error('Failed to create call history message:', error)
+        }
+      }
+      
       callManager.rejectCall(currentCall.callId)
     }
   }
 
-  const endCall = () => {
+  const endCall = async () => {
+    if (currentCall && selectedChannel) {
+      const otherUser = currentCall.direction === 'outgoing' ? currentCall.to : currentCall.from
+      const duration = callManager.getCallDuration()
+      const durationText = duration > 0 ? formatDuration(duration) : '0:00'
+      
+      try {
+        // Create call history message
+        await chatApi.sendMessage(
+          selectedChannel.id,
+          `📞 Call with ${otherUser.name} ended (Duration: ${durationText})`
+        )
+      } catch (error) {
+        console.error('Failed to create call history message:', error)
+      }
+    }
+    
     callManager.endCall()
   }
 
@@ -828,6 +1043,17 @@ export default function ChatPage() {
       callManager.mute()
     }
     setCallMuted(callManager.isMuted())
+  }
+
+  const formatDuration = (seconds: number): string => {
+    const hours = Math.floor(seconds / 3600)
+    const minutes = Math.floor((seconds % 3600) / 60)
+    const secs = seconds % 60
+    
+    if (hours > 0) {
+      return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+    }
+    return `${minutes}:${secs.toString().padStart(2, '0')}`
   }
 
   const formatTime = (dateString: string) => {
@@ -897,7 +1123,7 @@ export default function ChatPage() {
       <div className={cn(
         "flex flex-1 overflow-hidden",
         activeHuddle && activeHuddle.status === 'active' && !huddlePanelExpanded && "mb-16",
-        activeHuddle && activeHuddle.status === 'active' && huddlePanelExpanded && "mb-64"
+        activeHuddle && activeHuddle.status === 'active' && huddlePanelExpanded && "mb-96"
       )}>
         {/* Left Sidebar - Channels/Conversations */}
         <div className="w-64 border-r border-border bg-card flex flex-col">
@@ -1648,7 +1874,7 @@ export default function ChatPage() {
       {activeHuddle && activeHuddle.status === 'active' && (
         <div className={cn(
           "fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border shadow-lg transition-all duration-300",
-          huddlePanelExpanded ? "h-64" : "h-16"
+          huddlePanelExpanded ? "h-96" : "h-16"
         )}>
           {/* Collapsed View */}
           <div className="h-16 flex items-center justify-between px-4">
@@ -1681,6 +1907,48 @@ export default function ChatPage() {
                       <MicOff className="h-4 w-4 text-destructive" />
                     ) : (
                       <Mic className="h-4 w-4" />
+                    )}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9"
+                    onClick={async () => {
+                      if (huddleWebRTC) {
+                        try {
+                          // If video is not available but we want to enable it, use enableVideo
+                          if (!huddleWebRTC.hasVideoCapability() && !isVideoEnabled) {
+                            await huddleWebRTC.enableVideo()
+                            setIsVideoEnabled(true)
+                            toast({
+                              title: "Video Enabled",
+                              description: "Camera is now enabled for this huddle",
+                            })
+                          } else {
+                            await huddleWebRTC.toggleVideo()
+                            setIsVideoEnabled(huddleWebRTC.isVideoEnabled())
+                          }
+                        } catch (error: any) {
+                          toast({
+                            title: "Video Error",
+                            description: error.message || "Failed to toggle video",
+                            variant: "destructive",
+                          })
+                        }
+                      }
+                    }}
+                    title={
+                      !huddleWebRTC?.hasVideoCapability() 
+                        ? "Enable video call" 
+                        : isVideoEnabled 
+                        ? "Turn off camera" 
+                        : "Turn on camera"
+                    }
+                  >
+                    {huddleWebRTC?.hasVideoCapability() && isVideoEnabled ? (
+                      <Video className="h-4 w-4" />
+                    ) : (
+                      <Video className="h-4 w-4 text-destructive" />
                     )}
                   </Button>
                   <Button
@@ -1725,7 +1993,7 @@ export default function ChatPage() {
 
           {/* Expanded View */}
           {huddlePanelExpanded && (
-            <div className="h-48 border-t border-border p-4 overflow-y-auto">
+            <div className="h-80 border-t border-border p-4 overflow-y-auto">
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className="font-semibold text-sm">Participants</h3>
@@ -1744,6 +2012,61 @@ export default function ChatPage() {
                 )}
               </div>
               
+              {/* Video Grid */}
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                {/* Local Video */}
+                {isInHuddle && huddleWebRTC && (
+                  <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
+                    <video
+                      ref={localVideoRef}
+                      autoPlay
+                      muted
+                      playsInline
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute bottom-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded">
+                      {currentUser?.name} (You)
+                    </div>
+                  </div>
+                )}
+                
+                {/* Remote Videos */}
+                {activeHuddle.participants
+                  .filter((p) => p.id !== currentUser?.id)
+                  .map((participant) => {
+                    const remoteStream = huddleWebRTC?.getRemoteStream(participant.id)
+                    return (
+                      <div key={participant.id} className="relative aspect-video bg-black rounded-lg overflow-hidden">
+                        {remoteStream ? (
+                          <video
+                            ref={(el) => {
+                              if (el) {
+                                remoteVideoRefs.current.set(participant.id, el)
+                                el.srcObject = remoteStream
+                              }
+                            }}
+                            autoPlay
+                            playsInline
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <Avatar className="h-16 w-16">
+                              <AvatarFallback>
+                                {participant.name.charAt(0).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                          </div>
+                        )}
+                        <div className="absolute bottom-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded">
+                          {participant.name}
+                        </div>
+                      </div>
+                    )
+                  })}
+              </div>
+              
+              {/* Participants List */}
               <div className="space-y-2">
                 {activeHuddle.participants.map((participant) => {
                   const isCurrentUserParticipant = participant.id === currentUser?.id
@@ -1799,6 +2122,7 @@ export default function ChatPage() {
             onEnd={endCall}
             onMuteToggle={toggleCallMute}
             isMuted={callMuted}
+            callDuration={callDuration}
           />
           {remoteStream && <CallAudio stream={remoteStream} />}
         </>

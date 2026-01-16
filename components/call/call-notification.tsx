@@ -7,6 +7,17 @@ import { Phone, PhoneOff, Mic, MicOff } from "lucide-react"
 import { CallData } from "@/lib/webrtc-call"
 import { cn } from "@/lib/utils"
 
+function formatDuration(seconds: number): string {
+  const hours = Math.floor(seconds / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  const secs = seconds % 60
+  
+  if (hours > 0) {
+    return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+  }
+  return `${minutes}:${secs.toString().padStart(2, '0')}`
+}
+
 interface CallNotificationProps {
   call: CallData
   onAccept: () => void
@@ -14,6 +25,7 @@ interface CallNotificationProps {
   onEnd: () => void
   onMuteToggle: () => void
   isMuted: boolean
+  callDuration?: number
 }
 
 export function CallNotification({
@@ -23,9 +35,11 @@ export function CallNotification({
   onEnd,
   onMuteToggle,
   isMuted,
+  callDuration = 0,
 }: CallNotificationProps) {
   const audioRef = useRef<HTMLAudioElement>(null)
   const [isPlaying, setIsPlaying] = useState(false)
+  const [displayDuration, setDisplayDuration] = useState(0)
 
   // Play ringtone for incoming calls
   useEffect(() => {
@@ -68,6 +82,19 @@ export function CallNotification({
       setIsPlaying(false)
     }
   }, [call.state, call.direction])
+
+  // Update call duration timer
+  useEffect(() => {
+    if (call.state === 'connected' && callDuration >= 0) {
+      setDisplayDuration(callDuration)
+      const interval = setInterval(() => {
+        setDisplayDuration((prev) => prev + 1)
+      }, 1000)
+      return () => clearInterval(interval)
+    } else {
+      setDisplayDuration(0)
+    }
+  }, [call.state, callDuration])
 
   // Cleanup on unmount
   useEffect(() => {
@@ -114,7 +141,14 @@ export function CallNotification({
               </p>
             )}
             {isConnected && (
-              <p className="text-sm text-green-500">Connected</p>
+              <div className="space-y-1">
+                <p className="text-sm text-green-500">Connected</p>
+                {displayDuration > 0 && (
+                  <p className="text-lg font-mono font-semibold text-green-600">
+                    {formatDuration(displayDuration)}
+                  </p>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -128,7 +162,11 @@ export function CallNotification({
                 variant="destructive"
                 size="icon"
                 className="h-14 w-14 rounded-full"
-                onClick={onReject}
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  onReject()
+                }}
                 title="Reject"
               >
                 <PhoneOff className="h-6 w-6" />
@@ -137,7 +175,12 @@ export function CallNotification({
                 variant="default"
                 size="icon"
                 className="h-14 w-14 rounded-full bg-green-500 hover:bg-green-600"
-                onClick={onAccept}
+                onClick={async (e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  console.log('✅ Accept button clicked in CallNotification')
+                  await onAccept()
+                }}
                 title="Accept"
               >
                 <Phone className="h-6 w-6" />

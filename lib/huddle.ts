@@ -1,6 +1,6 @@
 /**
  * Huddle API and WebRTC Client
- * Handles voice calls using WebRTC and ActionCable signaling
+ * Handles voice and video calls using WebRTC and ActionCable signaling
  */
 
 import { apiRequest, getApiUrl } from './api';
@@ -85,13 +85,14 @@ export const huddleApi = {
 };
 
 /**
- * WebRTC Client for handling peer-to-peer audio connections
+ * WebRTC Client for handling peer-to-peer audio and video connections
  */
 export class HuddleWebRTC {
   private localStream: MediaStream | null = null;
   private peerConnections: Map<number, RTCPeerConnection> = new Map();
   private localAudio: HTMLAudioElement | null = null;
   private remoteAudios: Map<number, HTMLAudioElement> = new Map();
+  private remoteVideoStreams: Map<number, MediaStream> = new Map();
   private signalingSubscription: any = null;
   private huddleId: number | null = null;
   private currentUserId: number | null = null;
@@ -110,16 +111,16 @@ export class HuddleWebRTC {
     this.onError = onError;
   }
 
-  async initialize() {
+  async initialize(enableVideo: boolean = true) {
     try {
-      // Get user media (microphone)
+      // Get user media (microphone and optionally camera)
       this.localStream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
         },
-        video: false,
+        video: enableVideo,
       });
 
       // Create local audio element for monitoring
@@ -131,7 +132,7 @@ export class HuddleWebRTC {
       await this.connectSignaling();
     } catch (error) {
       console.error('Failed to initialize WebRTC:', error);
-      this.onError?.(new Error('Failed to access microphone. Please check permissions.'));
+      this.onError?.(new Error('Failed to access microphone/camera. Please check permissions.'));
       throw error;
     }
   }
@@ -215,9 +216,14 @@ export class HuddleWebRTC {
       });
     }
 
-    // Handle remote stream
+    // Handle remote stream (both audio and video)
     peerConnection.ontrack = (event) => {
       const remoteStream = event.streams[0];
+      
+      // Store video stream
+      this.remoteVideoStreams.set(userId, remoteStream);
+      
+      // Create audio element for remote audio
       const remoteAudio = new Audio();
       remoteAudio.srcObject = remoteStream;
       remoteAudio.autoplay = true;
@@ -313,6 +319,9 @@ export class HuddleWebRTC {
       remoteAudio.srcObject = null;
       this.remoteAudios.delete(userId);
     }
+
+    // Clean up video stream
+    this.remoteVideoStreams.delete(userId);
   }
 
   async mute() {
@@ -336,6 +345,89 @@ export class HuddleWebRTC {
     return this.localStream.getAudioTracks().some((track) => !track.enabled);
   }
 
+  // Add methods to get video streams
+  getLocalStream(): MediaStream | null {
+    return this.localStream;
+  }
+
+  getRemoteStream(userId: number): MediaStream | null {
+    return this.remoteVideoStreams.get(userId) || null;
+  }
+
+  async toggleVideo(): Promise<void> {
+    if (!this.localStream) return;
+    
+    const videoTracks = this.localStream.getVideoTracks();
+    
+    // If video tracks exist, toggle them
+    if (videoTracks.length > 0) {
+      videoTracks.forEach((track) => {
+        track.enabled = !track.enabled;
+      });
+    } else {
+      // If no video tracks, enable video by adding tracks
+      await this.enableVideo();
+    }
+  }
+
+  async enableVideo(): Promise<void> {
+    if (!this.localStream) {
+      throw new Error('Local stream not initialized');
+    }
+
+    try {
+      // Get video stream
+      const videoStream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+      });
+
+      // Add video tracks to existing local stream
+      videoStream.getVideoTracks().forEach((track) => {
+        this.localStream!.addTrack(track);
+      });
+
+      // Update all peer connections with new video tracks
+      this.peerConnections.forEach((peerConnection, userId) => {
+        videoStream.getVideoTracks().forEach((track) => {
+          const sender = peerConnection.getSenders().find(
+            (s) => s.track && s.track.kind === 'video'
+          );
+          
+          if (sender) {
+            // Replace existing video track
+            sender.replaceTrack(track);
+          } else {
+            // Add new video track
+            peerConnection.addTrack(track, this.localStream!);
+          }
+        });
+      });
+
+      // Stop the temporary video stream (tracks are now in localStream)
+      videoStream.getTracks().forEach((track) => {
+        if (track !== videoStream.getVideoTracks()[0]) {
+          track.stop();
+        }
+      });
+
+      console.log('✅ Video enabled and added to all peer connections');
+    } catch (error) {
+      console.error('Failed to enable video:', error);
+      throw new Error('Failed to enable video. Please check camera permissions.');
+    }
+  }
+
+  isVideoEnabled(): boolean {
+    if (!this.localStream) return false;
+    const videoTracks = this.localStream.getVideoTracks();
+    return videoTracks.length > 0 && videoTracks.some((track) => track.enabled);
+  }
+
+  hasVideoCapability(): boolean {
+    if (!this.localStream) return false;
+    return this.localStream.getVideoTracks().length > 0;
+  }
+
   async disconnect() {
     // Close all peer connections
     this.peerConnections.forEach((peerConnection, userId) => {
@@ -356,6 +448,9 @@ export class HuddleWebRTC {
       this.localAudio.srcObject = null;
       this.localAudio = null;
     }
+
+    // Clean up video streams
+    this.remoteVideoStreams.clear();
 
     // Unsubscribe from signaling
     if (this.signalingSubscription) {
