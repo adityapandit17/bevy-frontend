@@ -352,9 +352,11 @@ export class ChatCable {
   }
 
   disconnect() {
-    this.subscriptions.forEach((subscription) => {
-      subscription.unsubscribe();
-    });
+    // Only unsubscribe from actual subscription objects (key 0), not callbacks
+    const mainSubscription = this.subscriptions.get(0);
+    if (mainSubscription && typeof mainSubscription.unsubscribe === 'function') {
+      mainSubscription.unsubscribe();
+    }
     this.subscriptions.clear();
     if (this.consumer) {
       this.consumer.disconnect();
