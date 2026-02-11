@@ -57,8 +57,9 @@ builder:
 
 # Use a different ssh user than root
 #
-# ssh:
-#   user: app
+ssh:
+  user: ubuntu
+  keys: [~/.ssh/bevyhr.pem]
 
 # Use a persistent storage volume.
 #
