@@ -18,10 +18,10 @@ servers:
 #
 # Note: If using Cloudflare, set encryption mode in SSL/TLS setting to "Full" to enable CF-to-app encryption.
 proxy:
-  ssl: false
-  host: 13.233.176.36 #bevyhr.com
+  ssl: true
+  host: bevyhr.com
   # Proxy connects to your container on port 80 by default.
-  app_port: 3001
+  # app_port: 3001
 
 # Credentials for your image host.
 registry:
