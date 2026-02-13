@@ -44,7 +44,7 @@ builder:
   arch: arm64
   # Pass in additional build args needed for your Dockerfile.
   args:
-    NEXT_PUBLIC_API_BASE_URL: http://13.205.97.162/
+    NEXT_PUBLIC_API_BASE_URL: https://api.bevyhr.com/
 
 # Inject ENV variables into containers (secrets come from .kamal/secrets).
 env:
@@ -54,7 +54,7 @@ env:
     NODE_ENV: production
     PORT: 3001
     HOSTNAME: "0.0.0.0"
-    NEXT_PUBLIC_API_BASE_URL: http://13.205.97.162/
+    NEXT_PUBLIC_API_BASE_URL: https://api.bevyhr.com/
 
 # Aliases are triggered with "bin/kamal <alias>". You can overwrite arguments on invocation:
 # "bin/kamal app logs -r job" will tail logs from the first server in the job section.
