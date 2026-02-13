@@ -20,6 +20,10 @@ servers:
 proxy:
   ssl: true
   host: bevyhr.com
+  healthcheck:
+    path: /
+    interval: 5
+
   # Proxy connects to your container on port 80 by default.
   # app_port: 3001
 
