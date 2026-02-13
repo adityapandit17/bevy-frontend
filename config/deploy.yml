@@ -43,16 +43,18 @@ registry:
 builder:
   arch: arm64
   # Pass in additional build args needed for your Dockerfile.
-  # args:
-  #   RUBY_VERSION: <%= ENV["RBENV_VERSION"] || ENV["rvm_ruby_string"] || "#{RUBY_ENGINE}-#{RUBY_ENGINE_VERSION}" %>
+  args:
+    NEXT_PUBLIC_API_BASE_URL: <%= ENV["NEXT_PUBLIC_API_BASE_URL"] || "http://localhost:3000" %>
 
 # Inject ENV variables into containers (secrets come from .kamal/secrets).
-#
-# env:
-#   clear:
-#     DB_HOST: 192.168.0.2
-#   secret:
-#     - RAILS_MASTER_KEY
+env:
+  secret:
+    - NEXT_PUBLIC_API_BASE_URL
+  clear:
+    NODE_ENV: production
+    PORT: 3001
+    HOSTNAME: "0.0.0.0"
+    NEXT_PUBLIC_API_BASE_URL: <%= ENV["NEXT_PUBLIC_API_BASE_URL"] || "http://localhost:3000" %>
 
 # Aliases are triggered with "bin/kamal <alias>". You can overwrite arguments on invocation:
 # "bin/kamal app logs -r job" will tail logs from the first server in the job section.
