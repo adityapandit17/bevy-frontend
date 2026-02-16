@@ -33,6 +33,7 @@ import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { useAuthContext } from "@/lib/auth"
 import { NotificationsDropdown } from "@/components/notifications-dropdown"
+import Image from "next/image"
 
 type NavItem = {
   title: string
@@ -175,11 +176,17 @@ export function TopNav() {
         <div className="flex justify-between items-center min-h-16 py-2 gap-3">
           {/* Logo */}
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center">
-              <Building2 className="w-5 h-5 text-white" />
-            </div>
+            <Image 
+              src="/bevyhr-logo.png" 
+              alt="BevyHR Logo" 
+              width={24} 
+              height={24} 
+              className="h-6 w-6 object-contain"
+              style={{ imageRendering: 'auto' }}
+              priority
+            />
             <div className="hidden sm:block min-w-0">
-              <h1 className="text-lg font-bold text-gray-900 truncate">HRMS Pro</h1>
+              <h1 className="text-lg font-bold text-green-600 truncate">BevyHR</h1>
             </div>
           </div>
 

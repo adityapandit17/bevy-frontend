@@ -12,7 +12,7 @@ import { ErrorSuppressor } from "@/components/error-suppressor"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "HRMS Pro - Human Resource Management System",
+  title: "BevyHR - Human Resource Management System",
   description: "Complete HR Management Solution",
     generator: 'Aditya'
 }

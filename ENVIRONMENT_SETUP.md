@@ -2,7 +2,7 @@
 
 ## API Configuration
 
-Your HRMS frontend application now uses environment variables for API configuration instead of hardcoded URLs.
+Your BevyHR frontend application now uses environment variables for API configuration instead of hardcoded URLs.
 
 ### Environment Variables
 

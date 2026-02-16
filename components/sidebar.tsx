@@ -25,6 +25,7 @@ import {
   Shield,
 } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
+import Image from "next/image"
 
 import {
   Sidebar,
@@ -234,11 +235,17 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     <Sidebar className="bg-white border-r border-gray-200" collapsible="offcanvas" {...props}>
       <SidebarHeader className="p-6 border-b border-gray-200">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center">
-            <Building2 className="w-6 h-6 text-white" />
-          </div>
+          <Image 
+            src="/bevyhr-logo.png" 
+            alt="BevyHR Logo" 
+            width={28} 
+            height={28} 
+            className="h-7 w-7 object-contain"
+            style={{ imageRendering: 'auto' }}
+            priority
+          />
           <div>
-            <h1 className="text-xl font-bold text-gray-900">HRMS Pro</h1>
+            <h1 className="text-xl font-bold text-green-600">BevyHR</h1>
             <p className="text-gray-500 text-sm">HR Management</p>
           </div>
         </div>

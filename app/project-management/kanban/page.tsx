@@ -205,7 +205,7 @@ export default function KanbanBoard() {
           </Button>
           <div>
             <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Kanban Board</h1>
-            <p className="text-gray-600">HRMS Mobile App - Task Management</p>
+            <p className="text-gray-600">BevyHR Mobile App - Task Management</p>
           </div>
         </div>
         <div className="flex gap-2">

@@ -12,12 +12,12 @@ import {
   EyeOff, 
   Mail, 
   Lock, 
-  Building2, 
   ArrowRight,
   Github,
   Chrome,
   AlertCircle
 } from "lucide-react"
+import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { useAuthContext } from "@/lib/auth"
 
@@ -99,11 +99,17 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         {/* Logo and Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl mb-4">
-            <Building2 className="w-8 h-8 text-white" />
+          <div className="inline-flex items-center justify-center mb-4">
+            <Image 
+              src="/bevyhr-logo.png" 
+              alt="BevyHR Logo" 
+              width={64} 
+              height={64} 
+              className="h-16 w-16 object-contain"
+            />
           </div>
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Welcome back</h1>
-          <p className="text-gray-600">Sign in to your HRMS account</p>
+          <p className="text-gray-600">Sign in to your BevyHR account</p>
         </div>
 
         {/* Login Card */}

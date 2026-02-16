@@ -69,7 +69,7 @@ export default function HomePage() {
   ]
 
   const stats = [
-    { number: "10,000+", label: "Companies Trust Us" },
+    { number: "100+", label: "Companies Trust Us" },
     { number: "2M+", label: "Employees Managed" },
     { number: "99.9%", label: "Uptime Guarantee" },
     { number: "24/7", label: "Customer Support" }
@@ -80,7 +80,7 @@ export default function HomePage() {
       name: "Sarah Johnson",
       role: "HR Director",
       company: "TechCorp",
-      content: "HRMS Pro has transformed how we manage our workforce. The analytics are incredible!",
+      content: "BevyHR has transformed how we manage our workforce. The analytics are incredible!",
       rating: 5
     },
     {
@@ -150,10 +150,16 @@ export default function HomePage() {
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
               <div className="flex-shrink-0 flex items-center">
-                <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center">
-                  <Building2 className="w-5 h-5 text-white" />
-                </div>
-                <span className="ml-2 text-xl font-bold text-gray-900">HRMS Pro</span>
+                <Image 
+                  src="/bevyhr-logo.png" 
+                  alt="BevyHR Logo" 
+                  width={28} 
+                  height={28} 
+                  className="h-7 w-7 object-contain"
+                  style={{ imageRendering: 'auto' }}
+                  priority
+                />
+                <span className="ml-3 text-xl font-bold text-green-600">BevyHR</span>
               </div>
             </div>
             <div className="hidden md:block">
@@ -190,7 +196,7 @@ export default function HomePage() {
           <div className="text-center">
             <Badge className="mb-4 bg-green-100 text-green-800 border-green-200">
               <Zap className="w-3 h-3 mr-1" />
-              Trusted by 10,000+ Companies
+              Trusted by 100+ Companies
             </Badge>
             <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6">
               The Complete
@@ -310,7 +316,7 @@ export default function HomePage() {
               Loved by HR Teams Worldwide
             </h2>
             <p className="text-xl text-gray-600">
-              See what our customers have to say about HRMS Pro
+              See what our customers have to say about BevyHR
             </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -341,7 +347,7 @@ export default function HomePage() {
             Ready to Transform Your HR Operations?
           </h2>
           <p className="text-xl text-green-100 mb-8 max-w-3xl mx-auto">
-            Join thousands of companies that trust HRMS Pro to manage their workforce. 
+            Join thousands of companies that trust BevyHR to manage their workforce. 
             Start your free trial today.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -370,10 +376,16 @@ export default function HomePage() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             <div>
               <div className="flex items-center mb-4">
-                <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center">
-                  <Building2 className="w-5 h-5 text-white" />
-                </div>
-                <span className="ml-2 text-xl font-bold">HRMS Pro</span>
+                <Image 
+                  src="/bevyhr-logo.png" 
+                  alt="BevyHR Logo" 
+                  width={32} 
+                  height={32} 
+                  className="h-8 w-8 object-contain"
+                  style={{ imageRendering: 'auto' }}
+                  priority
+                />
+                <span className="ml-3 text-xl font-bold text-green-500">BevyHR</span>
               </div>
               <p className="text-gray-400">
                 The complete HR management solution for modern businesses.
@@ -408,7 +420,7 @@ export default function HomePage() {
             </div>
           </div>
           <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">
-            <p>&copy; 2026 Bevy HRMS. All rights reserved.</p>
+            <p>&copy; 2026 BevyHR. All rights reserved.</p>
           </div>
         </div>
       </footer>

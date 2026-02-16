@@ -34,7 +34,7 @@ export default function ProjectTimeline() {
   const projects = [
     {
       id: 1,
-      name: "HRMS Mobile App",
+      name: "BevyHR Mobile App",
       status: "active",
       startDate: "2024-01-15",
       endDate: "2024-03-30",

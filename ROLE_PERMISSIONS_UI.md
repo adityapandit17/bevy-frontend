@@ -2,7 +2,7 @@
 
 ## Overview
 
-A comprehensive, modern UI for managing user roles and permissions in the HRMS system. This interface allows administrators to create, edit, and manage role-based access control (RBAC) with granular permission settings.
+A comprehensive, modern UI for managing user roles and permissions in the BevyHR system. This interface allows administrators to create, edit, and manage role-based access control (RBAC) with granular permission settings.
 
 ## Features
 

@@ -43,6 +43,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { format } from "date-fns"
 import { useToast } from "@/hooks/use-toast"
+import Image from "next/image"
 
 export default function PayrollPage() {
   const [searchTerm, setSearchTerm] = useState("")
@@ -1196,11 +1197,11 @@ export default function PayrollPage() {
         <div class="header">
             <div class="company-info">
                 <div>
-                    <div class="company-name">HRMS Pro</div>
+                    <div class="company-name">BevyHR</div>
                     <div class="company-details">
                         123 Business Park, Corporate Tower<br>
                         Mumbai, Maharashtra - 400001<br>
-                        Phone: +91 22 1234 5678 | Email: hr@hrmspro.com
+                        Phone: +91 22 1234 5678 | Email: hr@bevyhr.com
                     </div>
                 </div>
                 <div class="statement-title">
@@ -1366,7 +1367,7 @@ export default function PayrollPage() {
 
         <div class="footer">
             <p>This is a system generated salary slip. No signature is required.</p>
-            <p>For queries, please contact HR Department at hr@hrmspro.com</p>
+            <p>For queries, please contact HR Department at hr@bevyhr.com</p>
             <p style="margin-top: 10px; color: #9ca3af;">
                 Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}
             </p>
@@ -2252,13 +2253,19 @@ export default function PayrollPage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="flex items-center gap-2 mb-2">
-                        <Building2 className="w-6 h-6 text-blue-600" />
-                        <h2 className="text-2xl font-bold text-gray-900">HRMS Pro</h2>
+                        <Image 
+                          src="/bevyhr-logo.png" 
+                          alt="BevyHR Logo" 
+                          width={24} 
+                          height={24} 
+                          className="h-6 w-6 object-contain"
+                        />
+                        <h2 className="text-2xl font-bold text-gray-900">BevyHR</h2>
                       </div>
                       <p className="text-sm text-gray-600">123 Business Park, Corporate Tower</p>
                       <p className="text-sm text-gray-600">Mumbai, Maharashtra - 400001</p>
                       <p className="text-sm text-gray-600">
-                        Phone: +91 22 1234 5678 | Email: hr@hrmspro.com
+                        Phone: +91 22 1234 5678 | Email: hr@bevyhr.com
                       </p>
                     </div>
                     <div className="text-right">
@@ -2438,7 +2445,7 @@ export default function PayrollPage() {
                 <div className="border-t border-gray-200 pt-4 text-center text-xs text-gray-500">
                   <p>This is a system generated salary slip. No signature is required.</p>
                   <p className="mt-1">
-                    For queries, please contact HR Department at hr@hrmspro.com
+                    For queries, please contact HR Department at hr@bevyhr.com
                   </p>
                   <p className="mt-2 text-gray-400">
                     Generated on {new Date().toLocaleDateString()} at{" "}

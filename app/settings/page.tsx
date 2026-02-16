@@ -324,7 +324,7 @@ export default function SettingsPage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Settings</h1>
-          <p className="text-gray-600">Manage your HRMS system configuration</p>
+          <p className="text-gray-600">Manage your BevyHR system configuration</p>
         </div>
         <Button onClick={edit ? handleSave : () => setEdit(true)} disabled={loading}>
           <Save className="w-4 h-4 mr-2" />

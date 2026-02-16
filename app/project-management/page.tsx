@@ -31,7 +31,7 @@ export default function ProjectManagement() {
   const projects = [
     {
       id: 1,
-      name: "HRMS Mobile App",
+      name: "BevyHR Mobile App",
       description: "Mobile application for employee self-service",
       status: "active",
       progress: 75,
@@ -102,7 +102,7 @@ export default function ProjectManagement() {
       id: 1,
       type: "task_completed",
       description: "John Doe completed 'User Authentication' task",
-      project: "HRMS Mobile App",
+      project: "BevyHR Mobile App",
       time: "2 hours ago",
       user: "John Doe",
     },
@@ -125,8 +125,8 @@ export default function ProjectManagement() {
     {
       id: 4,
       type: "deadline_approaching",
-      description: "HRMS Mobile App deadline approaching in 2 weeks",
-      project: "HRMS Mobile App",
+      description: "BevyHR Mobile App deadline approaching in 2 weeks",
+      project: "BevyHR Mobile App",
       time: "2 days ago",
       user: "System",
     },
@@ -135,8 +135,8 @@ export default function ProjectManagement() {
   const upcomingDeadlines = [
     {
       id: 1,
-      title: "HRMS Mobile App - Beta Release",
-      project: "HRMS Mobile App",
+      title: "BevyHR Mobile App - Beta Release",
+      project: "BevyHR Mobile App",
       dueDate: "2024-03-15",
       daysLeft: 7,
       priority: "high",

@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Environment Setup Script for HRMS Frontend
+# Environment Setup Script for BevyHR Frontend
 
-echo "🚀 Setting up environment for HRMS Frontend..."
+echo "🚀 Setting up environment for BevyHR Frontend..."
 
 # Check if .env.local already exists
 if [ -f ".env.local" ]; then

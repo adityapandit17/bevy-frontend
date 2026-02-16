@@ -14,13 +14,13 @@ export function MobileNav() {
     if (path.includes("/attendance-leave")) return "Attendance & Leave"
     if (path.includes("/reports")) return "Reports"
     if (path.includes("/settings")) return "Settings"
-    return "HRMS Pro"
+    return "BevyHR"
   }
 
   return (
     <>
       <SidebarTrigger className="text-gray-600 hover:bg-gray-100" />
-      <h1 className="text-lg font-semibold text-gray-900">{getPageTitle(pathname)}</h1>
+      <h1 className={`text-lg font-semibold ${pathname === "/" || getPageTitle(pathname) === "BevyHR" ? "text-green-600" : "text-gray-900"}`}>{getPageTitle(pathname)}</h1>
     </>
   )
 }

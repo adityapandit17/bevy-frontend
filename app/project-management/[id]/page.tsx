@@ -37,7 +37,7 @@ export default function ProjectDetail() {
   // Mock project data
   const project = {
     id: 1,
-    name: "HRMS Mobile App",
+    name: "BevyHR Mobile App",
     description: "Mobile application for employee self-service with features like attendance tracking, leave management, and payroll access",
     status: "active",
     progress: 75,
