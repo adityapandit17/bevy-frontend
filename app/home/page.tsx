@@ -147,19 +147,19 @@ export default function HomePage() {
       {/* Navigation */}
       <nav className="bg-white border-b border-gray-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
+          <div className="flex justify-between items-center min-h-[100px] md:min-h-[120px] py-3">
             <div className="flex items-center">
-              <div className="flex-shrink-0 flex items-center">
+              <div className="flex-shrink-0 flex items-center gap-3">
                 <Image 
                   src="/bevyhr-logo.png" 
                   alt="BevyHR Logo" 
-                  width={28} 
-                  height={28} 
-                  className="h-7 w-7 object-contain"
+                  width={120} 
+                  height={120} 
+                  className="h-16 w-16 md:h-20 md:w-20 object-contain"
                   style={{ imageRendering: 'auto' }}
                   priority
                 />
-                <span className="ml-3 text-xl font-bold text-green-600">BevyHR</span>
+                <span className="text-xl md:text-2xl font-bold text-green-600">BevyHR</span>
               </div>
             </div>
             <div className="hidden md:block">

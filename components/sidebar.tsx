@@ -8,6 +8,7 @@ import {
   Briefcase,
   DollarSign,
   CalendarCheck,
+  CalendarDays,
   BarChart,
   Settings,
   Building2,
@@ -119,6 +120,12 @@ const navItems: NavItem[] = [
     icon: CalendarCheck,
     segment: "attendance-leave",
     resourceKeys: ["attendance_records", "leave_requests"],
+  },
+  {
+    title: "Calendar",
+    href: "/calendar",
+    icon: CalendarDays,
+    segment: "calendar",
   },
   {
     title: "Leave Management",
@@ -238,9 +245,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <Image 
             src="/bevyhr-logo.png" 
             alt="BevyHR Logo" 
-            width={28} 
-            height={28} 
-            className="h-7 w-7 object-contain"
+            width={80} 
+            height={80} 
+            className="h-16 w-16 object-contain"
             style={{ imageRendering: 'auto' }}
             priority
           />

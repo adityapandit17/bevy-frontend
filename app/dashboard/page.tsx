@@ -21,6 +21,7 @@ import {
   TrendingUp,
   AlertCircle,
   Calendar,
+  CalendarDays,
   FileText,
   Plus,
   Eye,
@@ -1439,6 +1440,14 @@ export default function Dashboard() {
                   <span className="text-sm">Mark Attendance</span>
                 </Button>
               )}
+              <Button 
+                variant="outline" 
+                className="h-24 flex-col gap-2 bg-transparent"
+                onClick={() => router.push('/calendar')}
+              >
+                <CalendarDays className="w-6 h-6" />
+                <span className="text-sm">Calendar</span>
+              </Button>
               {(checkPermission("payrolls:index") || checkPermission("payrolls:create")) && (
                 <Button 
                   variant="outline" 

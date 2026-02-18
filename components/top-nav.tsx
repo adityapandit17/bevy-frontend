@@ -179,9 +179,9 @@ export function TopNav() {
             <Image 
               src="/bevyhr-logo.png" 
               alt="BevyHR Logo" 
-              width={24} 
-              height={24} 
-              className="h-6 w-6 object-contain"
+              width={72} 
+              height={72} 
+              className="h-14 w-14 object-contain"
               style={{ imageRendering: 'auto' }}
               priority
             />
