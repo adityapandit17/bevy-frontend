@@ -922,21 +922,21 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6">
+    <div className="max-w-7xl mx-auto p-5 space-y-5">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-600">Welcome back! Here's what's happening at your company.</p>
+          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+          <p className="text-gray-600 text-sm">Welcome back! Here's what's happening at your company.</p>
         </div>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
         {statsLoading ? (
           Array.from({ length: 4 }).map((_, index) => (
             <Card key={index} className="hover:shadow-md transition-shadow">
-              <CardContent className="p-6">
+              <CardContent className="p-5">
                 <div className="flex items-center justify-between">
                   <div className="flex-1">
                     <div className="h-4 bg-gray-200 rounded w-24 mb-2 animate-pulse"></div>
@@ -951,7 +951,7 @@ export default function Dashboard() {
         ) : (
           stats.map((stat, index) => (
             <Card key={index} className="hover:shadow-md transition-shadow">
-              <CardContent className="p-6">
+              <CardContent className="p-5">
                 <div className="flex items-center justify-between">
                   <div className="flex-1">
                     <p className="text-sm font-medium text-gray-600">{stat.title}</p>
@@ -979,7 +979,7 @@ export default function Dashboard() {
         )}
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-6">
+      <div className="flex flex-col lg:flex-row gap-5">
         {/* Recent Activities */}
         <Card className="w-full lg:w-1/2">
           <CardHeader>
@@ -1033,7 +1033,7 @@ export default function Dashboard() {
         </Card>
 
         {/* Right Column: Upcoming Events and Attendance */}
-        <div className="w-full lg:w-1/2 flex flex-col gap-6">
+        <div className="w-full lg:w-1/2 flex flex-col gap-5">
           {/* Upcoming Events */}
           <Card>
             <CardHeader>
@@ -1326,7 +1326,7 @@ export default function Dashboard() {
         </DialogContent>
       </Dialog>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Pending Tasks */}
         <Card>
           <CardHeader>

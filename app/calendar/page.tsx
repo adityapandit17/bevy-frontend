@@ -22,10 +22,21 @@ import {
   Info,
   ChevronLeft,
   ChevronRight,
+  UserPlus,
+  X,
 } from "lucide-react"
 import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek } from "date-fns"
 import { useAuth } from "@/lib/auth/auth.hooks"
 import { cn } from "@/lib/utils"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Input } from "@/components/ui/input"
+import { toast } from "@/hooks/use-toast"
 
 interface Event {
   id: number
@@ -52,18 +63,180 @@ interface Event {
   }
 }
 
+interface Employee {
+  id: number
+  first_name: string
+  last_name: string
+  email: string
+}
+
 export default function CalendarPage() {
-  const { user } = useAuth()
+  const { user, checkRole } = useAuth()
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date())
   const [events, setEvents] = useState<Event[]>([])
   const [loading, setLoading] = useState(false)
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null)
   const [showEventDialog, setShowEventDialog] = useState(false)
   const [currentMonth, setCurrentMonth] = useState(new Date())
+  const [employees, setEmployees] = useState<Employee[]>([])
+  const [selectedAttendeeId, setSelectedAttendeeId] = useState<string>("")
+  const [updatingAttendees, setUpdatingAttendees] = useState(false)
+
+  // Check if user can manage attendees (event creator or super admin)
+  const canManageAttendees = (event: Event | null) => {
+    if (!event || !user || !user.id) return false
+    
+    const isSuperAdmin = checkRole("Super Admin")
+    const isEventCreator = Number(user.id) === Number(event.organizer_id)
+    
+    return isSuperAdmin || isEventCreator
+  }
 
   useEffect(() => {
     fetchEvents()
   }, [currentMonth])
+
+  useEffect(() => {
+    if (showEventDialog && selectedEvent) {
+      fetchEmployees()
+    }
+  }, [showEventDialog, selectedEvent])
+
+  const fetchEmployees = async () => {
+    try {
+      const response = await apiRequest<any>(`${getEndpointUrl('EMPLOYEES')}?per_page=1000`, { suppressToast: true })
+      
+      let employeeList: Employee[] = []
+      if (Array.isArray(response)) {
+        employeeList = response
+      } else if (response?.data && Array.isArray(response.data)) {
+        employeeList = response.data
+      }
+      
+      setEmployees(employeeList)
+    } catch (error) {
+      console.error('Error fetching employees:', error)
+      setEmployees([])
+    }
+  }
+
+  const handleAddAttendee = async () => {
+    if (!selectedEvent || !selectedAttendeeId) return
+
+    // Check permissions
+    if (!canManageAttendees(selectedEvent)) {
+      toast({
+        title: "Permission Denied",
+        description: "Only the event creator or Super Admin can add attendees",
+        variant: "destructive",
+      })
+      return
+    }
+
+    const attendeeId = parseInt(selectedAttendeeId)
+    if (selectedEvent.attendee_ids_list.includes(attendeeId)) {
+      toast({
+        title: "Already added",
+        description: "This attendee is already added to the event",
+        variant: "default",
+      })
+      return
+    }
+
+    setUpdatingAttendees(true)
+    try {
+      const updatedAttendees = [...selectedEvent.attendee_ids_list, attendeeId]
+      
+      const response = await apiRequest<Event>(
+        `${getEndpointUrl('EVENTS')}/${selectedEvent.id}`,
+        {
+          method: 'PUT',
+          body: JSON.stringify({
+            event: {
+              attendee_ids: updatedAttendees
+            }
+          }),
+        }
+      )
+
+      // Update the event in state
+      const updatedEvent = Array.isArray(response) ? response[0] : response
+      setSelectedEvent(updatedEvent)
+      setEvents(events.map(e => e.id === selectedEvent.id ? updatedEvent : e))
+      setSelectedAttendeeId("")
+      
+      toast({
+        title: "Success",
+        description: "Attendee added successfully",
+        variant: "default",
+      })
+    } catch (error: any) {
+      console.error('Error adding attendee:', error)
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to add attendee",
+        variant: "destructive",
+      })
+    } finally {
+      setUpdatingAttendees(false)
+    }
+  }
+
+  const handleRemoveAttendee = async (attendeeId: number) => {
+    if (!selectedEvent) return
+
+    // Check permissions
+    if (!canManageAttendees(selectedEvent)) {
+      toast({
+        title: "Permission Denied",
+        description: "Only the event creator or Super Admin can remove attendees",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setUpdatingAttendees(true)
+    try {
+      const updatedAttendees = selectedEvent.attendee_ids_list.filter(id => id !== attendeeId)
+      
+      const response = await apiRequest<Event>(
+        `${getEndpointUrl('EVENTS')}/${selectedEvent.id}`,
+        {
+          method: 'PUT',
+          body: JSON.stringify({
+            event: {
+              attendee_ids: updatedAttendees
+            }
+          }),
+        }
+      )
+
+      // Update the event in state
+      const updatedEvent = Array.isArray(response) ? response[0] : response
+      setSelectedEvent(updatedEvent)
+      setEvents(events.map(e => e.id === selectedEvent.id ? updatedEvent : e))
+      
+      toast({
+        title: "Success",
+        description: "Attendee removed successfully",
+        variant: "default",
+      })
+    } catch (error: any) {
+      console.error('Error removing attendee:', error)
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to remove attendee",
+        variant: "destructive",
+      })
+    } finally {
+      setUpdatingAttendees(false)
+    }
+  }
+
+  const getEmployeeName = (id: number) => {
+    const emp = employees.find(e => e.id === id)
+    return emp ? `${emp.first_name} ${emp.last_name}` : `Employee #${id}`
+  }
 
   const fetchEvents = async () => {
     setLoading(true)
@@ -83,11 +256,17 @@ export default function CalendarPage() {
         method: 'GET',
       })
 
-      if (response.success && response.data) {
+      // Handle both array response and wrapped response
+      if (Array.isArray(response)) {
+        setEvents(response)
+      } else if (response && typeof response === 'object' && 'data' in response && Array.isArray(response.data)) {
         setEvents(response.data)
+      } else {
+        setEvents([])
       }
     } catch (error) {
       console.error('Error fetching events:', error)
+      setEvents([])
     } finally {
       setLoading(false)
     }
@@ -400,6 +579,82 @@ export default function CalendarPage() {
                     </p>
                   </div>
                 )}
+                
+                {/* Attendees Section */}
+                <div className="pt-2 border-t">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-sm font-medium text-gray-700 flex items-center gap-1">
+                      <Users className="h-4 w-4" />
+                      Attendees ({selectedEvent.attendee_ids_list.length})
+                    </p>
+                  </div>
+                  
+                  {/* Add Attendee - Only show if user can manage */}
+                  {canManageAttendees(selectedEvent) ? (
+                    <>
+                      <div className="flex gap-2 mb-3">
+                        <Select value={selectedAttendeeId} onValueChange={setSelectedAttendeeId}>
+                          <SelectTrigger className="flex-1">
+                            <SelectValue placeholder="Select employee to add" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {employees
+                              .filter(emp => !selectedEvent.attendee_ids_list.includes(emp.id))
+                              .map((emp) => (
+                                <SelectItem key={emp.id} value={emp.id.toString()}>
+                                  {emp.first_name} {emp.last_name} ({emp.email})
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          onClick={handleAddAttendee}
+                          disabled={!selectedAttendeeId || updatingAttendees}
+                          size="sm"
+                        >
+                          <UserPlus className="h-4 w-4 mr-1" />
+                          Add
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg mb-3">
+                      <p className="text-sm text-yellow-800">
+                        Only the event creator or Super Admin can manage attendees for this event.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Attendees List */}
+                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                    {selectedEvent.attendee_ids_list.length === 0 ? (
+                      <p className="text-sm text-gray-500 italic">No attendees added yet</p>
+                    ) : (
+                      selectedEvent.attendee_ids_list.map((attendeeId) => (
+                        <div
+                          key={attendeeId}
+                          className="flex items-center justify-between p-2 bg-gray-50 rounded-lg"
+                        >
+                          <span className="text-sm text-gray-700">
+                            {getEmployeeName(attendeeId)}
+                          </span>
+                          {canManageAttendees(selectedEvent) && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRemoveAttendee(attendeeId)}
+                              disabled={updatingAttendees}
+                              className="h-6 w-6 p-0"
+                            >
+                              <X className="h-3 w-3 text-red-500" />
+                            </Button>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
                 <div className="flex items-center gap-2 pt-2 border-t">
                   <Badge variant={selectedEvent.status === 'scheduled' ? 'default' : 'secondary'}>
                     {selectedEvent.status}

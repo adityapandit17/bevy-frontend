@@ -52,9 +52,12 @@ import {
   Eye,
   Search,
   Filter,
+  UserPlus,
+  X,
 } from "lucide-react"
 import { useAuth } from "@/lib/auth/auth.hooks"
 import { format } from "date-fns"
+import { toast } from "@/hooks/use-toast"
 
 interface Event {
   id: number
@@ -81,10 +84,17 @@ interface Event {
   }
 }
 
+interface Employee {
+  id: number
+  first_name: string
+  last_name: string
+  email: string
+}
+
 export default function EventsPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { user } = useAuth()
+  const { user, checkRole } = useAuth()
   const [events, setEvents] = useState<Event[]>([])
   const [loading, setLoading] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
@@ -104,6 +114,9 @@ export default function EventsPage() {
     status: "scheduled",
     attendee_ids: [] as number[]
   })
+  const [employees, setEmployees] = useState<Employee[]>([])
+  const [selectedAttendeeId, setSelectedAttendeeId] = useState<string>("")
+  const [loadingEmployees, setLoadingEmployees] = useState(false)
 
   // Check for filter query parameter on mount
   useEffect(() => {
@@ -116,6 +129,76 @@ export default function EventsPage() {
   useEffect(() => {
     fetchEvents()
   }, [filterType, filterStatus])
+
+  useEffect(() => {
+    if (showCreateDialog || showEditDialog) {
+      fetchEmployees()
+    }
+  }, [showCreateDialog, showEditDialog])
+
+  const fetchEmployees = async () => {
+    setLoadingEmployees(true)
+    try {
+      const response = await apiRequest<any>(`${getEndpointUrl('EMPLOYEES')}?per_page=1000`, { suppressToast: true })
+      
+      let employeeList: Employee[] = []
+      if (Array.isArray(response)) {
+        employeeList = response
+      } else if (response?.data && Array.isArray(response.data)) {
+        employeeList = response.data
+      }
+      
+      setEmployees(employeeList)
+    } catch (error) {
+      console.error('Error fetching employees:', error)
+      setEmployees([])
+    } finally {
+      setLoadingEmployees(false)
+    }
+  }
+
+  // Check if user can manage attendees (event creator or super admin)
+  const canManageAttendees = (event: Event | null) => {
+    if (!event) return true // For new events, creator can add attendees
+    if (!user || !user.id) return false
+    
+    const isSuperAdmin = checkRole("Super Admin")
+    const isEventCreator = Number(user.id) === Number(event.organizer_id)
+    
+    return isSuperAdmin || isEventCreator
+  }
+
+  const handleAddAttendee = () => {
+    if (!selectedAttendeeId) return
+
+    const attendeeId = parseInt(selectedAttendeeId)
+    if (newEvent.attendee_ids.includes(attendeeId)) {
+      toast({
+        title: "Already added",
+        description: "This attendee is already added to the event",
+        variant: "default",
+      })
+      return
+    }
+
+    setNewEvent({
+      ...newEvent,
+      attendee_ids: [...newEvent.attendee_ids, attendeeId]
+    })
+    setSelectedAttendeeId("")
+  }
+
+  const handleRemoveAttendee = (attendeeId: number) => {
+    setNewEvent({
+      ...newEvent,
+      attendee_ids: newEvent.attendee_ids.filter(id => id !== attendeeId)
+    })
+  }
+
+  const getEmployeeName = (id: number) => {
+    const emp = employees.find(e => e.id === id)
+    return emp ? `${emp.first_name} ${emp.last_name}` : `Employee #${id}`
+  }
 
   const fetchEvents = async () => {
     setLoading(true)
@@ -550,6 +633,90 @@ export default function EventsPage() {
                 placeholder="Event location"
               />
             </div>
+
+            {/* Attendees Section */}
+            {canManageAttendees(selectedEvent) && (
+              <div className="pt-2 border-t">
+                <div className="flex items-center justify-between mb-3">
+                  <Label className="text-sm font-medium text-gray-700 flex items-center gap-1">
+                    <Users className="h-4 w-4" />
+                    Attendees ({newEvent.attendee_ids.length})
+                  </Label>
+                </div>
+                
+                {/* Add Attendee */}
+                <div className="flex gap-2 mb-3">
+                  <Select 
+                    value={selectedAttendeeId} 
+                    onValueChange={setSelectedAttendeeId}
+                    disabled={loadingEmployees}
+                  >
+                    <SelectTrigger className="flex-1">
+                      <SelectValue placeholder={loadingEmployees ? "Loading employees..." : "Select employee to add"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {employees
+                        .filter(emp => !newEvent.attendee_ids.includes(emp.id))
+                        .map((emp) => (
+                          <SelectItem key={emp.id} value={emp.id.toString()}>
+                            {emp.first_name} {emp.last_name} ({emp.email})
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    onClick={handleAddAttendee}
+                    disabled={!selectedAttendeeId || loadingEmployees}
+                    size="sm"
+                    type="button"
+                  >
+                    <UserPlus className="h-4 w-4 mr-1" />
+                    Add
+                  </Button>
+                </div>
+
+                {/* Attendees List */}
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {newEvent.attendee_ids.length === 0 ? (
+                    <p className="text-sm text-gray-500 italic">No attendees added yet</p>
+                  ) : (
+                    newEvent.attendee_ids.map((attendeeId) => (
+                      <div
+                        key={attendeeId}
+                        className="flex items-center justify-between p-2 bg-gray-50 rounded-lg"
+                      >
+                        <span className="text-sm text-gray-700">
+                          {getEmployeeName(attendeeId)}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleRemoveAttendee(attendeeId)}
+                          type="button"
+                          className="h-6 w-6 p-0"
+                        >
+                          <X className="h-3 w-3 text-red-500" />
+                        </Button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Show message if user cannot manage attendees */}
+            {selectedEvent && !canManageAttendees(selectedEvent) && (
+              <div className="pt-2 border-t">
+                <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-sm text-yellow-800">
+                    Only the event creator or Super Admin can manage attendees for this event.
+                  </p>
+                  <p className="text-xs text-yellow-700 mt-1">
+                    Current attendees: {selectedEvent.attendee_ids_list.length}
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => {
