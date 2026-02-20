@@ -18,6 +18,7 @@ import {
   User,
   MoreHorizontal as More,
   MessageSquare,
+  Award,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -91,6 +92,12 @@ const navItems: NavItem[] = [
     icon: CalendarCheck,
     segment: "leave-management",
     resourceKeys: ["leave_management"],
+  },
+  {
+    title: "Recognitions",
+    href: "/recognitions",
+    icon: Award,
+    segment: "recognitions",
   },
   {
     title: "Reports",

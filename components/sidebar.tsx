@@ -24,6 +24,7 @@ import {
   UserCheck,
   MessageSquare,
   Shield,
+  Award,
 } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
 import Image from "next/image"
@@ -126,6 +127,12 @@ const navItems: NavItem[] = [
     href: "/calendar",
     icon: CalendarDays,
     segment: "calendar",
+  },
+  {
+    title: "Recognitions",
+    href: "/recognitions",
+    icon: Award,
+    segment: "recognitions",
   },
   {
     title: "Leave Management",
