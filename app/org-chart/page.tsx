@@ -26,6 +26,7 @@ import {
   RefreshCw
 } from "lucide-react"
 import { OrgChart, buildOrgHierarchy } from "@/components/ui/org-chart"
+import { EmployeeBadge } from "@/components/employee-badge"
 import { useRouter } from "next/navigation"
 import { getApiUrl, getEndpointUrl, apiRequest } from "@/lib/api"
 import { ResourceGuard } from "@/lib/auth/auth.guards"
@@ -42,6 +43,7 @@ interface Employee {
   manager_id?: number
   manager?: { id: number; first_name: string; last_name: string }
   status: string
+  badge_level?: string
   direct_reports?: Array<{ id: number; first_name: string; last_name: string }>
 }
 
@@ -60,6 +62,7 @@ const transformEmployeeForOrgChart = (emp: Employee) => ({
   phone: emp.phone,
   status: emp.status === "active" ? "active" as const : "inactive" as const,
   reportsTo: emp.manager_id?.toString(),
+  badge_level: emp.badge_level,
   location: undefined // Add if available in backend
 })
 
@@ -316,7 +319,10 @@ export default function OrgChartPage() {
                             {employee.name.split(' ').map(n => n[0]).join('')}
                           </div>
                           <div>
-                            <h3 className="font-semibold text-gray-900">{employee.name}</h3>
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-semibold text-gray-900">{employee.name}</h3>
+                              <EmployeeBadge badgeLevel={employee.badge_level} />
+                            </div>
                             <p className="text-sm text-gray-600">{employee.title}</p>
                           </div>
                         </div>

@@ -34,7 +34,8 @@ export function EmployeeForm({ open, onClose, onSubmit, initialData }: EmployeeF
     department_id: "",
     designation: "",
     date_of_joining: "",
-    status: "onboarding"
+    status: "onboarding",
+    badge_level: ""
   })
   const [departments, setDepartments] = useState([])
 
@@ -191,6 +192,26 @@ export function EmployeeForm({ open, onClose, onSubmit, initialData }: EmployeeF
                       value={formData.status}
                       onChange={(e) => handleChange("status", e.target.value)}
                     />
+                  </div>
+                  <div>
+                    <Label htmlFor="badge_level">Badge Level</Label>
+                    <Select 
+                      value={formData.badge_level || undefined} 
+                      onValueChange={v => handleChange("badge_level", v === "none" ? "" : v)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select badge level (optional)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">None</SelectItem>
+                        <SelectItem value="rockstar">Rockstar</SelectItem>
+                        <SelectItem value="ninja">Ninja</SelectItem>
+                        <SelectItem value="champion">Champion</SelectItem>
+                        <SelectItem value="expert">Expert</SelectItem>
+                        <SelectItem value="pro">Pro</SelectItem>
+                        <SelectItem value="rookie">Rookie</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               </div>
