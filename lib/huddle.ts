@@ -120,7 +120,12 @@ export class HuddleWebRTC {
           noiseSuppression: true,
           autoGainControl: true,
         },
-        video: enableVideo,
+        video: enableVideo ? {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          frameRate: { ideal: 30 },
+          facingMode: 'user',
+        } : false,
       });
 
       // Create local audio element for monitoring
@@ -204,7 +209,11 @@ export class HuddleWebRTC {
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
+        // Add TURN servers for better connectivity (can be configured via env vars)
+        // For production, you should use your own TURN servers
+        // Example: { urls: 'turn:your-turn-server.com:3478', username: 'user', credential: 'pass' }
       ],
+      iceTransportPolicy: 'all', // Try both relay and direct connections
     };
 
     const peerConnection = new RTCPeerConnection(configuration);
@@ -376,9 +385,14 @@ export class HuddleWebRTC {
     }
 
     try {
-      // Get video stream
+      // Get video stream with better quality settings
       const videoStream = await navigator.mediaDevices.getUserMedia({
-        video: true,
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          frameRate: { ideal: 30 },
+          facingMode: 'user',
+        },
       });
 
       // Add video tracks to existing local stream
@@ -426,6 +440,119 @@ export class HuddleWebRTC {
   hasVideoCapability(): boolean {
     if (!this.localStream) return false;
     return this.localStream.getVideoTracks().length > 0;
+  }
+
+  /**
+   * Start screen sharing
+   */
+  async startScreenShare(): Promise<void> {
+    try {
+      const screenStream = await navigator.mediaDevices.getDisplayMedia({
+        video: {
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+          frameRate: { ideal: 30 },
+        } as MediaTrackConstraints,
+        audio: true,
+      });
+
+      // Replace video tracks in local stream with screen share
+      if (this.localStream) {
+        const videoTracks = this.localStream.getVideoTracks();
+        videoTracks.forEach((track) => {
+          track.stop();
+          this.localStream!.removeTrack(track);
+        });
+
+        // Add screen share video track
+        screenStream.getVideoTracks().forEach((track) => {
+          this.localStream!.addTrack(track);
+          // Stop screen share when user stops sharing
+          track.onended = () => {
+            this.stopScreenShare();
+          };
+        });
+
+        // Update all peer connections
+        this.peerConnections.forEach((peerConnection) => {
+          screenStream.getVideoTracks().forEach((track) => {
+            const sender = peerConnection.getSenders().find(
+              (s) => s.track && s.track.kind === 'video'
+            );
+            if (sender) {
+              sender.replaceTrack(track);
+            } else {
+              peerConnection.addTrack(track, this.localStream!);
+            }
+          });
+        });
+      }
+
+      console.log('✅ Screen sharing started');
+    } catch (error) {
+      console.error('Failed to start screen share:', error);
+      throw new Error('Failed to start screen sharing. Please check permissions.');
+    }
+  }
+
+  /**
+   * Stop screen sharing and resume camera
+   */
+  async stopScreenShare(): Promise<void> {
+    try {
+      if (!this.localStream) return;
+
+      const videoTracks = this.localStream.getVideoTracks();
+      videoTracks.forEach((track) => {
+        track.stop();
+        this.localStream!.removeTrack(track);
+      });
+
+      // Resume camera
+      const cameraStream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          frameRate: { ideal: 30 },
+          facingMode: 'user',
+        },
+      });
+
+      cameraStream.getVideoTracks().forEach((track) => {
+        this.localStream!.addTrack(track);
+      });
+
+      // Update all peer connections
+      this.peerConnections.forEach((peerConnection) => {
+        cameraStream.getVideoTracks().forEach((track) => {
+          const sender = peerConnection.getSenders().find(
+            (s) => s.track && s.track.kind === 'video'
+          );
+          if (sender) {
+            sender.replaceTrack(track);
+          } else {
+            peerConnection.addTrack(track, this.localStream!);
+          }
+        });
+      });
+
+      console.log('✅ Screen sharing stopped, camera resumed');
+    } catch (error) {
+      console.error('Failed to stop screen share:', error);
+    }
+  }
+
+  /**
+   * Check if currently screen sharing
+   */
+  isScreenSharing(): boolean {
+    if (!this.localStream) return false;
+    const videoTracks = this.localStream.getVideoTracks();
+    return videoTracks.some((track) => {
+      const settings = track.getSettings();
+      // Check if track is from screen share (displaySurface property exists)
+      return settings.displaySurface !== undefined && settings.displaySurface !== 'browser';
+    });
   }
 
   async disconnect() {

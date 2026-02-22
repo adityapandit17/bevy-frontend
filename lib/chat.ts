@@ -201,7 +201,7 @@ export class ChatCable {
 
     const token = localStorage.getItem(AUTH_CONFIG.tokenKey);
     if (!token) {
-      // Silently fail - real-time updates won't work but app continues
+      console.warn('⚠️ No auth token, cannot connect to ActionCable');
       return;
     }
 
@@ -210,7 +210,7 @@ export class ChatCable {
       const Cable = await getActionCable();
       
       if (!Cable) {
-        // Silently fail - ActionCable not available, app continues without real-time updates
+        console.warn('⚠️ ActionCable not available');
         return;
       }
 
@@ -219,57 +219,59 @@ export class ChatCable {
       const baseUrl = API_BASE_URL.replace(/^https?/, protocol);
       const cableUrl = `${baseUrl}/cable?token=${encodeURIComponent(token)}`;
       
+      console.log('🔌 Connecting to ActionCable:', cableUrl.replace(/token=[^&]+/, 'token=***'));
       this.consumer = Cable.createConsumer(cableUrl);
       
-      // Add connection event handlers
-      if (this.consumer.connection) {
-        this.consumer.connection.addEventListener('open', () => {
-          console.log('✅ ActionCable WebSocket connected successfully');
-        });
-        
-        this.consumer.connection.addEventListener('close', () => {
-          console.log('❌ ActionCable WebSocket disconnected');
-          this.consumer = null;
-        });
-        
-        this.consumer.connection.addEventListener('error', (error: any) => {
-          console.error('❌ ActionCable WebSocket error:', error);
-        });
-      } else {
-        console.warn('⚠️ ActionCable consumer created but connection not available');
-      }
+      // ActionCable handles connection events through subscription callbacks
+      // Connection will be established when first subscription is created
+      console.log('✅ ActionCable consumer created');
+      
+      // Wait a bit for consumer to initialize
+      await new Promise(resolve => setTimeout(resolve, 200));
     } catch (error) {
-      // Silently fail - real-time updates won't work but app continues
-      console.warn('Failed to connect to ActionCable:', error);
+      console.error('❌ Failed to connect to ActionCable:', error);
     } finally {
       this.connecting = false;
     }
   }
 
-  subscribeToChannel(channelId: number, callback: (message: Message) => void) {
+  async subscribeToChannel(channelId: number, callback: (message: Message) => void) {
+    console.log('📡 subscribeToChannel called for channel:', channelId);
+    
     // Ensure connection exists
     if (!this.consumer) {
+      console.log('⚠️ No consumer, attempting to connect...');
       // Try to connect asynchronously
-      this.connect().then(() => {
+      try {
+        await this.connect();
+        // Wait a bit more for subscription to be ready
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
         if (this.consumer) {
-          console.log('ActionCable connected, subscribing to channel:', channelId);
-          this.doSubscribe(channelId, callback);
+          console.log('✅ ActionCable connected, subscribing to channel:', channelId);
+          return this.doSubscribe(channelId, callback);
         } else {
-          console.warn('ActionCable connection failed, cannot subscribe to channel:', channelId);
+          console.warn('⚠️ ActionCable connection failed, cannot subscribe to channel:', channelId);
+          return null;
         }
-      }).catch((error) => {
-        console.error('Failed to connect ActionCable:', error);
-      });
-      return null;
+      } catch (error) {
+        console.error('❌ Failed to connect ActionCable:', error);
+        return null;
+      }
     }
 
-    console.log('ActionCable already connected, subscribing to channel:', channelId);
-    return this.doSubscribe(channelId, callback);
+    console.log('✅ ActionCable already connected, subscribing to channel:', channelId);
+    const subscription = this.doSubscribe(channelId, callback);
+    
+    // Wait a bit to ensure subscription is active
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    return subscription;
   }
 
   private doSubscribe(channelId: number, callback: (message: Message) => void) {
     if (!this.consumer) {
-      // Silently fail - real-time updates won't work but app continues
+      console.warn('⚠️ No consumer available, cannot subscribe');
       return null;
     }
 
@@ -277,13 +279,15 @@ export class ChatCable {
       // Create a single subscription that listens to all channels
       // The backend ChatChannel already subscribes to all user channels
       if (!this.subscriptions.has(0)) {
+        console.log('🔌 Creating ChatChannel subscription...');
         const subscription = this.consumer.subscriptions.create(
           {
             channel: 'ChatChannel',
           },
           {
             received: (data: any) => {
-              console.log('ActionCable received data:', data);
+              console.log('📨 ActionCable received data:', data);
+              
               if (data.type === 'message' && data.message) {
                 // Ensure message has required fields
                 const message = {
@@ -291,34 +295,46 @@ export class ChatCable {
                   user_name: data.message.user_name || '',
                   user_email: data.message.user_email || '',
                 };
-                console.log('Processing message for channel:', message.channel_id);
+                console.log('📨 Processing message for channel:', message.channel_id);
+                console.log('📨 Available callbacks:', Array.from(this.subscriptions.keys()).filter(k => k !== 0));
+                
                 // Find the callback for this channel
                 const channelCallback = this.subscriptions.get(message.channel_id);
-                if (channelCallback) {
-                  console.log('Calling callback for channel:', message.channel_id);
-                  channelCallback(message);
+                if (channelCallback && typeof channelCallback === 'function') {
+                  console.log('✅ Calling callback for channel:', message.channel_id);
+                  try {
+                    channelCallback(message);
+                  } catch (error) {
+                    console.error('❌ Error in message callback:', error);
+                  }
                 } else {
-                  console.warn('No callback found for channel:', message.channel_id);
+                  console.warn('⚠️ No callback found for channel:', message.channel_id, 'Available:', Array.from(this.subscriptions.keys()));
                 }
               } else if (data.type === 'channel_updated') {
                 // Handle channel updates
                 const channelCallback = this.subscriptions.get(data.channel_id);
-                if (channelCallback) {
+                if (channelCallback && typeof channelCallback === 'function') {
                   channelCallback(data);
                 }
               } else if (data.type === 'huddle_started' || data.type === 'huddle_updated' || data.type === 'huddle_ended') {
                 // Handle huddle events - pass to channel callback
-                const channelCallback = this.subscriptions.get(data.huddle?.channel_id || data.channel_id);
-                if (channelCallback) {
+                const channelId = data.huddle?.channel_id || data.channel_id;
+                const channelCallback = this.subscriptions.get(channelId);
+                if (channelCallback && typeof channelCallback === 'function') {
                   channelCallback(data);
                 }
+              } else {
+                console.log('📨 Unknown message type:', data.type);
               }
             },
             connected: () => {
               console.log('✅ Subscribed to ChatChannel - ready to receive messages');
+              console.log('📊 Current subscriptions:', Array.from(this.subscriptions.keys()).filter(k => k !== 0));
             },
             disconnected: () => {
               console.log('❌ Disconnected from ChatChannel');
+              // Try to reconnect
+              this.consumer = null;
             },
             rejected: () => {
               console.error('❌ Subscription to ChatChannel was rejected');
@@ -326,13 +342,25 @@ export class ChatCable {
           }
         );
         this.subscriptions.set(0, subscription);
+        console.log('✅ ChatChannel subscription created');
       }
 
-      // Store the callback for this specific channel
+      // Store the callback for this specific channel BEFORE messages might arrive
+      // This is critical - callback must be stored before subscription is created
       this.subscriptions.set(channelId, callback);
-      return this.subscriptions.get(0);
+      console.log('✅ Stored callback for channel:', channelId, 'Total subscriptions:', this.subscriptions.size);
+      console.log('📊 All registered channels:', Array.from(this.subscriptions.keys()).filter(k => k !== 0));
+      
+      const mainSubscription = this.subscriptions.get(0);
+      if (mainSubscription) {
+        console.log('✅ Main subscription exists, ready to receive messages');
+      } else {
+        console.warn('⚠️ Main subscription not found!');
+      }
+      
+      return mainSubscription;
     } catch (error) {
-      console.error('Error subscribing to channel:', error);
+      console.error('❌ Error subscribing to channel:', error);
       return null;
     }
   }

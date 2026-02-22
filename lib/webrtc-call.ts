@@ -25,6 +25,7 @@ export interface CallData {
   direction: CallDirection;
   startTime?: Date;
   endTime?: Date;
+  isVideoCall?: boolean;
 }
 
 export class WebRTCCallManager {
@@ -104,11 +105,50 @@ export class WebRTCCallManager {
       console.warn('⚠️ No local stream available when creating peer connection');
     }
 
-    // Handle remote stream
+    // Handle remote stream (both audio and video)
     pc.ontrack = (event) => {
-      console.log('Received remote stream');
-      this.remoteStream = event.streams[0];
-      this.onRemoteStream?.(event.streams[0]);
+      console.log('📹 Received remote track', {
+        streams: event.streams.length,
+        track: event.track ? { 
+          kind: event.track.kind, 
+          enabled: event.track.enabled,
+          id: event.track.id,
+          readyState: event.track.readyState
+        } : null,
+        streamsTracks: event.streams[0]?.getTracks().map(t => ({ kind: t.kind, enabled: t.enabled, id: t.id }))
+      });
+      
+      // Use the first stream or create a new one
+      if (event.streams && event.streams.length > 0 && event.streams[0]) {
+        // Use the stream from the event
+        this.remoteStream = event.streams[0];
+        console.log('✅ Using remote stream from event:', {
+          id: event.streams[0].id,
+          tracks: event.streams[0].getTracks().map(t => ({ kind: t.kind, enabled: t.enabled, id: t.id }))
+        });
+      } else if (event.track) {
+        // If no stream, create one and add the track
+        if (!this.remoteStream) {
+          this.remoteStream = new MediaStream();
+        }
+        // Check if track already exists to avoid duplicates
+        const existingTrack = this.remoteStream.getTracks().find(t => t.id === event.track.id);
+        if (!existingTrack) {
+          this.remoteStream.addTrack(event.track);
+          console.log('✅ Added track to remote stream:', event.track.kind);
+        } else {
+          console.log('⚠️ Track already exists, skipping:', event.track.id);
+        }
+      }
+      
+      // Notify callback with updated stream immediately
+      if (this.remoteStream) {
+        console.log('📤 Notifying remote stream callback:', {
+          streamId: this.remoteStream.id,
+          tracks: this.remoteStream.getTracks().map(t => ({ kind: t.kind, enabled: t.enabled }))
+        });
+        this.onRemoteStream?.(this.remoteStream);
+      }
     };
 
     // Handle ICE candidates
@@ -167,9 +207,16 @@ export class WebRTCCallManager {
   }
 
   /**
+   * Start a video call to another user
+   */
+  async startVideoCall(from: CallParticipant, to: CallParticipant): Promise<void> {
+    return this.startCall(from, to, true);
+  }
+
+  /**
    * Start a call to another user
    */
-  async startCall(from: CallParticipant, to: CallParticipant): Promise<void> {
+  async startCall(from: CallParticipant, to: CallParticipant, enableVideo: boolean = false): Promise<void> {
     if (this.currentCall) {
       throw new Error('A call is already in progress');
     }
@@ -182,8 +229,21 @@ export class WebRTCCallManager {
           noiseSuppression: true,
           autoGainControl: true,
         },
-        video: false,
+        video: enableVideo ? {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          frameRate: { ideal: 30 },
+          facingMode: 'user',
+        } : false,
       });
+      
+      // Ensure video tracks are enabled
+      if (enableVideo && this.localStream) {
+        this.localStream.getVideoTracks().forEach((track) => {
+          track.enabled = true;
+          console.log('📹 Video track enabled:', { id: track.id, enabled: track.enabled });
+        });
+      }
 
       // Create call data
       const callId = `call_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -194,6 +254,7 @@ export class WebRTCCallManager {
         state: 'calling', // Outgoing calls start in 'calling' state
         direction: 'outgoing',
         startTime: new Date(),
+        isVideoCall: enableVideo,
       };
 
       console.log('📞 Outgoing call created:', this.currentCall);
@@ -250,7 +311,10 @@ export class WebRTCCallManager {
       this.peerConnection = this.createPeerConnection();
 
       // Create and send offer
-      const offer = await this.peerConnection.createOffer();
+      const offer = await this.peerConnection.createOffer({
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: enableVideo,
+      });
       await this.peerConnection.setLocalDescription(offer);
 
       // Send offer via signaling
@@ -305,16 +369,35 @@ export class WebRTCCallManager {
 
     try {
       console.log('🎤 Requesting user media...');
-      // Get user media
+      // Get user media (check if it's a video call)
+      const isVideoCall = callData.isVideoCall || false;
       this.localStream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
         },
-        video: false,
+        video: isVideoCall ? {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          frameRate: { ideal: 30 },
+          facingMode: 'user',
+        } : false,
       });
-      console.log('✅ User media obtained');
+      
+      // Ensure video tracks are enabled for video calls
+      if (isVideoCall && this.localStream) {
+        this.localStream.getVideoTracks().forEach((track) => {
+          track.enabled = true;
+          console.log('📹 Video track enabled:', { id: track.id, enabled: track.enabled });
+        });
+      }
+      
+      console.log('✅ User media obtained', { 
+        isVideoCall,
+        videoTracks: this.localStream.getVideoTracks().length,
+        audioTracks: this.localStream.getAudioTracks().length
+      });
 
       this.currentCall = {
         ...callData,
@@ -640,8 +723,11 @@ export class WebRTCCallManager {
           throw new Error(`State changed between checks: ${finalStateCheck}`);
         }
         
-        answer = await this.peerConnection.createAnswer();
-        console.log('✅ Answer created:', answer.type);
+        answer = await this.peerConnection.createAnswer({
+          offerToReceiveAudio: true,
+          offerToReceiveVideo: this.currentCall.isVideoCall || false,
+        });
+        console.log('✅ Answer created:', answer.type, 'isVideoCall:', this.currentCall.isVideoCall);
       } catch (error: any) {
         console.error('❌ Failed to create answer:', error);
         console.log('📊 Current peer connection state at error:', {
@@ -722,10 +808,17 @@ export class WebRTCCallManager {
    */
   endCall(): void {
     if (this.signalingSubscription && this.currentCall) {
+      const otherUser = this.currentCall.direction === 'outgoing' 
+        ? this.currentCall.to 
+        : this.currentCall.from;
+      
       this.signalingSubscription.send({
         type: 'call-end',
         callId: this.currentCall.callId,
+        from: this.currentCall.direction === 'outgoing' ? this.currentCall.from : this.currentCall.to,
+        to: otherUser,
       });
+      console.log('📤 Sent call-end signal to:', otherUser.id);
     }
 
     // Close peer connection
@@ -740,6 +833,15 @@ export class WebRTCCallManager {
         track.stop();
       });
       this.localStream = null;
+    }
+
+    // Clear remote stream
+    if (this.remoteStream) {
+      this.remoteStream.getTracks().forEach((track) => {
+        track.stop();
+      });
+      this.remoteStream = null;
+      this.onRemoteStream?.(null);
     }
 
     // Update call state
@@ -778,44 +880,107 @@ export class WebRTCCallManager {
     }
 
     try {
-      if (data.type === 'call-offer' && this.currentCall.direction === 'incoming') {
-        // Already handled in handleIncomingCall
-        console.log('📞 Call offer already handled for incoming call');
-        return;
+      if (data.type === 'call-offer') {
+        // Handle renegotiation offers (when video is enabled during call)
+        if (this.currentCall && this.currentCall.state === 'connected') {
+          console.log('🔄 Handling renegotiation offer for video');
+          try {
+            // Check if we're in stable state before handling renegotiation
+            const currentState = this.peerConnection!.signalingState;
+            if (currentState === 'stable') {
+              await this.peerConnection!.setRemoteDescription(new RTCSessionDescription(data.offer));
+              const answer = await this.peerConnection!.createAnswer({
+                offerToReceiveAudio: true,
+                offerToReceiveVideo: this.currentCall.isVideoCall || false,
+              });
+              await this.peerConnection!.setLocalDescription(answer);
+              
+              // Send answer back
+              if (this.signalingSubscription && this.currentCall) {
+                const otherUser = this.currentCall.direction === 'outgoing' 
+                  ? this.currentCall.to 
+                  : this.currentCall.from;
+                
+                this.signalingSubscription.send({
+                  type: 'call-answer',
+                  callId: this.currentCall.callId,
+                  from: this.currentCall.direction === 'outgoing' ? this.currentCall.from : this.currentCall.to,
+                  to: otherUser,
+                  answer: answer,
+                });
+              }
+            } else {
+              console.warn('⚠️ Cannot handle renegotiation offer, wrong state:', currentState);
+            }
+          } catch (error) {
+            console.error('Failed to handle renegotiation offer:', error);
+          }
+          return;
+        }
+        
+        // Already handled in handleIncomingCall for initial incoming calls
+        if (this.currentCall && this.currentCall.direction === 'incoming') {
+          console.log('📞 Call offer already handled for incoming call');
+          return;
+        }
       }
 
-      if (data.type === 'call-answer' && this.currentCall.direction === 'outgoing') {
-        console.log('✅ Processing call answer for outgoing call');
-        console.log('📊 State before setting remote description:', this.peerConnection.signalingState);
-        
-        await this.peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
-        console.log('✅ Remote description set from answer');
-        console.log('📊 State after setting remote description:', this.peerConnection.signalingState);
-        
-        // Process any pending ICE candidates
-        console.log(`📦 Processing ${this.pendingIceCandidates.length} pending ICE candidates`);
-        for (const candidate of this.pendingIceCandidates) {
+      if (data.type === 'call-answer') {
+        // Handle renegotiation answers (when video is enabled during call)
+        if (this.currentCall && this.currentCall.state === 'connected') {
+          console.log('🔄 Handling renegotiation answer for video');
           try {
-            await this.peerConnection.addIceCandidate(candidate);
-            console.log('✅ Added pending ICE candidate');
-          } catch (error) {
-            console.warn('⚠️ Failed to add pending ICE candidate:', error);
+            // Check if we're in the right state for setting remote description
+            const currentState = this.peerConnection!.signalingState;
+            console.log('📊 Current signaling state:', currentState);
+            
+            if (currentState === 'have-local-offer' || currentState === 'have-local-pranswer') {
+              await this.peerConnection!.setRemoteDescription(new RTCSessionDescription(data.answer));
+              console.log('✅ Renegotiation answer processed');
+            } else {
+              console.warn('⚠️ Cannot set renegotiation answer, wrong state:', currentState, 'Expected: have-local-offer or have-local-pranswer');
+            }
+          } catch (error: any) {
+            console.error('Failed to handle renegotiation answer:', error);
+            // Don't throw - renegotiation failures shouldn't break the call
           }
+          return;
         }
-        this.pendingIceCandidates = [];
         
-        // Wait a moment for connection to establish
-        await new Promise(resolve => setTimeout(resolve, 100));
+        // Handle initial call answer for outgoing calls
+        if (this.currentCall && this.currentCall.direction === 'outgoing') {
+          console.log('✅ Processing call answer for outgoing call');
+          console.log('📊 State before setting remote description:', this.peerConnection.signalingState);
+          
+          await this.peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+          console.log('✅ Remote description set from answer');
+          console.log('📊 State after setting remote description:', this.peerConnection.signalingState);
         
-        console.log('📊 Final connection states:', {
-          connectionState: this.peerConnection.connectionState,
-          iceConnectionState: this.peerConnection.iceConnectionState,
-          signalingState: this.peerConnection.signalingState
-        });
-        
-        this.currentCall.state = 'connected';
-        this.onCallStateChange?.(this.currentCall);
-        console.log('✅ Call connected');
+          // Process any pending ICE candidates
+          console.log(`📦 Processing ${this.pendingIceCandidates.length} pending ICE candidates`);
+          for (const candidate of this.pendingIceCandidates) {
+            try {
+              await this.peerConnection.addIceCandidate(candidate);
+              console.log('✅ Added pending ICE candidate');
+            } catch (error) {
+              console.warn('⚠️ Failed to add pending ICE candidate:', error);
+            }
+          }
+          this.pendingIceCandidates = [];
+          
+          // Wait a moment for connection to establish
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
+          console.log('📊 Final connection states:', {
+            connectionState: this.peerConnection.connectionState,
+            iceConnectionState: this.peerConnection.iceConnectionState,
+            signalingState: this.peerConnection.signalingState
+          });
+          
+          this.currentCall.state = 'connected';
+          this.onCallStateChange?.(this.currentCall);
+          console.log('✅ Call connected');
+        }
       }
 
       if (data.type === 'ice-candidate') {
@@ -835,9 +1000,54 @@ export class WebRTCCallManager {
         }
       }
 
-      if (data.type === 'call-reject' || data.type === 'call-end') {
-        console.log('❌ Call rejected or ended');
+      if (data.type === 'call-reject') {
+        console.log('❌ Call rejected');
         this.endCall();
+      }
+      
+      if (data.type === 'call-end') {
+        console.log('❌ Call ended by other party');
+        // Don't call endCall() here as it will try to send another call-end signal
+        // Just clean up locally
+        if (this.peerConnection) {
+          this.peerConnection.close();
+          this.peerConnection = null;
+        }
+        
+        if (this.localStream) {
+          this.localStream.getTracks().forEach((track) => {
+            track.stop();
+          });
+          this.localStream = null;
+        }
+        
+        if (this.remoteStream) {
+          this.remoteStream.getTracks().forEach((track) => {
+            track.stop();
+          });
+          this.remoteStream = null;
+          this.onRemoteStream?.(null);
+        }
+        
+        if (this.currentCall) {
+          this.currentCall.state = 'ended';
+          this.currentCall.endTime = new Date();
+          this.onCallStateChange?.(this.currentCall);
+        }
+        
+        // Clean up signaling
+        if (this.signalingSubscription) {
+          this.signalingSubscription.unsubscribe();
+          this.signalingSubscription = null;
+        }
+        this.signalingConnected = false;
+        
+        this.currentCall = null;
+        this.pendingOffer = null;
+        this.pendingIceCandidates = [];
+        this.callStartTime = null;
+        
+        this.onCallEnded?.();
       }
     } catch (error) {
       console.error('❌ Failed to handle signaling message:', error);
@@ -876,10 +1086,144 @@ export class WebRTCCallManager {
   }
 
   /**
+   * Get local stream
+   */
+  getLocalStream(): MediaStream | null {
+    return this.localStream;
+  }
+
+  /**
    * Get remote audio stream
    */
   getRemoteStream(): MediaStream | null {
     return this.remoteStream;
+  }
+
+  /**
+   * Enable video during call
+   */
+  async enableVideo(): Promise<void> {
+    if (!this.localStream || !this.peerConnection) {
+      throw new Error('No active call');
+    }
+
+    try {
+      const videoStream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          frameRate: { ideal: 30 },
+          facingMode: 'user',
+        },
+      });
+
+      videoStream.getVideoTracks().forEach((track) => {
+        // Enable the track
+        track.enabled = true;
+        this.localStream!.addTrack(track);
+        
+        console.log('📹 Adding video track to peer connection:', {
+          trackId: track.id,
+          enabled: track.enabled,
+          readyState: track.readyState
+        });
+        
+        // Add or replace video track in peer connection
+        const sender = this.peerConnection!.getSenders().find(
+          (s) => s.track && s.track.kind === 'video'
+        );
+        
+        if (sender) {
+          sender.replaceTrack(track).then(() => {
+            console.log('✅ Video track replaced successfully');
+          }).catch((err) => {
+            console.error('❌ Failed to replace video track:', err);
+          });
+        } else {
+          this.peerConnection!.addTrack(track, this.localStream!);
+          console.log('✅ Video track added to peer connection');
+        }
+      });
+
+      // Renegotiate connection to include video (only if connection is stable)
+      if (this.peerConnection && this.peerConnection.signalingState === 'stable' && this.currentCall) {
+        try {
+          console.log('🔄 Renegotiating connection to add video...');
+          const offer = await this.peerConnection.createOffer({
+            offerToReceiveAudio: true,
+            offerToReceiveVideo: true,
+          });
+          await this.peerConnection.setLocalDescription(offer);
+          
+          // Send the offer through signaling
+          if (this.signalingSubscription) {
+            const otherUser = this.currentCall.direction === 'outgoing' 
+              ? this.currentCall.to 
+              : this.currentCall.from;
+            
+            this.signalingSubscription.send({
+              type: 'call-offer',
+              callId: this.currentCall.callId,
+              from: this.currentCall.direction === 'outgoing' ? this.currentCall.from : this.currentCall.to,
+              to: otherUser,
+              offer: offer,
+            });
+            console.log('✅ Video renegotiation offer sent');
+          }
+        } catch (error) {
+          console.error('Failed to renegotiate for video:', error);
+        }
+      }
+
+      if (this.currentCall) {
+        this.currentCall.isVideoCall = true;
+        this.onCallStateChange?.(this.currentCall);
+      }
+    } catch (error) {
+      console.error('Failed to enable video:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Disable video during call
+   */
+  async disableVideo(): Promise<void> {
+    if (!this.localStream || !this.peerConnection) return;
+
+    const videoTracks = this.localStream.getVideoTracks();
+    videoTracks.forEach((track) => {
+      track.stop();
+      this.localStream!.removeTrack(track);
+      
+      // Remove video track from peer connection
+      const sender = this.peerConnection!.getSenders().find(
+        (s) => s.track && s.track.kind === 'video'
+      );
+      if (sender) {
+        sender.replaceTrack(null);
+      }
+    });
+  }
+
+  /**
+   * Toggle video on/off
+   */
+  async toggleVideo(): Promise<void> {
+    if (this.isVideoEnabled()) {
+      await this.disableVideo();
+    } else {
+      await this.enableVideo();
+    }
+  }
+
+  /**
+   * Check if video is enabled
+   */
+  isVideoEnabled(): boolean {
+    if (!this.localStream) return false;
+    const videoTracks = this.localStream.getVideoTracks();
+    return videoTracks.length > 0 && videoTracks.some((track) => track.enabled);
   }
 
   /**

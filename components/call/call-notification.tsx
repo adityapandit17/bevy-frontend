@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
-import { Phone, PhoneOff, Mic, MicOff } from "lucide-react"
+import { Phone, PhoneOff, Mic, MicOff, Video, VideoOff } from "lucide-react"
 import { CallData } from "@/lib/webrtc-call"
 import { cn } from "@/lib/utils"
 
@@ -24,7 +24,9 @@ interface CallNotificationProps {
   onReject: () => void
   onEnd: () => void
   onMuteToggle: () => void
+  onVideoToggle?: () => void
   isMuted: boolean
+  isVideoEnabled?: boolean
   callDuration?: number
 }
 
@@ -34,7 +36,9 @@ export function CallNotification({
   onReject,
   onEnd,
   onMuteToggle,
+  onVideoToggle,
   isMuted,
+  isVideoEnabled = false,
   callDuration = 0,
 }: CallNotificationProps) {
   const audioRef = useRef<HTMLAudioElement>(null)
@@ -201,7 +205,7 @@ export function CallNotification({
             </Button>
           )}
           
-          {/* Connected call - show mute and hang up */}
+          {/* Connected call - show mute, video toggle, and hang up */}
           {isConnected && (
             <>
               <Button
@@ -215,6 +219,21 @@ export function CallNotification({
                   <MicOff className="h-5 w-5 text-destructive" />
                 ) : (
                   <Mic className="h-5 w-5" />
+                )}
+              </Button>
+              {/* Always show video toggle button for connected calls */}
+              <Button
+                variant={!isVideoEnabled ? "destructive" : "outline"}
+                size="icon"
+                className="h-12 w-12 rounded-full"
+                onClick={onVideoToggle || (() => {})}
+                disabled={!onVideoToggle}
+                title={isVideoEnabled ? "Turn off camera" : "Turn on camera"}
+              >
+                {isVideoEnabled ? (
+                  <Video className="h-5 w-5" />
+                ) : (
+                  <VideoOff className="h-5 w-5 text-destructive" />
                 )}
               </Button>
               <Button

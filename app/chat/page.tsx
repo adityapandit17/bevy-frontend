@@ -44,6 +44,8 @@ import {
   ChevronUp,
   ChevronDown,
   X,
+  Maximize2,
+  Monitor,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { chatApi, ChatCable, Channel, Message } from "@/lib/chat"
@@ -53,6 +55,8 @@ import { toast } from "@/hooks/use-toast"
 import { WebRTCCallManager, CallData } from "@/lib/webrtc-call"
 import { CallNotification } from "@/components/call/call-notification"
 import { CallAudio } from "@/components/call/call-audio"
+import { VideoCallView } from "@/components/call/video-call-view"
+import { VideoCallFullscreen } from "@/components/huddle/video-call-fullscreen"
 import { AUTH_CONFIG } from "@/config/auth.config"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000'
@@ -73,7 +77,16 @@ export default function ChatPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
-  const [cable] = useState(() => new ChatCable())
+  const [cable] = useState(() => {
+    const chatCable = new ChatCable()
+    // Connect immediately when component mounts
+    if (typeof window !== 'undefined') {
+      chatCable.connect().catch((error) => {
+        console.error('❌ Failed to connect ChatCable:', error)
+      })
+    }
+    return chatCable
+  })
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -103,6 +116,7 @@ export default function ChatPage() {
   const [isInHuddle, setIsInHuddle] = useState(false)
   const [isMuted, setIsMuted] = useState(false)
   const [isVideoEnabled, setIsVideoEnabled] = useState(true)
+  const [isFullscreenVideo, setIsFullscreenVideo] = useState(false)
   const [huddleLoading, setHuddleLoading] = useState(false)
   const [huddlePanelExpanded, setHuddlePanelExpanded] = useState(false)
   const localVideoRef = useRef<HTMLVideoElement>(null)
@@ -112,6 +126,7 @@ export default function ChatPage() {
   const [currentCall, setCurrentCall] = useState<CallData | null>(null)
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null)
   const [callMuted, setCallMuted] = useState(false)
+  const [callVideoEnabled, setCallVideoEnabled] = useState(false)
   const [callDuration, setCallDuration] = useState(0)
   
   const [callManager] = useState(() => {
@@ -119,15 +134,37 @@ export default function ChatPage() {
       (call) => {
         setCurrentCall(call)
       },
-      (stream) => setRemoteStream(stream),
+      (stream) => {
+        console.log('📹 Remote stream received in chat page:', {
+          streamId: stream?.id,
+          tracks: stream?.getTracks().map(t => ({ kind: t.kind, enabled: t.enabled }))
+        })
+        setRemoteStream(stream)
+      },
       () => {
         setCurrentCall(null)
         setRemoteStream(null)
         setCallDuration(0)
+        setCallVideoEnabled(false)
+        setCallMuted(false)
       }
     )
   })
   
+  // Update call video state
+  useEffect(() => {
+    if (currentCall?.state === 'connected') {
+      const videoEnabled = callManager.isVideoEnabled()
+      setCallVideoEnabled(videoEnabled)
+      // Update call data if video is enabled
+      if (videoEnabled && currentCall && !currentCall.isVideoCall) {
+        currentCall.isVideoCall = true
+      }
+    } else {
+      setCallVideoEnabled(false)
+    }
+  }, [currentCall?.state, currentCall?.isVideoCall, callManager])
+
   // Track call duration when call is connected
   useEffect(() => {
     if (currentCall?.state === 'connected') {
@@ -338,8 +375,8 @@ export default function ChatPage() {
                 }
                 callManager.endCall()
               } else if (data.type === 'call-end') {
-                console.log('❌ Call ended')
-                callManager.endCall()
+                console.log('❌ Call ended - forwarding to call manager')
+                callManager.handleSignalingMessage(data)
               } else if (data.type === 'ice-candidate') {
                 console.log('🧊 ICE candidate received - forwarding to call manager')
                 callManager.handleSignalingMessage(data)
@@ -386,25 +423,35 @@ export default function ChatPage() {
 
   // Subscribe to huddle updates via ActionCable
   useEffect(() => {
-    if (!selectedChannel) return
+    if (!selectedChannel || !currentUser) return
 
-    const subscription = cable.subscribeToChannel(selectedChannel.id, (data: any) => {
-      if (data.type === 'huddle_started' || data.type === 'huddle_updated') {
-        setActiveHuddle(data.huddle)
-        // If current user is a participant, join WebRTC
-        const isParticipant = data.huddle.participants.some((p: any) => p.id === currentUser?.id)
-        if (isParticipant && !isInHuddle) {
-          joinHuddleWebRTC(data.huddle)
-        } else if (!isParticipant && isInHuddle) {
-          // User was removed from huddle
-          leaveHuddle()
-        }
-      } else if (data.type === 'huddle_ended') {
-        if (activeHuddle?.id === data.huddle_id) {
-          leaveHuddle()
-        }
+    let subscription: any = null
+    
+    const setupSubscription = async () => {
+      try {
+        subscription = await cable.subscribeToChannel(selectedChannel.id, (data: any) => {
+          if (data.type === 'huddle_started' || data.type === 'huddle_updated') {
+            setActiveHuddle(data.huddle)
+            // If current user is a participant, join WebRTC
+            const isParticipant = data.huddle.participants.some((p: any) => p.id === currentUser?.id)
+            if (isParticipant && !isInHuddle) {
+              joinHuddleWebRTC(data.huddle)
+            } else if (!isParticipant && isInHuddle) {
+              // User was removed from huddle
+              leaveHuddle()
+            }
+          } else if (data.type === 'huddle_ended') {
+            if (activeHuddle?.id === data.huddle_id) {
+              leaveHuddle()
+            }
+          }
+        })
+      } catch (error) {
+        console.error('Error setting up huddle subscription:', error)
       }
-    })
+    }
+    
+    setupSubscription()
 
     return () => {
       if (subscription) {
@@ -415,55 +462,89 @@ export default function ChatPage() {
 
   // Subscribe to channel updates when channel is selected
   useEffect(() => {
-    if (selectedChannel) {
-      loadMessages(selectedChannel.id)
-      
-      // Subscribe to real-time updates (may fail silently if ActionCable not available)
-      const subscription = cable.subscribeToChannel(selectedChannel.id, (message: Message) => {
-        console.log('ActionCable received message:', message)
-        setMessages((prev) => {
-          // Only process messages for the current channel
-          if (message.channel_id !== selectedChannel.id) {
-            console.log('Ignoring message for different channel:', message.channel_id)
-            return prev
+    if (!selectedChannel || !currentUser) return
+
+    loadMessages(selectedChannel.id)
+    
+    // Subscribe to real-time updates
+    let subscription: any = null
+    let isUnmounted = false
+    
+      const setupSubscription = async () => {
+        try {
+          console.log('🔌 Setting up subscription for channel:', selectedChannel.id)
+          
+          // Ensure connection is established
+          const cableAny = cable as any
+          if (!cableAny.consumer) {
+            console.log('⚠️ No consumer found, connecting...')
+            await cable.connect()
+            // Wait a bit for connection to be ready
+            await new Promise(resolve => setTimeout(resolve, 500))
           }
           
-          // Avoid duplicates - check by id and channel_id
-          const isDuplicate = prev.some((m) => 
-            m.id === message.id && 
-            m.channel_id === message.channel_id
-          )
-          if (isDuplicate) {
-            console.log('Skipping duplicate message:', message.id)
-            return prev
-          }
+          if (isUnmounted) return
           
-          // Ensure message has user data
-          if (!message.user_name && !message.user_email) {
-            console.warn('Message missing user data:', message)
-          }
+          console.log('📡 Subscribing to channel:', selectedChannel.id)
+          subscription = await cable.subscribeToChannel(selectedChannel.id, (message: Message) => {
+          if (isUnmounted) return
           
-          console.log('Adding new message from ActionCable:', message.id, 'User:', message.user_name || message.user_email)
-          
-          // Insert message in chronological order
-          const newMessages = [...prev, message].sort((a, b) => {
-            const timeA = new Date(a.created_at).getTime()
-            const timeB = new Date(b.created_at).getTime()
-            return timeA - timeB
+          console.log('📨 ActionCable received message:', message)
+          setMessages((prev) => {
+            // Only process messages for the current channel
+            if (message.channel_id !== selectedChannel.id) {
+              console.log('⚠️ Ignoring message for different channel:', message.channel_id, 'Current:', selectedChannel.id)
+              return prev
+            }
+            
+            // Avoid duplicates - check by id and channel_id
+            const isDuplicate = prev.some((m) => 
+              m.id === message.id && 
+              m.channel_id === message.channel_id
+            )
+            if (isDuplicate) {
+              console.log('⚠️ Skipping duplicate message:', message.id)
+              return prev
+            }
+            
+            // Ensure message has user data
+            if (!message.user_name && !message.user_email) {
+              console.warn('⚠️ Message missing user data:', message)
+            }
+            
+            console.log('✅ Adding new message from ActionCable:', message.id, 'User:', message.user_name || message.user_email)
+            
+            // Insert message in chronological order
+            const newMessages = [...prev, message].sort((a, b) => {
+              const timeA = new Date(a.created_at).getTime()
+              const timeB = new Date(b.created_at).getTime()
+              return timeA - timeB
+            })
+            
+            return newMessages
           })
-          
-          return newMessages
+          scrollToBottom()
         })
-        scrollToBottom()
-      })
-      
-      return () => {
-        if (subscription) {
-          cable.unsubscribeFromChannel(selectedChannel.id)
+        
+        if (!subscription) {
+          console.warn('⚠️ Failed to subscribe to channel:', selectedChannel.id)
+        } else {
+          console.log('✅ Successfully subscribed to channel:', selectedChannel.id)
         }
+      } catch (error) {
+        console.error('❌ Error setting up subscription:', error)
       }
     }
-  }, [selectedChannel])
+    
+    setupSubscription()
+    
+    return () => {
+      isUnmounted = true
+      if (subscription) {
+        cable.unsubscribeFromChannel(selectedChannel.id)
+      }
+    }
+  }, [selectedChannel, currentUser])
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -909,7 +990,8 @@ export default function ChatPage() {
           name: currentUser.name,
           email: currentUser.email,
         },
-        toUser
+        toUser,
+        false // Audio only
       )
       
       // Create call history message when call starts
@@ -926,6 +1008,38 @@ export default function ChatPage() {
       toast({
         title: "Call Failed",
         description: error.message || "Failed to start call. Please check microphone permissions.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const startVideoCall = async (toUser: { id: number; name: string; email: string }) => {
+    if (!currentUser || !selectedChannel) return
+
+    try {
+      await callManager.startVideoCall(
+        {
+          id: currentUser.id,
+          name: currentUser.name,
+          email: currentUser.email,
+        },
+        toUser
+      )
+      
+      // Create call history message when call starts
+      try {
+        await chatApi.sendMessage(
+          selectedChannel.id,
+          `📹 Video calling ${toUser.name}...`
+        )
+      } catch (error) {
+        console.error('Failed to create call history message:', error)
+      }
+    } catch (error: any) {
+      console.error("Failed to start video call:", error)
+      toast({
+        title: "Video Call Failed",
+        description: error.message || "Failed to start video call. Please check camera permissions.",
         variant: "destructive",
       })
     }
@@ -971,13 +1085,19 @@ export default function ChatPage() {
       await callManager.acceptCall()
       console.log('✅ Call accepted successfully')
       
+      // Update video state after accepting
+      if (currentCall?.isVideoCall) {
+        setCallVideoEnabled(true)
+      }
+      
       // Create call history message when call is accepted
       if (selectedChannel && currentCall) {
         const callerName = currentCall.from.name
+        const callType = currentCall.isVideoCall ? 'Video call' : 'Call'
         try {
           await chatApi.sendMessage(
             selectedChannel.id,
-            `📞 Call from ${callerName} was answered`
+            `📞 ${callType} from ${callerName} was answered`
           )
         } catch (error) {
           console.error('Failed to create call history message:', error)
@@ -1034,6 +1154,27 @@ export default function ChatPage() {
     }
     
     callManager.endCall()
+  }
+
+  const toggleCallVideo = async () => {
+    if (!currentCall || currentCall.state !== 'connected') return
+    
+    try {
+      await callManager.toggleVideo()
+      const videoEnabled = callManager.isVideoEnabled()
+      setCallVideoEnabled(videoEnabled)
+      
+      // Update call data to reflect video status
+      if (currentCall && videoEnabled) {
+        currentCall.isVideoCall = true
+      }
+    } catch (error: any) {
+      toast({
+        title: "Video Error",
+        description: error.message || "Failed to toggle video",
+        variant: "destructive",
+      })
+    }
   }
 
   const toggleCallMute = () => {
@@ -1350,8 +1491,26 @@ export default function ChatPage() {
                   )
                 )}
                 {selectedChannel.channel_type === "direct" && (
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
-                    <Video className="h-4 w-4" />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => {
+                      const otherMember = selectedChannel.members.find((m) => m.id !== currentUser?.id)
+                      if (otherMember && currentUser) {
+                        startVideoCall(otherMember)
+                      }
+                    }}
+                    disabled={!!currentCall || huddleLoading}
+                    title="Start Video Call"
+                  >
+                    {huddleLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : currentCall ? (
+                      <Video className="h-4 w-4 text-destructive" />
+                    ) : (
+                      <Video className="h-4 w-4" />
+                    )}
                   </Button>
                 )}
                 <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -1955,6 +2114,15 @@ export default function ChatPage() {
                     variant="ghost"
                     size="icon"
                     className="h-9 w-9"
+                    onClick={() => setIsFullscreenVideo(true)}
+                    title="Fullscreen Video"
+                  >
+                    <Maximize2 className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9"
                     onClick={leaveHuddle}
                     title="Leave Huddle"
                   >
@@ -2112,8 +2280,47 @@ export default function ChatPage() {
         </div>
       )}
 
-      {/* WebRTC Call Notification */}
-      {currentCall && (
+      {/* Fullscreen Video Call */}
+      {isFullscreenVideo && isInHuddle && huddleWebRTC && activeHuddle && (
+        <VideoCallFullscreen
+          huddleWebRTC={huddleWebRTC}
+          participants={activeHuddle.participants.map((p) => ({
+            id: p.id,
+            name: p.name,
+            email: p.email,
+          }))}
+          currentUserId={currentUser?.id || 0}
+          currentUserName={currentUser?.name || "You"}
+          onClose={() => setIsFullscreenVideo(false)}
+          onToggleMute={toggleMute}
+          onToggleVideo={async () => {
+            if (huddleWebRTC) {
+              await huddleWebRTC.toggleVideo()
+              setIsVideoEnabled(huddleWebRTC.isVideoEnabled())
+            }
+          }}
+          isMuted={isMuted}
+          isVideoEnabled={isVideoEnabled}
+        />
+      )}
+
+      {/* Video Call View - Show when connected and video is enabled */}
+      {currentCall && currentCall.state === 'connected' && (currentCall.isVideoCall || callVideoEnabled) && (
+        <VideoCallView
+          call={currentCall}
+          localStream={callManager.getLocalStream()}
+          remoteStream={remoteStream || callManager.getRemoteStream()}
+          isMuted={callMuted}
+          isVideoEnabled={callVideoEnabled}
+          onClose={endCall}
+          onToggleMute={toggleCallMute}
+          onToggleVideo={toggleCallVideo}
+          callDuration={callDuration}
+        />
+      )}
+
+      {/* WebRTC Call Notification - Show when not connected OR when video is not enabled */}
+      {currentCall && (currentCall.state !== 'connected' || (!currentCall.isVideoCall && !callVideoEnabled)) && (
         <>
           <CallNotification
             call={currentCall}
@@ -2121,7 +2328,9 @@ export default function ChatPage() {
             onReject={rejectCall}
             onEnd={endCall}
             onMuteToggle={toggleCallMute}
+            onVideoToggle={toggleCallVideo}
             isMuted={callMuted}
+            isVideoEnabled={callVideoEnabled}
             callDuration={callDuration}
           />
           {remoteStream && <CallAudio stream={remoteStream} />}
