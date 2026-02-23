@@ -708,10 +708,12 @@ export class WebRTCCallManager {
    * Reject an incoming call
    */
   rejectCall(callId: string): void {
-    if (this.signalingSubscription) {
+    if (this.signalingSubscription && this.currentCall) {
       this.signalingSubscription.send({
         type: 'call-reject',
         callId,
+        from: this.currentCall.from,
+        to: this.currentCall.to,
       });
     }
     this.endCall();
@@ -725,6 +727,8 @@ export class WebRTCCallManager {
       this.signalingSubscription.send({
         type: 'call-end',
         callId: this.currentCall.callId,
+        from: this.currentCall.from,
+        to: this.currentCall.to,
       });
     }
 
@@ -814,6 +818,7 @@ export class WebRTCCallManager {
         });
         
         this.currentCall.state = 'connected';
+        this.callStartTime = new Date(); // Start duration timer for caller when connected
         this.onCallStateChange?.(this.currentCall);
         console.log('✅ Call connected');
       }

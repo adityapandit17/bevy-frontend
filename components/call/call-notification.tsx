@@ -39,7 +39,7 @@ export function CallNotification({
 }: CallNotificationProps) {
   const audioRef = useRef<HTMLAudioElement>(null)
   const [isPlaying, setIsPlaying] = useState(false)
-  const [displayDuration, setDisplayDuration] = useState(0)
+  const displayDuration = call.state === 'connected' ? callDuration : 0
 
   // Play ringtone for incoming calls
   useEffect(() => {
@@ -82,19 +82,6 @@ export function CallNotification({
       setIsPlaying(false)
     }
   }, [call.state, call.direction])
-
-  // Update call duration timer
-  useEffect(() => {
-    if (call.state === 'connected' && callDuration >= 0) {
-      setDisplayDuration(callDuration)
-      const interval = setInterval(() => {
-        setDisplayDuration((prev) => prev + 1)
-      }, 1000)
-      return () => clearInterval(interval)
-    } else {
-      setDisplayDuration(0)
-    }
-  }, [call.state, callDuration])
 
   // Cleanup on unmount
   useEffect(() => {
@@ -143,11 +130,9 @@ export function CallNotification({
             {isConnected && (
               <div className="space-y-1">
                 <p className="text-sm text-green-500">Connected</p>
-                {displayDuration > 0 && (
-                  <p className="text-lg font-mono font-semibold text-green-600">
-                    {formatDuration(displayDuration)}
-                  </p>
-                )}
+                <p className="text-lg font-mono font-semibold text-green-600">
+                  {formatDuration(displayDuration)}
+                </p>
               </div>
             )}
           </div>
