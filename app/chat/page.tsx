@@ -50,10 +50,7 @@ import { chatApi, ChatCable, Channel, Message } from "@/lib/chat"
 import { useAuthContext } from "@/lib/auth"
 import { apiRequest, getApiUrl } from "@/lib/api"
 import { toast } from "@/hooks/use-toast"
-import { WebRTCCallManager, CallData } from "@/lib/webrtc-call"
-import { CallNotification } from "@/components/call/call-notification"
-import { CallAudio } from "@/components/call/call-audio"
-import { AUTH_CONFIG } from "@/config/auth.config"
+import { useCallContext } from "@/providers/call-provider"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000'
 import { huddleApi, Huddle, HuddleWebRTC } from "@/lib/huddle"
@@ -108,38 +105,64 @@ export default function ChatPage() {
   const localVideoRef = useRef<HTMLVideoElement>(null)
   const remoteVideoRefs = useRef<Map<number, HTMLVideoElement>>(new Map())
 
-  // WebRTC Call state
-  const [currentCall, setCurrentCall] = useState<CallData | null>(null)
-  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null)
-  const [callMuted, setCallMuted] = useState(false)
-  const [callDuration, setCallDuration] = useState(0)
-  
-  const [callManager] = useState(() => {
-    return new WebRTCCallManager(
-      (call) => {
-        setCurrentCall(call)
-      },
-      (stream) => setRemoteStream(stream),
-      () => {
-        setCurrentCall(null)
-        setRemoteStream(null)
-        setCallDuration(0)
-      }
-    )
-  })
-  
-  // Track call duration when call is connected
+  // WebRTC Call state from global provider (notifications work app-wide)
+  const {
+    callManager,
+    currentCall,
+    remoteStream,
+    callDuration,
+    callMuted,
+    acceptingCall,
+    setCallEventSink,
+    startCall: startCallFromContext,
+    acceptCall,
+    rejectCall,
+    endCall,
+    toggleCallMute,
+    formatDuration,
+  } = useCallContext()
+
+  // Register call event sink so we can post call history to the current channel when on chat
   useEffect(() => {
-    if (currentCall?.state === 'connected') {
-      const interval = setInterval(() => {
-        const duration = callManager.getCallDuration()
-        setCallDuration(duration)
-      }, 1000)
-      return () => clearInterval(interval)
-    } else {
-      setCallDuration(0)
+    if (!selectedChannel) {
+      setCallEventSink(null)
+      return
     }
-  }, [currentCall?.state, callManager])
+    setCallEventSink({
+      onCallAccepted: async ({ otherUser }) => {
+        try {
+          await chatApi.sendMessage(
+            selectedChannel.id,
+            `📞 Call from ${otherUser.name} was answered`
+          )
+        } catch (e) {
+          console.error('Failed to create call history message:', e)
+        }
+      },
+      onCallRejected: async ({ otherUser, rejectedByThem }) => {
+        try {
+          const text = rejectedByThem
+            ? `📞 Call to ${otherUser.name} was declined`
+            : `📞 Call from ${otherUser.name} was declined`
+          await chatApi.sendMessage(selectedChannel.id, text)
+        } catch (e) {
+          console.error('Failed to create call history message:', e)
+        }
+      },
+      onCallEnded: async ({ otherUser, duration }) => {
+        const durationText = formatDuration(duration ?? 0)
+        try {
+          await chatApi.sendMessage(
+            selectedChannel.id,
+            `📞 Call with ${otherUser.name} ended (Duration: ${durationText})`
+          )
+        } catch (e) {
+          console.error('Failed to create call history message:', e)
+        }
+      },
+    })
+    return () => setCallEventSink(null)
+  }, [selectedChannel, setCallEventSink, formatDuration])
 
   // Common emojis
   const commonEmojis = [
@@ -174,205 +197,9 @@ export default function ChatPage() {
       if (huddleWebRTC) {
         huddleWebRTC.disconnect()
       }
-      // Clean up call on unmount
-      if (currentCall) {
-        callManager.endCall()
-      }
+      // Call state is global (CallProvider); do not end call on chat unmount
     }
   }, [])
-
-  // Handle incoming call - use useCallback to ensure it's stable
-  const handleIncomingCall = useCallback(async (data: any) => {
-    console.log('📞 Handling incoming call:', data)
-    
-    // Validate offer is present
-    if (!data.offer) {
-      console.error('❌ No offer in call data:', data)
-      toast({
-        title: "Call Error",
-        description: "Invalid call data received. Missing offer.",
-        variant: "destructive",
-      })
-      return
-    }
-    
-    // Check if we're already in a call by checking callManager's state
-    if (callManager.getCurrentCall()) {
-      console.log('⚠️ Already in a call, ignoring incoming call')
-      return
-    }
-    
-    const callData: CallData = {
-      callId: data.callId,
-      from: data.from,
-      to: data.to || {
-        id: currentUser?.id || 0,
-        name: currentUser?.name || '',
-        email: currentUser?.email || '',
-      },
-      state: 'ringing',
-      direction: 'incoming',
-    }
-
-    try {
-      console.log('📞 Passing call data to callManager:', {
-        callId: callData.callId,
-        from: callData.from.id,
-        to: callData.to.id,
-        hasOffer: !!data.offer,
-        offerType: data.offer?.type
-      })
-      await callManager.handleIncomingCall(callData, data.offer)
-      console.log('✅ Incoming call handled successfully')
-    } catch (error: any) {
-      console.error('❌ Failed to handle incoming call:', error)
-      const errorMessage = error?.message || "Failed to handle incoming call"
-      toast({
-        title: "Call Error",
-        description: errorMessage,
-        variant: "destructive",
-      })
-    }
-  }, [currentUser])
-
-  // Setup ActionCable listener for incoming calls when currentUser is available
-  useEffect(() => {
-    if (!currentUser?.id) {
-      console.log('⏳ Waiting for currentUser to setup call listener')
-      return
-    }
-
-    let callSubscription: any = null
-    let consumer: any = null
-
-    const setupCallListener = async () => {
-      try {
-        console.log('🔧 Setting up call listener for user:', currentUser.id)
-        const ActionCableModule = await import('@rails/actioncable')
-        const ActionCable = ActionCableModule.default || ActionCableModule
-        const token = localStorage.getItem(AUTH_CONFIG.tokenKey)
-        
-        if (!token) {
-          console.warn('⚠️ No token available for call listener')
-          return
-        }
-
-        const protocol = API_BASE_URL.startsWith('https') ? 'wss' : 'ws'
-        const baseUrl = API_BASE_URL.replace(/^https?/, protocol)
-        const cableUrl = `${baseUrl}/cable?token=${encodeURIComponent(token)}`
-        
-        console.log('🔌 Creating ActionCable consumer:', cableUrl.substring(0, 50) + '...')
-        consumer = ActionCable.createConsumer(cableUrl)
-
-        // Wait a bit for consumer to connect
-        await new Promise(resolve => setTimeout(resolve, 100))
-
-        // Subscribe to user's call channel
-        console.log('📡 Subscribing to CallChannel for user:', currentUser.id)
-        callSubscription = consumer.subscriptions.create(
-          {
-            channel: 'CallChannel',
-            user_id: Number(currentUser.id), // Ensure user_id is a number
-          },
-          {
-            connected: () => {
-              console.log('✅ CallChannel connected successfully for user:', currentUser.id)
-            },
-            disconnected: () => {
-              console.log('❌ CallChannel disconnected for user:', currentUser.id)
-            },
-            rejected: () => {
-              console.error('❌ CallChannel subscription REJECTED for user:', currentUser.id)
-              toast({
-                title: "Call Channel Error",
-                description: "Failed to connect to call channel. Please refresh the page.",
-                variant: "destructive",
-              })
-            },
-            received: async (data: any) => {
-              console.log('📞 CallChannel received data:', data.type, data)
-              
-              // Only handle incoming call offers (not outgoing ones)
-              if (data.type === 'call-offer') {
-                // Verify this is actually for the current user
-                const recipientId = data.to?.id || data.to_id
-                console.log('📞 Call offer check - recipientId:', recipientId, 'currentUser.id:', currentUser.id)
-                if (recipientId === currentUser?.id) {
-                  // Check if we're already in a call
-                  const existingCall = callManager.getCurrentCall()
-                  if (!existingCall) {
-                    console.log('📞 Incoming call offer received - showing notification')
-                    await handleIncomingCall(data)
-                  } else {
-                    console.log('⚠️ Already in a call, ignoring incoming call offer')
-                  }
-                } else {
-                  console.log('⚠️ Call offer received but not for current user (recipientId:', recipientId, '!= currentUser.id:', currentUser.id, ')')
-                }
-              } else if (data.type === 'call-answer') {
-                console.log('✅ Call answer received - forwarding to call manager')
-                callManager.handleSignalingMessage(data)
-              } else if (data.type === 'call-reject') {
-                console.log('❌ Call rejected')
-                const currentCall = callManager.getCurrentCall()
-                if (currentCall && currentCall.direction === 'outgoing') {
-                  // Show message to caller that call was declined
-                  const recipientName = currentCall.to.name
-                  toast({
-                    title: "Call Declined",
-                    description: `${recipientName} declined your call`,
-                    variant: "default",
-                  })
-                  
-                  // Create call history message
-                  if (selectedChannel) {
-                    try {
-                      await chatApi.sendMessage(
-                        selectedChannel.id,
-                        `📞 Call to ${recipientName} was declined`
-                      )
-                    } catch (error) {
-                      console.error('Failed to create call history message:', error)
-                    }
-                  }
-                }
-                callManager.endCall()
-              } else if (data.type === 'call-end') {
-                console.log('❌ Call ended')
-                callManager.endCall()
-              } else if (data.type === 'ice-candidate') {
-                console.log('🧊 ICE candidate received - forwarding to call manager')
-                callManager.handleSignalingMessage(data)
-              }
-            },
-          }
-        )
-        
-        console.log('✅ Call subscription created:', callSubscription ? 'success' : 'failed')
-      } catch (error: any) {
-        console.error('❌ Failed to setup call listener:', error)
-        toast({
-          title: "Call Setup Error",
-          description: error.message || "Failed to setup call listener",
-          variant: "destructive",
-        })
-      }
-    }
-
-    setupCallListener()
-
-    return () => {
-      console.log('🧹 Cleaning up call listener')
-      if (callSubscription) {
-        callSubscription.unsubscribe()
-        console.log('✅ Call subscription unsubscribed')
-      }
-      if (consumer) {
-        consumer.disconnect()
-        console.log('✅ Consumer disconnected')
-      }
-    }
-  }, [currentUser?.id, handleIncomingCall])
 
   // Load active huddle when channel changes
   useEffect(() => {
@@ -898,29 +725,21 @@ export default function ChatPage() {
     }
   }
 
-  // WebRTC Call functions
+  // WebRTC Call functions (startCall from context; post "Calling X..." when on chat)
   const startCall = async (toUser: { id: number; name: string; email: string }) => {
-    if (!currentUser || !selectedChannel) return
-
+    if (!selectedChannel) return
     try {
-      await callManager.startCall(
-        {
-          id: currentUser.id,
-          name: currentUser.name,
-          email: currentUser.email,
-        },
-        toUser
-      )
-      
-      // Create call history message when call starts
-      try {
-        await chatApi.sendMessage(
-          selectedChannel.id,
-          `📞 Calling ${toUser.name}...`
-        )
-      } catch (error) {
-        console.error('Failed to create call history message:', error)
+      if (selectedChannel) {
+        try {
+          await chatApi.sendMessage(
+            selectedChannel.id,
+            `📞 Calling ${toUser.name}...`
+          )
+        } catch (e) {
+          console.error('Failed to create call history message:', e)
+        }
       }
+      await startCallFromContext(toUser)
     } catch (error: any) {
       console.error("Failed to start call:", error)
       toast({
@@ -929,131 +748,6 @@ export default function ChatPage() {
         variant: "destructive",
       })
     }
-  }
-
-  const [acceptingCall, setAcceptingCall] = useState(false)
-  
-  const acceptCall = async () => {
-    // Prevent double-clicks
-    if (acceptingCall) {
-      console.log('⚠️ Call acceptance already in progress')
-      return
-    }
-    
-    try {
-      setAcceptingCall(true)
-      console.log('📞 Accept call button clicked')
-      console.log('📊 Current call state:', currentCall?.state)
-      console.log('📊 Current call:', currentCall)
-      
-      // Check if call exists
-      if (!currentCall) {
-        console.error('❌ No current call to accept')
-        toast({
-          title: "Call Error",
-          description: "No call to accept",
-          variant: "destructive",
-        })
-        return
-      }
-      
-      // Check if call is in ringing state
-      if (currentCall.state !== 'ringing') {
-        console.warn('⚠️ Call is not in ringing state:', currentCall.state)
-        toast({
-          title: "Call Error",
-          description: `Call is not in a state that can be accepted. Current state: ${currentCall.state}`,
-          variant: "destructive",
-        })
-        return
-      }
-      
-      await callManager.acceptCall()
-      console.log('✅ Call accepted successfully')
-      
-      // Create call history message when call is accepted
-      if (selectedChannel && currentCall) {
-        const callerName = currentCall.from.name
-        try {
-          await chatApi.sendMessage(
-            selectedChannel.id,
-            `📞 Call from ${callerName} was answered`
-          )
-        } catch (error) {
-          console.error('Failed to create call history message:', error)
-        }
-      }
-    } catch (error: any) {
-      console.error("❌ Failed to accept call:", error)
-      const errorMessage = error?.message || "Failed to accept call. Please try again."
-      toast({
-        title: "Call Error",
-        description: errorMessage,
-        variant: "destructive",
-      })
-    } finally {
-      setAcceptingCall(false)
-    }
-  }
-
-  const rejectCall = async () => {
-    if (currentCall) {
-      const callerName = currentCall.from.name
-      
-      // Create call history message for declined call
-      if (selectedChannel) {
-        try {
-          await chatApi.sendMessage(
-            selectedChannel.id,
-            `📞 Call from ${callerName} was declined`
-          )
-        } catch (error) {
-          console.error('Failed to create call history message:', error)
-        }
-      }
-      
-      callManager.rejectCall(currentCall.callId)
-    }
-  }
-
-  const endCall = async () => {
-    if (currentCall && selectedChannel) {
-      const otherUser = currentCall.direction === 'outgoing' ? currentCall.to : currentCall.from
-      const duration = callManager.getCallDuration()
-      const durationText = duration > 0 ? formatDuration(duration) : '0:00'
-      
-      try {
-        // Create call history message
-        await chatApi.sendMessage(
-          selectedChannel.id,
-          `📞 Call with ${otherUser.name} ended (Duration: ${durationText})`
-        )
-      } catch (error) {
-        console.error('Failed to create call history message:', error)
-      }
-    }
-    
-    callManager.endCall()
-  }
-
-  const toggleCallMute = () => {
-    if (callMuted) {
-      callManager.unmute()
-    } else {
-      callManager.mute()
-    }
-    setCallMuted(callManager.isMuted())
-  }
-
-  const formatDuration = (seconds: number): string => {
-    const hours = Math.floor(seconds / 3600)
-    const minutes = Math.floor((seconds % 3600) / 60)
-    const secs = seconds % 60
-    
-    if (hours > 0) {
-      return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
-    }
-    return `${minutes}:${secs.toString().padStart(2, '0')}`
   }
 
   const formatTime = (dateString: string) => {
@@ -2110,22 +1804,6 @@ export default function ChatPage() {
             </div>
           )}
         </div>
-      )}
-
-      {/* WebRTC Call Notification */}
-      {currentCall && (
-        <>
-          <CallNotification
-            call={currentCall}
-            onAccept={acceptCall}
-            onReject={rejectCall}
-            onEnd={endCall}
-            onMuteToggle={toggleCallMute}
-            isMuted={callMuted}
-            callDuration={callDuration}
-          />
-          {remoteStream && <CallAudio stream={remoteStream} />}
-        </>
       )}
     </div>
   )

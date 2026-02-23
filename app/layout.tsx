@@ -8,6 +8,7 @@ import { LoginLayout } from "@/components/login-layout"
 import { AuthProvider } from "@/lib/auth"
 import { Toaster } from "@/components/ui/toaster"
 import { ErrorSuppressor } from "@/components/error-suppressor"
+import { CallProvider } from "@/providers/call-provider"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -27,10 +28,12 @@ export default function RootLayout({
       <body className={cn("min-h-screen font-sans antialiased", inter.className)}>
         <ErrorSuppressor />
         <AuthProvider>
-          <LoginLayout>
-            {children}
-          </LoginLayout>
-          <Toaster />
+          <CallProvider>
+            <LoginLayout>
+              {children}
+            </LoginLayout>
+            <Toaster />
+          </CallProvider>
         </AuthProvider>
       </body>
     </html>

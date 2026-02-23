@@ -50,6 +50,15 @@ export class WebRTCCallManager {
   private onCallEnded?: () => void;
   private callStartTime: Date | null = null;
 
+  /** Notify state change with a new object reference so React re-renders (caller/callee UI) */
+  private notifyCallStateChange(): void {
+    if (this.currentCall) {
+      this.onCallStateChange?.({ ...this.currentCall });
+    } else {
+      this.onCallStateChange?.(null);
+    }
+  }
+
   constructor(
     onCallStateChange?: (call: CallData | null) => void,
     onRemoteStream?: (stream: MediaStream) => void,
@@ -197,7 +206,7 @@ export class WebRTCCallManager {
       };
 
       console.log('📞 Outgoing call created:', this.currentCall);
-      this.onCallStateChange?.(this.currentCall);
+      this.notifyCallStateChange();
 
       // Connect to signaling
       const consumer = await this.connectSignaling();
@@ -323,7 +332,7 @@ export class WebRTCCallManager {
       };
 
       console.log('📞 Setting call state to ringing');
-      this.onCallStateChange?.(this.currentCall);
+      this.notifyCallStateChange();
 
       // Create peer connection (localStream should already be set)
       console.log('🔗 Creating peer connection...');
@@ -694,7 +703,7 @@ export class WebRTCCallManager {
       // Update call state
       this.currentCall.state = 'connected';
       this.callStartTime = new Date(); // Start timer when call is connected
-      this.onCallStateChange?.(this.currentCall);
+      this.notifyCallStateChange();
       console.log('✅ Call accepted and connected');
     } catch (error: any) {
       console.error('❌ Failed to accept call:', error);
@@ -750,7 +759,7 @@ export class WebRTCCallManager {
     if (this.currentCall) {
       this.currentCall.state = 'ended';
       this.currentCall.endTime = new Date();
-      this.onCallStateChange?.(this.currentCall);
+      this.notifyCallStateChange();
     }
 
     // Unsubscribe from signaling
@@ -819,7 +828,7 @@ export class WebRTCCallManager {
         
         this.currentCall.state = 'connected';
         this.callStartTime = new Date(); // Start duration timer for caller when connected
-        this.onCallStateChange?.(this.currentCall);
+        this.notifyCallStateChange();
         console.log('✅ Call connected');
       }
 
