@@ -5,7 +5,8 @@ import { toast } from '@/hooks/use-toast';
  * Centralized configuration for API endpoints
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000';
+// Strip trailing slash to avoid double slashes in URLs
+const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000').replace(/\/$/, '');
 
 /**
  * Get JWT token from localStorage

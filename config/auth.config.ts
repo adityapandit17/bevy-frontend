@@ -4,8 +4,8 @@
  */
 
 export const AUTH_CONFIG = {
-  // API endpoints
-  API_BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000',
+  // API endpoints (strip trailing slash to avoid double slashes in URLs)
+  API_BASE_URL: (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000').replace(/\/$/, ''),
   ENDPOINTS: {
     LOGIN: '/api/v1/auth/login',
     LOGOUT: '/api/v1/auth/logout',
