@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import {
   DropdownMenu,
@@ -78,6 +79,8 @@ export default function EmployeesPage() {
   const [perPage, setPerPage] = useState(10)
   const [totalCount, setTotalCount] = useState(0)
   const [totalPages, setTotalPages] = useState(0)
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+  const [bulkBusy, setBulkBusy] = useState(false)
   const router = useRouter()
   const { checkPermission, checkRole } = useAuth()
 
@@ -96,6 +99,34 @@ export default function EmployeesPage() {
   // Note: canViewPayroll alone doesn't show any option (requires canShow too)
   const hasAnyEmployeeActions =
     canUpdate || canShow || canDestroy
+
+  const selectedCount = selectedIds.size
+  const allOnPageSelected =
+    employees.length > 0 && employees.every((e) => selectedIds.has(e.id))
+
+  const toggleSelected = (id: number, next?: boolean) => {
+    setSelectedIds((prev) => {
+      const copy = new Set(prev)
+      const shouldSelect = next ?? !copy.has(id)
+      if (shouldSelect) copy.add(id)
+      else copy.delete(id)
+      return copy
+    })
+  }
+
+  const clearSelection = () => setSelectedIds(new Set())
+
+  const toggleSelectAllOnPage = (next: boolean) => {
+    setSelectedIds((prev) => {
+      const copy = new Set(prev)
+      if (next) {
+        employees.forEach((e) => copy.add(e.id))
+      } else {
+        employees.forEach((e) => copy.delete(e.id))
+      }
+      return copy
+    })
+  }
 
   // Fetch departments on mount
   useEffect(() => {
@@ -144,6 +175,30 @@ export default function EmployeesPage() {
       console.error('Error fetching employees:', err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const bulkSetStatus = async (status: "active" | "inactive") => {
+    if (!canUpdate || selectedIds.size === 0) return
+    setBulkBusy(true)
+    try {
+      const ids = Array.from(selectedIds)
+      await Promise.all(
+        ids.map((id) =>
+          apiRequest(`${getApiUrl("employees")}/${id}`, {
+            method: "PATCH",
+            body: JSON.stringify({ employee: { status } }),
+          })
+        )
+      )
+      clearSelection()
+      fetchEmployees()
+      fetchAllEmployeesForStats()
+    } catch (err) {
+      // apiRequest shows errors via toast; keep UI responsive
+      console.error("Error bulk updating employee status:", err)
+    } finally {
+      setBulkBusy(false)
     }
   }
 
@@ -361,11 +416,57 @@ export default function EmployeesPage() {
               </Select>
             </div>
 
+            {/* Bulk actions */}
+            {selectedCount > 0 ? (
+              <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-md border bg-muted/30 px-3 py-2">
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="font-medium">{selectedCount} selected</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={clearSelection}
+                    disabled={bulkBusy}
+                    className="h-8 px-2"
+                  >
+                    Clear
+                  </Button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => bulkSetStatus("inactive")}
+                    disabled={!canUpdate || bulkBusy}
+                    className="h-8"
+                  >
+                    <UserMinus className="w-4 h-4 mr-2" />
+                    Deactivate
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => bulkSetStatus("active")}
+                    disabled={!canUpdate || bulkBusy}
+                    className="h-8"
+                  >
+                    <UserCheck className="w-4 h-4 mr-2" />
+                    Activate
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+
             {/* Employee Table */}
             <div className="rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-10">
+                      <Checkbox
+                        checked={allOnPageSelected}
+                        onCheckedChange={(v) => toggleSelectAllOnPage(Boolean(v))}
+                        aria-label="Select all employees on this page"
+                      />
+                    </TableHead>
                     <TableHead>Employee</TableHead>
                     <TableHead>Department</TableHead>
                     <TableHead>Contact</TableHead>
@@ -378,19 +479,26 @@ export default function EmployeesPage() {
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8 text-gray-500">
+                      <TableCell colSpan={8} className="text-center py-8 text-gray-500">
                         Loading employees...
                       </TableCell>
                     </TableRow>
                   ) : employees.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8 text-gray-500">
+                      <TableCell colSpan={8} className="text-center py-8 text-gray-500">
                         No employees found
                       </TableCell>
                     </TableRow>
                   ) : (
                     employees.map((employee) => (
                     <TableRow key={employee.id}>
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedIds.has(employee.id)}
+                          onCheckedChange={(v) => toggleSelected(employee.id, Boolean(v))}
+                          aria-label={`Select ${employee.first_name} ${employee.last_name}`}
+                        />
+                      </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-medium text-sm">
