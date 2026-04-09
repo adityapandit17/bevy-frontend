@@ -37,7 +37,7 @@ import {
 } from "lucide-react"
 import { getEndpointUrl, getApiUrl, apiRequest } from "@/lib/api"
 import { ResourceGuard } from "@/lib/auth/auth.guards"
-import { AUTH_CONFIG } from "@/config/auth.config"
+import { toast } from "@/hooks/use-toast"
 
 interface Employee {
   id: number
@@ -123,32 +123,29 @@ export default function TeamAssignmentPage() {
     
     setSaving(true)
     try {
-      const token = localStorage.getItem(AUTH_CONFIG.tokenKey) || localStorage.getItem('auth_token') || localStorage.getItem('token')
-      const headers: any = { "Content-Type": "application/json" }
-      if (token) headers['Authorization'] = `Bearer ${token}`
-
       const managerId = selectedManagerId && selectedManagerId !== "none" ? parseInt(selectedManagerId) : null
       
-      const response = await fetch(getApiUrl(`employees/${selectedEmployee.id}`), {
-        method: 'PATCH',
-        headers,
-        body: JSON.stringify({ 
-          employee: { manager_id: managerId } 
-        })
+      await apiRequest(getApiUrl(`employees/${selectedEmployee.id}`), {
+        method: "PATCH",
+        body: JSON.stringify({ employee: { manager_id: managerId } }),
       })
 
-      if (response.ok) {
-        setShowManagerDialog(false)
-        setSelectedEmployee(null)
-        setSelectedManagerId("none")
-        await fetchEmployees()
-      } else {
-        const error = await response.json()
-        alert(error.errors?.join(', ') || 'Failed to assign manager')
-      }
+      toast({
+        title: "Saved",
+        description: "Manager assignment updated",
+      })
+
+      setShowManagerDialog(false)
+      setSelectedEmployee(null)
+      setSelectedManagerId("none")
+      await fetchEmployees()
     } catch (err) {
       console.error('Error assigning manager:', err)
-      alert('Failed to assign manager')
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "Failed to assign manager",
+        variant: "destructive",
+      })
     } finally {
       setSaving(false)
     }

@@ -29,7 +29,7 @@ import {
   Unlock
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
-import { API_ENDPOINTS, getApiUrl } from "@/lib/api"
+import { API_ENDPOINTS, apiRequest, getApiUrl } from "@/lib/api"
 import { useAuthContext } from "@/lib/auth"
 
 // Backend-driven; UI will fetch roles and permissions
@@ -52,6 +52,7 @@ const permissionModules: PermissionModule[] = [
   { name: "interviews", label: "Interviews", icon: "💼" },
   { name: "performance_reviews", label: "Performance", icon: "📊" },
   { name: "assets", label: "Asset Management", icon: "🏢" },
+  { name: "helpdesk_tickets", label: "IT Helpdesk Tickets", icon: "🎫" },
   { name: "reports", label: "Reports", icon: "📈" },
   { name: "users", label: "User Management", icon: "👤" },
   { name: "roles", label: "Role Management", icon: "🔐" },
@@ -73,6 +74,7 @@ interface Role {
   name: string
   description: string
   userCount?: number
+  permissionCount?: number
   permissions?: Permission[]
 }
 
@@ -90,15 +92,35 @@ export default function RolePermissionsEditor() {
   const [newPermissionAction, setNewPermissionAction] = useState<string>("index")
   const [newPermissionDescription, setNewPermissionDescription] = useState<string>("")
   const [rolePermissions, setRolePermissions] = useState<Permission[]>([])
+  const [totalPermissions, setTotalPermissions] = useState<number>(0)
+  const [roleUsers, setRoleUsers] = useState<any[]>([])
+  const [userSearch, setUserSearch] = useState<string>("")
+  const [userSearchResults, setUserSearchResults] = useState<any[]>([])
+  const [usersLoading, setUsersLoading] = useState<boolean>(false)
 
   // Load roles from backend and auto-select first
   useEffect(() => {
-    const fetchRoles = async () => {
+    const fetchTotalsAndRoles = async () => {
       try {
         setLoading(true)
+        // Fetch total permissions for accurate counts
+        try {
+          const perms = await apiRequest<{ total_count: number }>(getApiUrl("/permissions"), { suppressToast: true })
+          setTotalPermissions(perms.total_count || 0)
+        } catch {
+          // Keep 0 if permissions endpoint isn't accessible for this user
+          setTotalPermissions(0)
+        }
+
         const res = await fetch(getApiUrl(API_ENDPOINTS.ROLES), { headers: token ? { Authorization: `Bearer ${token}` } : undefined })
         const json = await res.json()
-        const list: Role[] = (json.roles || []).map((r: any) => ({ id: r.id, name: r.name, description: r.description, userCount: r.user_count }))
+        const list: Role[] = (json.roles || []).map((r: any) => ({
+          id: r.id,
+          name: r.name,
+          description: r.description,
+          userCount: r.user_count,
+          permissionCount: r.permission_count,
+        }))
         setRoles(list)
         if (list.length > 0) {
           await handleRoleSelect(list[0])
@@ -109,7 +131,7 @@ export default function RolePermissionsEditor() {
         setLoading(false)
       }
     }
-    fetchRoles()
+    fetchTotalsAndRoles()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -263,6 +285,14 @@ export default function RolePermissionsEditor() {
         console.warn('⚠️ No job_openings permissions in API response. Total permissions:', perms.length, 'Resources:', [...new Set(perms.map(p => p.resource))])
       }
       setRolePermissions(perms)
+
+      // Load users assigned to this role
+      try {
+        const roleDetails = await apiRequest<{ users?: any[] }>(getApiUrl(`/roles/${role.id}`), { suppressToast: true })
+        setRoleUsers(Array.isArray(roleDetails.users) ? roleDetails.users : [])
+      } catch {
+        setRoleUsers([])
+      }
     } catch (e) {
       toast({ title: "Error", description: "Failed to load permissions", variant: "destructive" })
     } finally {
@@ -302,28 +332,40 @@ export default function RolePermissionsEditor() {
 
     setLoading(true)
     try {
-      // TODO: Replace with actual API call
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      const role: Role = {
-        id: roles.length + 1,
-        name: newRole.name,
-        description: newRole.description,
-        userCount: 0,
+      const url = getApiUrl(API_ENDPOINTS.ROLES)
+      const created = await apiRequest<{ role: any; message?: string }>(url, {
+        method: "POST",
+        body: JSON.stringify({ role: { name: newRole.name, description: newRole.description } }),
+      })
+
+      const createdRoleId = created?.role?.id
+      if (!createdRoleId) {
+        throw new Error("Role was not created (missing id in response).")
       }
 
-      setRoles(prev => [...prev, role])
+      // Refresh list from backend so UI only shows persisted roles
+      await refreshRoleListCounts()
+
+      const createdRole: Role = {
+        id: createdRoleId,
+        name: created.role.name,
+        description: created.role.description,
+        userCount: created.role.user_count ?? 0,
+        permissionCount: created.role.permission_count ?? 0,
+      }
+
+      await handleRoleSelect(createdRole)
       setNewRole({ name: "", description: "" })
       setShowCreateRole(false)
       
       toast({
         title: "Success",
-        description: `Role "${role.name}" created successfully`,
+        description: `Role "${createdRole.name}" created successfully`,
       })
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to create role",
+        description: error instanceof Error ? error.message : "Failed to create role",
         variant: "destructive",
       })
     } finally {
@@ -338,7 +380,68 @@ export default function RolePermissionsEditor() {
 
   // Get total permissions count
   const getTotalPermissions = () => {
-    return getAllPermissionsTemplate().length
+    // Prefer backend total count; fall back to current matrix length
+    return totalPermissions > 0 ? totalPermissions : rolePermissions.length
+  }
+
+  const refreshRoleListCounts = async () => {
+    try {
+      const res = await fetch(getApiUrl(API_ENDPOINTS.ROLES), { headers: token ? { Authorization: `Bearer ${token}` } : undefined })
+      const json = await res.json()
+      const list: Role[] = (json.roles || []).map((r: any) => ({
+        id: r.id,
+        name: r.name,
+        description: r.description,
+        userCount: r.user_count,
+        permissionCount: r.permission_count,
+      }))
+      setRoles(list)
+    } catch {
+      // ignore
+    }
+  }
+
+  const searchUsers = async (q: string) => {
+    setUserSearch(q)
+    if (!q.trim()) {
+      setUserSearchResults([])
+      return
+    }
+    try {
+      setUsersLoading(true)
+      const data = await apiRequest<{ users: any[] }>(getApiUrl(`/users?search=${encodeURIComponent(q)}`), { suppressToast: true })
+      setUserSearchResults(Array.isArray(data.users) ? data.users : [])
+    } catch {
+      setUserSearchResults([])
+    } finally {
+      setUsersLoading(false)
+    }
+  }
+
+  const assignUserToSelectedRole = async (user: any) => {
+    if (!selectedRole) return
+    const currentRoleIds = Array.isArray(user.roles) ? user.roles.map((r: any) => r.id) : []
+    const nextRoleIds = Array.from(new Set([ ...currentRoleIds, selectedRole.id ]))
+    await apiRequest(getApiUrl(`/users/${user.id}/update_roles`), {
+      method: "PATCH",
+      body: JSON.stringify({ role_ids: nextRoleIds }),
+    })
+    await handleRoleSelect(selectedRole)
+    await refreshRoleListCounts()
+    await searchUsers(userSearch)
+  }
+
+  const removeUserFromSelectedRole = async (user: any) => {
+    if (!selectedRole) return
+    const currentRoleIds = Array.isArray(user.roles) ? user.roles.map((r: any) => r.id) : []
+    const nextRoleIds = currentRoleIds.filter((id: number) => id !== selectedRole.id)
+    await apiRequest(getApiUrl(`/users/${user.id}/update_roles`), {
+      method: "PATCH",
+      body: JSON.stringify({ role_ids: nextRoleIds }),
+    })
+    await handleRoleSelect(selectedRole)
+    await refreshRoleListCounts()
+    await searchUsers(userSearch)
   }
 
   return (
@@ -437,7 +540,7 @@ export default function RolePermissionsEditor() {
                           {role.userCount} users
                         </Badge>
                         <Badge variant="outline" className="text-xs">
-                          {getPermissionCount(role)}/{getTotalPermissions()} permissions
+                          {(role.permissionCount ?? 0)}/{getTotalPermissions()} permissions
                         </Badge>
                       </div>
                     </div>
@@ -747,15 +850,78 @@ export default function RolePermissionsEditor() {
                   </TabsContent>
 
                   <TabsContent value="users" className="space-y-4">
-                    <div className="text-center py-8">
-                      <UserCheck className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                      <h3 className="text-lg font-medium text-gray-900 mb-2">Users with this role</h3>
-                      <p className="text-gray-500 mb-4">
-                        {selectedRole.userCount} users currently have the {selectedRole.name} role
-                      </p>
-                      <Button variant="outline">
-                        View All Users
-                      </Button>
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="text-lg font-medium text-gray-900">Users with this role</h3>
+                          <p className="text-sm text-gray-500">
+                            {roleUsers.length} users currently have the {selectedRole.name} role
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="border rounded-lg p-4 space-y-3">
+                        <Label htmlFor="user-search">Add users to this role</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            id="user-search"
+                            value={userSearch}
+                            onChange={(e) => searchUsers(e.target.value)}
+                            placeholder="Search by name or email…"
+                          />
+                          <Button variant="outline" onClick={() => searchUsers(userSearch)} disabled={usersLoading}>
+                            Search
+                          </Button>
+                        </div>
+
+                        {userSearchResults.length > 0 && (
+                          <div className="space-y-2">
+                            {userSearchResults.slice(0, 8).map((u: any) => {
+                              const alreadyHasRole = (u.roles || []).some((r: any) => r.id === selectedRole.id)
+                              return (
+                                <div key={u.id} className="flex items-center justify-between p-3 border rounded-lg">
+                                  <div className="min-w-0">
+                                    <div className="font-medium text-gray-900 truncate">{u.name || `${u.first_name || ""} ${u.last_name || ""}`.trim()}</div>
+                                    <div className="text-sm text-gray-500 truncate">{u.email}</div>
+                                  </div>
+                                  <div className="flex gap-2">
+                                    {alreadyHasRole ? (
+                                      <Button variant="outline" size="sm" onClick={() => removeUserFromSelectedRole(u)}>
+                                        Remove
+                                      </Button>
+                                    ) : (
+                                      <Button size="sm" onClick={() => assignUserToSelectedRole(u)}>
+                                        Add
+                                      </Button>
+                                    )}
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        {roleUsers.length === 0 ? (
+                          <div className="text-center py-8">
+                            <UserCheck className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                            <p className="text-gray-600">No users assigned yet.</p>
+                          </div>
+                        ) : (
+                          roleUsers.map((u: any) => (
+                            <div key={u.id} className="flex items-center justify-between p-3 border rounded-lg">
+                              <div className="min-w-0">
+                                <div className="font-medium text-gray-900 truncate">{u.name || `${u.first_name || ""} ${u.last_name || ""}`.trim()}</div>
+                                <div className="text-sm text-gray-500 truncate">{u.email}</div>
+                              </div>
+                              <Button variant="outline" size="sm" onClick={() => removeUserFromSelectedRole(u)}>
+                                Remove
+                              </Button>
+                            </div>
+                          ))
+                        )}
+                      </div>
                     </div>
                   </TabsContent>
 

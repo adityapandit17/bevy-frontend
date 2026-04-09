@@ -267,7 +267,8 @@ export default function SettingsPage() {
     employee_count: "201-500",
     address: "",
     timezone: "asia-kolkata",
-    currency: "inr"
+    currency: "inr",
+    country_code: "IN"
   }
   
   const [company, setCompany] = useState(defaultCompany)
@@ -425,6 +426,21 @@ export default function SettingsPage() {
                       <SelectItem value="inr">Indian Rupee (₹)</SelectItem>
                       <SelectItem value="usd">US Dollar ($)</SelectItem>
                       <SelectItem value="eur">Euro (€)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="country_code">Country</Label>
+                  <Select value={(safeCompany as any).country_code || "IN"} onValueChange={v => handleChange("country_code", v)} disabled={!edit}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="IN">India</SelectItem>
+                      <SelectItem value="US">United States</SelectItem>
+                      <SelectItem value="AE">United Arab Emirates</SelectItem>
+                      <SelectItem value="GB">United Kingdom</SelectItem>
+                      <SelectItem value="SG">Singapore</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

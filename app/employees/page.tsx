@@ -506,7 +506,18 @@ export default function EmployeesPage() {
                           </div>
                           <div className="flex-1">
                             <div className="flex items-center gap-2">
-                              <p className="font-medium text-gray-900">{employee.first_name} {employee.last_name}</p>
+                              {canShow ? (
+                                <button
+                                  type="button"
+                                  onClick={() => router.push(`/employees/${employee.id}`)}
+                                  className="font-medium text-gray-900 hover:underline text-left"
+                                  title="Open employee profile"
+                                >
+                                  {employee.first_name} {employee.last_name}
+                                </button>
+                              ) : (
+                                <p className="font-medium text-gray-900">{employee.first_name} {employee.last_name}</p>
+                              )}
                               <EmployeeBadge badgeLevel={employee.badge_level} />
                             </div>
                             <p className="text-sm text-gray-500">{employee.id}</p>

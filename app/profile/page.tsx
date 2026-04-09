@@ -21,6 +21,16 @@ import {
 } from "lucide-react"
 import { getApiUrl } from "@/lib/api"
 import { apiRequest } from "@/lib/api"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { toast } from "@/hooks/use-toast"
 
 interface Employee {
   id: number
@@ -48,6 +58,9 @@ export default function ProfilePage() {
   const { user } = useAuthContext()
   const [employee, setEmployee] = useState<Employee | null>(null)
   const [loading, setLoading] = useState(true)
+  const [editOpen, setEditOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [nameDraft, setNameDraft] = useState({ first_name: "", last_name: "" })
 
   useEffect(() => {
     if (user?.employee_id) {
@@ -56,6 +69,14 @@ export default function ProfilePage() {
       setLoading(false)
     }
   }, [user])
+
+  useEffect(() => {
+    const fullName = (user?.name || "").trim()
+    const parts = fullName.split(/\s+/).filter(Boolean)
+    const first = parts[0] || ""
+    const last = parts.slice(1).join(" ") || ""
+    setNameDraft({ first_name: first, last_name: last })
+  }, [user?.name])
 
   const fetchEmployeeData = async () => {
     try {
@@ -86,6 +107,32 @@ export default function ProfilePage() {
       month: "long",
       day: "numeric",
     })
+  }
+
+  const saveProfile = async () => {
+    if (!user?.id) return
+    if (!nameDraft.first_name.trim()) {
+      toast({ title: "Error", description: "First name is required", variant: "destructive" })
+      return
+    }
+
+    setSaving(true)
+    try {
+      await apiRequest(getApiUrl(`users/${user.id}/update_profile`), {
+        method: "PATCH",
+        body: JSON.stringify({ user: { first_name: nameDraft.first_name.trim(), last_name: nameDraft.last_name.trim() } }),
+      })
+
+      toast({ title: "Saved", description: "Profile updated. Refreshing…" })
+      setEditOpen(false)
+
+      // Auth context doesn't expose a setter; simplest is to refresh so updated name is re-hydrated.
+      if (typeof window !== "undefined") window.location.reload()
+    } catch (e: any) {
+      toast({ title: "Error", description: e?.message || "Failed to update profile", variant: "destructive" })
+    } finally {
+      setSaving(false)
+    }
   }
 
   if (loading) {
@@ -144,7 +191,7 @@ export default function ProfilePage() {
                 )}
               </div>
               <Separator className="my-4" />
-              <Button className="w-full" variant="outline">
+              <Button className="w-full" variant="outline" onClick={() => setEditOpen(true)}>
                 <Edit className="w-4 h-4 mr-2" />
                 Edit Profile
               </Button>
@@ -272,6 +319,47 @@ export default function ProfilePage() {
           </Card>
         </div>
       </div>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit profile</DialogTitle>
+            <DialogDescription>
+              Updates your account name (UI supports more fields later).
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="first_name">First name</Label>
+                <Input
+                  id="first_name"
+                  value={nameDraft.first_name}
+                  onChange={(e) => setNameDraft((p) => ({ ...p, first_name: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="last_name">Last name</Label>
+                <Input
+                  id="last_name"
+                  value={nameDraft.last_name}
+                  onChange={(e) => setNameDraft((p) => ({ ...p, last_name: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setEditOpen(false)} disabled={saving}>
+                Cancel
+              </Button>
+              <Button onClick={saveProfile} disabled={saving}>
+                {saving ? "Saving…" : "Save"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

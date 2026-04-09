@@ -129,6 +129,13 @@ const navItems: NavItem[] = [
     segment: "calendar",
   },
   {
+    title: "Workspace Seating",
+    href: "/workspace-seating",
+    icon: Building2,
+    segment: "workspace-seating",
+    resourceKeys: ["workspace_seating"],
+  },
+  {
     title: "Recognitions",
     href: "/recognitions",
     icon: Award,

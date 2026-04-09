@@ -100,6 +100,13 @@ const navItems: NavItem[] = [
     segment: "recognitions",
   },
   {
+    title: "Workspace Seating",
+    href: "/workspace-seating",
+    icon: Building2,
+    segment: "workspace-seating",
+    resourceKeys: ["workspace_seating"],
+  },
+  {
     title: "Reports",
     href: "/reports",
     icon: BarChart,
