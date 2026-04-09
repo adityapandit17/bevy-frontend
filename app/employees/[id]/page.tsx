@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect } from "react"
+import React, { useEffect, useMemo, useState } from "react"
 import { getApiUrl, apiRequest } from "@/lib/api"
 import { useParams, useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -11,6 +11,18 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { toast } from "@/hooks/use-toast"
+import { useAuthContext } from "@/lib/auth"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,14 +31,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
 import {
   ArrowLeft,
   Edit,
@@ -239,10 +243,19 @@ interface Asset {
   currentValue?: number
 }
 
+type EditEmployeeDraft = {
+  first_name: string
+  last_name: string
+  email: string
+  phone: string
+  designation: string
+}
+
 export default function EmployeeProfilePage() {
   const params = useParams()
   const router = useRouter()
   const employeeId = params.id as string
+  const { user, roles } = useAuthContext()
 
   const [employee, setEmployee] = useState<Employee | null>(null)
   const [jobDetails, setJobDetails] = useState<JobDetails | null>(null)
@@ -254,6 +267,43 @@ export default function EmployeeProfilePage() {
   const [benefits, setBenefits] = useState<Benefit[]>([])
   const [training, setTraining] = useState<Training[]>([])
   const [assets, setAssets] = useState<Asset[]>([])
+  const [employeeManagerId, setEmployeeManagerId] = useState<number | null>(null)
+
+  // Edit profile (real save)
+  const [editOpen, setEditOpen] = useState(false)
+  const [editLoading, setEditLoading] = useState(false)
+  const [editSaving, setEditSaving] = useState(false)
+  const [editDraft, setEditDraft] = useState<EditEmployeeDraft>({
+    first_name: "",
+    last_name: "",
+    email: "",
+    phone: "",
+    designation: "",
+  })
+
+  // Attendance regularization (UI-only)
+  const [regDraft, setRegDraft] = useState({
+    date: "",
+    issue_type: "missed_punch",
+    requested_check_in: "",
+    requested_check_out: "",
+    reason: "",
+  })
+
+  // Appraisal (UI-only)
+  const [appraisalDraft, setAppraisalDraft] = useState({
+    period: "Apr 2026 – Mar 2027",
+    employee_summary: "",
+    employee_strengths: "",
+    employee_improvements: "",
+    manager_summary: "",
+    manager_rating: "3",
+    manager_comments: "",
+    goals: [
+      { title: "Improve incident response time", progress: 60, notes: "" },
+      { title: "Automate asset inventory audit", progress: 35, notes: "" },
+    ] as { title: string; progress: number; notes: string }[],
+  })
 
   useEffect(() => {
     const fetchEmployeeData = async () => {
@@ -311,6 +361,81 @@ export default function EmployeeProfilePage() {
     fetchEmployeeData()
   }, [employeeId])
 
+  const openEdit = async () => {
+    setEditOpen(true)
+    setEditLoading(true)
+    try {
+      const data = await apiRequest<any>(getApiUrl(`employees/${employeeId}`), { suppressToast: true } as any)
+      setEmployeeManagerId(typeof data.manager_id === "number" ? data.manager_id : (data.manager_id ? Number(data.manager_id) : null))
+      setEditDraft({
+        first_name: data.first_name || "",
+        last_name: data.last_name || "",
+        email: data.email || "",
+        phone: data.phone || "",
+        designation: data.designation || "",
+      })
+    } catch (e: any) {
+      toast({
+        title: "Error",
+        description: e?.message || "Failed to load employee for editing",
+        variant: "destructive",
+      })
+      setEditOpen(false)
+    } finally {
+      setEditLoading(false)
+    }
+  }
+
+  const roleNames = useMemo(() => new Set((roles || []).map((r: any) => r.name)), [roles])
+  const isAdminLike = roleNames.has("Super Admin") || roleNames.has("HR Manager")
+  const currentEmployeeId = user?.employee_id ? Number(user.employee_id) : null
+  const viewingEmployeeId = Number(employeeId)
+  const isSelf = Boolean(currentEmployeeId && viewingEmployeeId && currentEmployeeId === viewingEmployeeId)
+  const isManagerOfEmployee = Boolean(currentEmployeeId && employeeManagerId && currentEmployeeId === employeeManagerId)
+
+  const canRegularize = isSelf || isAdminLike
+  const canEditEmployeeSection = isSelf || isAdminLike
+  const canEditManagerSection = isManagerOfEmployee || isAdminLike
+
+  const saveEdit = async () => {
+    setEditSaving(true)
+    try {
+      await apiRequest(getApiUrl(`employees/${employeeId}`), {
+        method: "PATCH",
+        body: JSON.stringify({ employee: editDraft }),
+      })
+      toast({ title: "Saved", description: "Employee profile updated" })
+      setEditOpen(false)
+
+      // Refresh the show page data
+      const refreshed = await apiRequest<any>(getApiUrl(`employee_profiles/${employeeId}`), { suppressToast: true } as any)
+      setEmployee({
+        id: refreshed.employee.id,
+        name: refreshed.employee.name,
+        email: refreshed.employee.email,
+        phone: refreshed.employee.phone,
+        position: refreshed.employee.position,
+        department: refreshed.employee.department,
+        hireDate: refreshed.employee.hire_date,
+        status: refreshed.employee.status,
+        avatar: refreshed.employee.avatar,
+        manager: refreshed.employee.manager,
+        location: refreshed.employee.location,
+        salary: refreshed.employee.salary,
+        employeeId: refreshed.employee.employee_id,
+        emergencyContact: refreshed.employee.emergency_contact,
+      })
+    } catch (e: any) {
+      toast({
+        title: "Error",
+        description: e?.message || "Failed to update employee",
+        variant: "destructive",
+      })
+    } finally {
+      setEditSaving(false)
+    }
+  }
+
   if (!employee) {
     return <div className="max-w-4xl mx-auto p-6 text-gray-600">Loading employee...</div>
   }
@@ -362,7 +487,7 @@ export default function EmployeeProfilePage() {
           <p className="text-gray-600">Detailed information about {employee.name}</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={openEdit}>
             <Edit className="w-4 h-4 mr-2" />
             Edit Profile
           </Button>
@@ -418,12 +543,14 @@ export default function EmployeeProfilePage() {
 
       {/* Tabs */}
       <Tabs defaultValue="job-details" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-9">
+        <TabsList className="grid w-full grid-cols-11">
           <TabsTrigger value="job-details">Job Details</TabsTrigger>
           <TabsTrigger value="time-off">Time Off</TabsTrigger>
+          <TabsTrigger value="attendance-regularization">Regularize</TabsTrigger>
           <TabsTrigger value="pay-info">Pay Info</TabsTrigger>
           <TabsTrigger value="documents">Documents</TabsTrigger>
           <TabsTrigger value="performance">Performance</TabsTrigger>
+          <TabsTrigger value="appraisals">Appraisals</TabsTrigger>
           <TabsTrigger value="timesheets">Timesheets</TabsTrigger>
           <TabsTrigger value="benefits">Benefits</TabsTrigger>
           <TabsTrigger value="training">Training</TabsTrigger>
@@ -543,6 +670,99 @@ export default function EmployeeProfilePage() {
                     ))}
                   </TableBody>
                 </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Attendance Regularization (UI-only for now) */}
+        <TabsContent value="attendance-regularization" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock3 className="w-5 h-5" />
+                Attendance Regularization
+              </CardTitle>
+              <CardDescription>
+                UI-only: submit a request to correct missed/incorrect attendance entries.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {!canRegularize ? (
+                <div className="rounded-lg border bg-gray-50 p-3 text-sm text-gray-700">
+                  You can view this form, but only the employee (self) or an admin can submit regularization.
+                </div>
+              ) : null}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Date</Label>
+                  <Input
+                    type="date"
+                    value={regDraft.date}
+                    onChange={(e) => setRegDraft((p) => ({ ...p, date: e.target.value }))}
+                    disabled={!canRegularize}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Issue type</Label>
+                  <Input
+                    value={regDraft.issue_type}
+                    onChange={(e) => setRegDraft((p) => ({ ...p, issue_type: e.target.value }))}
+                    placeholder="missed_punch / wrong_time / wfh / etc"
+                    disabled={!canRegularize}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Requested check-in</Label>
+                  <Input
+                    type="time"
+                    value={regDraft.requested_check_in}
+                    onChange={(e) => setRegDraft((p) => ({ ...p, requested_check_in: e.target.value }))}
+                    disabled={!canRegularize}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Requested check-out</Label>
+                  <Input
+                    type="time"
+                    value={regDraft.requested_check_out}
+                    onChange={(e) => setRegDraft((p) => ({ ...p, requested_check_out: e.target.value }))}
+                    disabled={!canRegularize}
+                  />
+                </div>
+                <div className="md:col-span-2 space-y-2">
+                  <Label>Reason</Label>
+                  <Textarea
+                    value={regDraft.reason}
+                    onChange={(e) => setRegDraft((p) => ({ ...p, reason: e.target.value }))}
+                    placeholder="Describe what happened and why this needs correction…"
+                    rows={4}
+                    disabled={!canRegularize}
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    setRegDraft({ date: "", issue_type: "missed_punch", requested_check_in: "", requested_check_out: "", reason: "" })
+                  }
+                  disabled={!canRegularize}
+                >
+                  Clear
+                </Button>
+                <Button
+                  onClick={() =>
+                    toast({
+                      title: "Submitted (UI-only)",
+                      description: "Regularization request captured in UI only for now.",
+                    })
+                  }
+                  disabled={!canRegularize || !regDraft.date || !regDraft.reason.trim()}
+                >
+                  Submit request
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -959,7 +1179,312 @@ export default function EmployeeProfilePage() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* Appraisals (UI-only) */}
+        <TabsContent value="appraisals" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileCheck className="w-5 h-5" />
+                Appraisal Form
+              </CardTitle>
+              <CardDescription>
+                UI-only: both employee and manager sections can be filled. Saving will be wired later.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-2">
+                <Label>Appraisal period</Label>
+                <Input
+                  value={appraisalDraft.period}
+                  onChange={(e) => setAppraisalDraft((p) => ({ ...p, period: e.target.value }))}
+                  disabled={!isAdminLike}
+                />
+                {!isAdminLike ? (
+                  <div className="text-xs text-gray-500">Only admin can change the period for now.</div>
+                ) : null}
+              </div>
+
+              <Separator />
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="font-medium text-gray-900">Employee self-evaluation</div>
+                    <Badge variant="outline">Employee</Badge>
+                  </div>
+                  {!canEditEmployeeSection ? (
+                    <div className="rounded-lg border bg-gray-50 p-3 text-sm text-gray-700">
+                      Only the employee (self) can fill this section.
+                    </div>
+                  ) : null}
+                  <div className="space-y-2">
+                    <Label>Summary</Label>
+                    <Textarea
+                      value={appraisalDraft.employee_summary}
+                      onChange={(e) => setAppraisalDraft((p) => ({ ...p, employee_summary: e.target.value }))}
+                      rows={4}
+                      placeholder="Key achievements, impact, highlights…"
+                      disabled={!canEditEmployeeSection}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Strengths</Label>
+                    <Textarea
+                      value={appraisalDraft.employee_strengths}
+                      onChange={(e) => setAppraisalDraft((p) => ({ ...p, employee_strengths: e.target.value }))}
+                      rows={3}
+                      placeholder="What went well…"
+                      disabled={!canEditEmployeeSection}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Areas for improvement</Label>
+                    <Textarea
+                      value={appraisalDraft.employee_improvements}
+                      onChange={(e) => setAppraisalDraft((p) => ({ ...p, employee_improvements: e.target.value }))}
+                      rows={3}
+                      placeholder="What to improve next cycle…"
+                      disabled={!canEditEmployeeSection}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="font-medium text-gray-900">Manager evaluation</div>
+                    <Badge variant="secondary">Manager</Badge>
+                  </div>
+                  {!canEditManagerSection ? (
+                    <div className="rounded-lg border bg-gray-50 p-3 text-sm text-gray-700">
+                      Only the assigned manager can fill this section.
+                    </div>
+                  ) : null}
+                  <div className="space-y-2">
+                    <Label>Manager summary</Label>
+                    <Textarea
+                      value={appraisalDraft.manager_summary}
+                      onChange={(e) => setAppraisalDraft((p) => ({ ...p, manager_summary: e.target.value }))}
+                      rows={4}
+                      placeholder="Manager’s assessment and justification…"
+                      disabled={!canEditManagerSection}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Overall rating (1–5)</Label>
+                    <Input
+                      value={appraisalDraft.manager_rating}
+                      onChange={(e) => setAppraisalDraft((p) => ({ ...p, manager_rating: e.target.value }))}
+                      placeholder="3"
+                      disabled={!canEditManagerSection}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Manager comments</Label>
+                    <Textarea
+                      value={appraisalDraft.manager_comments}
+                      onChange={(e) => setAppraisalDraft((p) => ({ ...p, manager_comments: e.target.value }))}
+                      rows={3}
+                      placeholder="Promotion recommendation, compensation notes, etc…"
+                      disabled={!canEditManagerSection}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <Separator />
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="font-medium text-gray-900">Goals</div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      setAppraisalDraft((p) => ({
+                        ...p,
+                        goals: [ ...p.goals, { title: "", progress: 0, notes: "" } ],
+                      }))
+                    }
+                    disabled={!canEditEmployeeSection && !canEditManagerSection}
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add goal
+                  </Button>
+                </div>
+
+                <div className="space-y-3">
+                  {appraisalDraft.goals.map((g, idx) => (
+                    <div key={idx} className="rounded-lg border p-4 space-y-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 space-y-2">
+                          <Label>Goal title</Label>
+                          <Input
+                            value={g.title}
+                            onChange={(e) =>
+                              setAppraisalDraft((p) => ({
+                                ...p,
+                                goals: p.goals.map((x, i) => (i === idx ? { ...x, title: e.target.value } : x)),
+                              }))
+                            }
+                            placeholder="Goal…"
+                            disabled={!canEditEmployeeSection && !canEditManagerSection}
+                          />
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() =>
+                            setAppraisalDraft((p) => ({
+                              ...p,
+                              goals: p.goals.filter((_, i) => i !== idx),
+                            }))
+                          }
+                          className="text-red-600"
+                          title="Remove goal"
+                          disabled={!canEditEmployeeSection && !canEditManagerSection}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Progress (%)</Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            max={100}
+                            value={g.progress}
+                            onChange={(e) =>
+                              setAppraisalDraft((p) => ({
+                                ...p,
+                                goals: p.goals.map((x, i) =>
+                                  i === idx ? { ...x, progress: Number(e.target.value) || 0 } : x
+                                ),
+                              }))
+                            }
+                            disabled={!canEditEmployeeSection && !canEditManagerSection}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Notes</Label>
+                          <Input
+                            value={g.notes}
+                            onChange={(e) =>
+                              setAppraisalDraft((p) => ({
+                                ...p,
+                                goals: p.goals.map((x, i) => (i === idx ? { ...x, notes: e.target.value } : x)),
+                              }))
+                            }
+                            placeholder="Optional notes…"
+                            disabled={!canEditEmployeeSection && !canEditManagerSection}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    setAppraisalDraft((p) => ({
+                      ...p,
+                      employee_summary: "",
+                      employee_strengths: "",
+                      employee_improvements: "",
+                      manager_summary: "",
+                      manager_comments: "",
+                      manager_rating: "3",
+                    }))
+                  }
+                  disabled={!canEditEmployeeSection && !canEditManagerSection}
+                >
+                  Reset text
+                </Button>
+                <Button
+                  onClick={() =>
+                    toast({
+                      title: "Saved (UI-only)",
+                      description: "Appraisal draft saved in UI only for now.",
+                    })
+                  }
+                  disabled={!canEditEmployeeSection && !canEditManagerSection}
+                >
+                  Save draft
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
+
+      {/* Edit Employee Dialog */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit employee</DialogTitle>
+            <DialogDescription>Updates basic employee fields.</DialogDescription>
+          </DialogHeader>
+
+          {editLoading ? (
+            <div className="text-sm text-gray-600">Loading…</div>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>First name</Label>
+                  <Input
+                    value={editDraft.first_name}
+                    onChange={(e) => setEditDraft((p) => ({ ...p, first_name: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Last name</Label>
+                  <Input
+                    value={editDraft.last_name}
+                    onChange={(e) => setEditDraft((p) => ({ ...p, last_name: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Email</Label>
+                  <Input
+                    type="email"
+                    value={editDraft.email}
+                    onChange={(e) => setEditDraft((p) => ({ ...p, email: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Phone</Label>
+                  <Input
+                    value={editDraft.phone}
+                    onChange={(e) => setEditDraft((p) => ({ ...p, phone: e.target.value }))}
+                  />
+                </div>
+                <div className="md:col-span-2 space-y-2">
+                  <Label>Designation</Label>
+                  <Input
+                    value={editDraft.designation}
+                    onChange={(e) => setEditDraft((p) => ({ ...p, designation: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setEditOpen(false)} disabled={editSaving}>
+                  Cancel
+                </Button>
+                <Button onClick={saveEdit} disabled={editSaving}>
+                  {editSaving ? "Saving…" : "Save"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 } 
