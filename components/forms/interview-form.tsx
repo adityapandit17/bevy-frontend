@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { DatePicker } from "@/components/ui/date-picker"
+import { TimePicker } from "@/components/ui/time-picker"
 import {
   Select,
   SelectContent,
@@ -267,23 +269,17 @@ export function InterviewForm({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="scheduledDate">Date *</Label>
-              <Input
-                id="scheduledDate"
-                type="date"
+              <DatePicker
                 value={formData.scheduled_date}
-                onChange={(e) => setFormData(prev => ({ ...prev, scheduled_date: e.target.value }))}
-                min={new Date().toISOString().split('T')[0]}
-                required
+                onChange={(v) => setFormData((prev) => ({ ...prev, scheduled_date: v }))}
+                min={new Date()}
               />
             </div>
             <div className="space-y-2">
               <Label htmlFor="scheduledTime">Time *</Label>
-              <Input
-                id="scheduledTime"
-                type="time"
+              <TimePicker
                 value={formData.scheduled_time}
-                onChange={(e) => setFormData(prev => ({ ...prev, scheduled_time: e.target.value }))}
-                required
+                onChange={(v) => setFormData((prev) => ({ ...prev, scheduled_time: v }))}
               />
             </div>
           </div>

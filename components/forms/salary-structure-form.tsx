@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { DatePicker } from "@/components/ui/date-picker"
 import { X, Calculator } from "lucide-react"
 
 interface SalaryStructureFormProps {
@@ -390,22 +391,16 @@ export function SalaryStructureForm({ onClose, onSubmit, employees = [], departm
                 </div>
                 <div>
                   <Label htmlFor="effective_from">Effective From *</Label>
-                  <Input
-                    id="effective_from"
-                    type="date"
+                  <DatePicker
                     value={formData.effective_from}
-                    onChange={(e) => handleChange("effective_from", e.target.value)}
-                    required
+                    onChange={(v) => handleChange("effective_from", v)}
                   />
                 </div>
                 <div>
                   <Label htmlFor="effective_upto">Effective Upto</Label>
-                  <Input
-                    id="effective_upto"
-                    type="date"
+                  <DatePicker
                     value={formData.effective_upto}
-                    onChange={(e) => handleChange("effective_upto", e.target.value)}
-                    placeholder="Select end date"
+                    onChange={(v) => handleChange("effective_upto", v)}
                   />
                 </div>
               </div>

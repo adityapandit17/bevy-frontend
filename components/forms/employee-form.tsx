@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { DatePicker } from "@/components/ui/date-picker"
 import {
   Dialog,
   DialogContent,
@@ -176,12 +177,9 @@ export function EmployeeForm({ open, onClose, onSubmit, initialData }: EmployeeF
                   </div>
                   <div>
                     <Label htmlFor="date_of_joining">Joining Date *</Label>
-                    <Input
-                      id="date_of_joining"
-                      type="date"
+                    <DatePicker
                       value={formData.date_of_joining}
-                      onChange={(e) => handleChange("date_of_joining", e.target.value)}
-                      required
+                      onChange={(v) => handleChange("date_of_joining", v)}
                     />
                   </div>
                   <div>

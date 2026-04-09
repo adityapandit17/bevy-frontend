@@ -13,6 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
+import { DatePicker } from "@/components/ui/date-picker"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import {
@@ -1113,11 +1114,9 @@ export default function OnboardingPage() {
             </div>
             <div>
               <Label htmlFor="startDate">Onboarding Start Date *</Label>
-              <Input 
-                id="startDate" 
-                type="date" 
+              <DatePicker
                 value={formData.startDate}
-                onChange={(e) => handleInputChange('startDate', e.target.value)}
+                onChange={(v) => handleInputChange("startDate", v)}
               />
               <p className="text-xs text-gray-500 mt-1">
                 This will be used to calculate task due dates
@@ -1195,11 +1194,9 @@ export default function OnboardingPage() {
             </div>
             <div className="grid gap-2">
               <Label htmlFor="due_date">Due Date</Label>
-              <Input
-                id="due_date"
-                type="date"
+              <DatePicker
                 value={taskFormData.due_date}
-                onChange={(e) => handleTaskInputChange('due_date', e.target.value)}
+                onChange={(v) => handleTaskInputChange("due_date", v)}
               />
             </div>
             <div className="grid gap-2">

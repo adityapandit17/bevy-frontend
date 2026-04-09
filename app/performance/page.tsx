@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Progress } from "@/components/ui/progress"
 import { Input } from "@/components/ui/input"
+import { DatePicker } from "@/components/ui/date-picker"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   DropdownMenu,
@@ -257,11 +258,9 @@ export default function PerformancePage() {
                   <label htmlFor="goal-due-date" className="text-right">
                     Due Date
                   </label>
-                  <Input
-                    id="goal-due-date"
-                    type="date"
-                    className="col-span-3"
-                  />
+                  <div className="col-span-3">
+                    <DatePicker value={""} onChange={() => {}} />
+                  </div>
                 </div>
               </div>
               <div className="flex justify-end gap-2">
@@ -323,11 +322,9 @@ export default function PerformancePage() {
                   <label htmlFor="due-date" className="text-right">
                     Due Date
                   </label>
-                  <Input
-                    id="due-date"
-                    type="date"
-                    className="col-span-3"
-                  />
+                  <div className="col-span-3">
+                    <DatePicker value={""} onChange={() => {}} />
+                  </div>
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <label htmlFor="reviewer" className="text-right">

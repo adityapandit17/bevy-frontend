@@ -40,6 +40,8 @@ import { LeaveRequestForm } from "@/components/forms/leave-request-form"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { LeaveRequestDetailsDialog } from "@/components/attendance/leave-request-details-dialog"
 import { format } from "date-fns"
+import { DatePicker } from "@/components/ui/date-picker"
+import { TimePicker } from "@/components/ui/time-picker"
 import { useToast } from "@/hooks/use-toast"
 
 interface LeaveRequest {
@@ -1338,17 +1340,12 @@ export default function AttendanceLeavePage() {
           <form onSubmit={handleMarkAttendance} className="space-y-4">
             <div>
               <label className="block mb-1 font-medium">Date</label>
-              <Input
-                type="date"
+              <DatePicker
                 value={date ? format(date, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd")}
-                onChange={(e) => {
-                  if (e.target.value) {
-                    const newDate = new Date(e.target.value)
-                    setDate(newDate)
-                  }
+                onChange={(v) => {
+                  if (v) setDate(new Date(v))
                 }}
-                required
-                className="w-full"
+                min={new Date(2000, 0, 1)}
               />
             </div>
             <div>
@@ -1386,11 +1383,17 @@ export default function AttendanceLeavePage() {
             <div className="flex gap-2">
               <div className="flex-1">
                 <label className="block mb-1 font-medium">Check In (optional)</label>
-                <input type="time" className="w-full border rounded px-2 py-1" value={attendanceForm.check_in} onChange={e => setAttendanceForm(f => ({ ...f, check_in: e.target.value }))} />
+                <TimePicker
+                  value={attendanceForm.check_in}
+                  onChange={(v) => setAttendanceForm((f) => ({ ...f, check_in: v }))}
+                />
               </div>
               <div className="flex-1">
                 <label className="block mb-1 font-medium">Check Out (optional)</label>
-                <input type="time" className="w-full border rounded px-2 py-1" value={attendanceForm.check_out} onChange={e => setAttendanceForm(f => ({ ...f, check_out: e.target.value }))} />
+                <TimePicker
+                  value={attendanceForm.check_out}
+                  onChange={(v) => setAttendanceForm((f) => ({ ...f, check_out: v }))}
+                />
               </div>
             </div>
             <DialogFooter>

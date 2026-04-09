@@ -9,6 +9,8 @@ import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { DatePicker } from "@/components/ui/date-picker"
+import { TimePicker } from "@/components/ui/time-picker"
 import {
   Dialog,
   DialogContent,
@@ -276,15 +278,13 @@ export function AttendanceMarking({ isOpen, onClose, onSuccess }: AttendanceMark
             <Label htmlFor="date">Date *</Label>
             <div className="relative">
               <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <Input
-                id="date"
-                type="date"
-                value={attendanceDate}
-                onChange={(e) => setAttendanceDate(e.target.value)}
-                className="pl-10"
-                max={format(new Date(), 'yyyy-MM-dd')}
-                required
-              />
+              <div className="pl-10">
+                <DatePicker
+                  value={attendanceDate}
+                  onChange={setAttendanceDate}
+                  max={new Date()}
+                />
+              </div>
             </div>
           </div>
 
@@ -294,27 +294,18 @@ export function AttendanceMarking({ isOpen, onClose, onSuccess }: AttendanceMark
               <Label htmlFor="checkIn">Check In Time</Label>
               <div className="relative">
                 <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <Input
-                  id="checkIn"
-                  type="time"
-                  value={checkInTime}
-                  onChange={(e) => setCheckInTime(e.target.value)}
-                  className="pl-10"
-                />
+                <div className="pl-10">
+                  <TimePicker value={checkInTime} onChange={setCheckInTime} />
+                </div>
               </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="checkOut">Check Out Time</Label>
               <div className="relative">
                 <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <Input
-                  id="checkOut"
-                  type="time"
-                  value={checkOutTime}
-                  onChange={(e) => setCheckOutTime(e.target.value)}
-                  className="pl-10"
-                  min={checkInTime}
-                />
+                <div className="pl-10">
+                  <TimePicker value={checkOutTime} onChange={setCheckOutTime} />
+                </div>
               </div>
             </div>
           </div>

@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
+import { DatePicker } from "@/components/ui/date-picker"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Progress } from "@/components/ui/progress"
@@ -759,13 +760,10 @@ export default function OffboardingPage() {
                       Last Working Day *
                     </label>
                     <div className="col-span-3">
-                      <Input
-                        id="last-working-day"
-                        type="date"
+                      <DatePicker
                         value={formData.lastWorkingDay}
-                        onChange={(e) => handleInputChange('lastWorkingDay', e.target.value)}
-                        className={formErrors.lastWorkingDay ? 'border-red-500' : ''}
-                        min={new Date().toISOString().split('T')[0]}
+                        onChange={(v) => handleInputChange("lastWorkingDay", v)}
+                        min={new Date()}
                       />
                       {formErrors.lastWorkingDay && (
                         <p className="text-red-500 text-xs mt-1">{formErrors.lastWorkingDay}</p>

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { DatePicker } from "@/components/ui/date-picker"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { X } from "lucide-react"
 
@@ -220,12 +221,9 @@ export function JobOpeningForm({ onClose, onSubmit, initialData }: JobOpeningFor
                 </div>
                 <div>
                   <Label htmlFor="posted">Posted Date *</Label>
-                  <Input
-                    id="posted"
-                    type="date"
+                  <DatePicker
                     value={formData.posted}
-                    onChange={(e) => handleChange("posted", e.target.value)}
-                    required
+                    onChange={(v) => handleChange("posted", v)}
                   />
                 </div>
               </div>

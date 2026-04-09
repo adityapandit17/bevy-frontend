@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { DatePicker } from "@/components/ui/date-picker"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { 
   Receipt, 
@@ -156,12 +157,9 @@ export function ExpenseForm({ isOpen, onClose, onSubmit, initialData, title, des
           </div>
           <div className="grid gap-2">
             <label htmlFor="date" className="text-sm font-medium">Date</label>
-            <Input
-              id="date"
-              type="date"
+            <DatePicker
               value={formData.date}
-              onChange={(e) => setFormData({...formData, date: e.target.value})}
-              required
+              onChange={(v) => setFormData({ ...formData, date: v })}
             />
           </div>
           <div className="grid gap-2">

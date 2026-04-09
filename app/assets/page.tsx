@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
+import { DatePicker } from "@/components/ui/date-picker"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -1661,20 +1662,16 @@ export default function AssetsPage() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="purchaseDate">Purchase Date *</Label>
-                <Input 
-                  id="purchaseDate" 
-                  type="date" 
+                <DatePicker
                   value={formData.purchaseDate}
-                  onChange={(e) => setFormData({ ...formData, purchaseDate: e.target.value })}
+                  onChange={(v) => setFormData({ ...formData, purchaseDate: v })}
                 />
               </div>
               <div>
                 <Label htmlFor="warrantyExpiry">Warranty Expiry</Label>
-                <Input 
-                  id="warrantyExpiry" 
-                  type="date" 
+                <DatePicker
                   value={formData.warrantyExpiry}
-                  onChange={(e) => setFormData({ ...formData, warrantyExpiry: e.target.value })}
+                  onChange={(v) => setFormData({ ...formData, warrantyExpiry: v })}
                 />
               </div>
             </div>
@@ -1836,20 +1833,16 @@ export default function AssetsPage() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="edit-purchaseDate">Purchase Date *</Label>
-                <Input
-                  id="edit-purchaseDate"
-                  type="date"
+                <DatePicker
                   value={formData.purchaseDate}
-                  onChange={(e) => setFormData({ ...formData, purchaseDate: e.target.value })}
+                  onChange={(v) => setFormData({ ...formData, purchaseDate: v })}
                 />
               </div>
               <div>
                 <Label htmlFor="edit-warrantyExpiry">Warranty Expiry</Label>
-                <Input
-                  id="edit-warrantyExpiry"
-                  type="date"
+                <DatePicker
                   value={formData.warrantyExpiry}
-                  onChange={(e) => setFormData({ ...formData, warrantyExpiry: e.target.value })}
+                  onChange={(v) => setFormData({ ...formData, warrantyExpiry: v })}
                 />
               </div>
             </div>
@@ -1954,11 +1947,9 @@ export default function AssetsPage() {
               </div>
               <div>
                 <Label htmlFor="assignedDate">Assigned Date</Label>
-                <Input
-                  id="assignedDate"
-                  type="date"
+                <DatePicker
                   value={allocationForm.assignedDate}
-                  onChange={(e) => setAllocationForm({ ...allocationForm, assignedDate: e.target.value })}
+                  onChange={(v) => setAllocationForm({ ...allocationForm, assignedDate: v })}
                 />
               </div>
             </div>
@@ -2021,11 +2012,9 @@ export default function AssetsPage() {
               </div>
               <div>
                 <Label htmlFor="scheduledDate">Scheduled Date</Label>
-                <Input
-                  id="scheduledDate"
-                  type="date"
+                <DatePicker
                   value={maintenanceForm.scheduledDate}
-                  onChange={(e) => setMaintenanceForm({ ...maintenanceForm, scheduledDate: e.target.value })}
+                  onChange={(v) => setMaintenanceForm({ ...maintenanceForm, scheduledDate: v })}
                 />
               </div>
             </div>

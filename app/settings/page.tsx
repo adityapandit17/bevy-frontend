@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Building2, Users, Shield, Bell, Database, Globe, Save, Download, Calendar } from "lucide-react"
+import { TimePicker } from "@/components/ui/time-picker"
 import { useEffect, useState } from "react"
 import { apiRequest, getEndpointUrl, getApiUrl } from "@/lib/api"
 import { ResourceGuard } from "@/lib/auth/auth.guards"
@@ -274,6 +275,8 @@ export default function SettingsPage() {
   const [company, setCompany] = useState(defaultCompany)
   const [loading, setLoading] = useState(false)
   const [edit, setEdit] = useState(false)
+  const [workStartTime, setWorkStartTime] = useState<string>("09:00")
+  const [workEndTime, setWorkEndTime] = useState<string>("18:00")
 
   useEffect(() => {
     fetchCompany()
@@ -292,7 +295,7 @@ export default function SettingsPage() {
     }
   }
 
-  const handleChange = (field, value) => {
+  const handleChange = (field: string, value: any) => {
     setCompany((prev) => ({ ...prev, [field]: value }))
   }
 
@@ -457,11 +460,11 @@ export default function SettingsPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="work-start">Work Start Time</Label>
-                  <Input id="work-start" type="time" defaultValue="09:00" />
+                  <TimePicker value={workStartTime} onChange={setWorkStartTime} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="work-end">Work End Time</Label>
-                  <Input id="work-end" type="time" defaultValue="18:00" />
+                  <TimePicker value={workEndTime} onChange={setWorkEndTime} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="lunch-duration">Lunch Duration (minutes)</Label>

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { DatePicker } from "@/components/ui/date-picker"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { X, Calendar, User } from "lucide-react"
 import { getApiUrl, getEndpointUrl } from "@/lib/api"
@@ -252,24 +253,18 @@ export function LeaveRequestForm({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="startDate">Start Date *</Label>
-                  <Input
-                    id="startDate"
-                    type="date"
+                  <DatePicker
                     value={formData.startDate}
-                    onChange={(e) => handleChange("startDate", e.target.value)}
-                    min={new Date().toISOString().split("T")[0]}
-                    required
+                    onChange={(v) => handleChange("startDate", v)}
+                    min={new Date()}
                   />
                 </div>
                 <div>
                   <Label htmlFor="endDate">End Date *</Label>
-                  <Input
-                    id="endDate"
-                    type="date"
+                  <DatePicker
                     value={formData.endDate}
-                    onChange={(e) => handleChange("endDate", e.target.value)}
-                    min={formData.startDate || new Date().toISOString().split("T")[0]}
-                    required
+                    onChange={(v) => handleChange("endDate", v)}
+                    min={formData.startDate ? new Date(formData.startDate) : new Date()}
                   />
                 </div>
               </div>

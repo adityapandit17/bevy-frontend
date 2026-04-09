@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { DatePicker } from "@/components/ui/date-picker"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -373,12 +374,9 @@ export function CandidateForm({ candidate, onSave, onCancel, isLoading = false }
 
             <div className="space-y-2">
               <Label htmlFor="date_of_birth">Date of Birth</Label>
-              <Input
-                id="date_of_birth"
-                type="date"
+              <DatePicker
                 value={formData.date_of_birth || ""}
-                onChange={(e) => handleInputChange("date_of_birth", e.target.value)}
-                className={errors.date_of_birth ? "border-red-500" : ""}
+                onChange={(v) => handleInputChange("date_of_birth", v)}
               />
               {errors.date_of_birth && <p className="text-sm text-red-500">{errors.date_of_birth}</p>}
             </div>
@@ -522,24 +520,18 @@ export function CandidateForm({ candidate, onSave, onCancel, isLoading = false }
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="applied_date">Applied Date *</Label>
-              <Input
-                id="applied_date"
-                type="date"
+              <DatePicker
                 value={formData.applied_date || ""}
-                onChange={(e) => handleInputChange("applied_date", e.target.value)}
-                className={errors.applied_date ? "border-red-500" : ""}
+                onChange={(v) => handleInputChange("applied_date", v)}
               />
               {errors.applied_date && <p className="text-sm text-red-500">{errors.applied_date}</p>}
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="last_contact">Last Contact Date *</Label>
-              <Input
-                id="last_contact"
-                type="date"
+              <DatePicker
                 value={formData.last_contact || ""}
-                onChange={(e) => handleInputChange("last_contact", e.target.value)}
-                className={errors.last_contact ? "border-red-500" : ""}
+                onChange={(v) => handleInputChange("last_contact", v)}
               />
               {errors.last_contact && <p className="text-sm text-red-500">{errors.last_contact}</p>}
             </div>

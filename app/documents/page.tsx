@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { DatePicker } from "@/components/ui/date-picker"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -1774,11 +1775,9 @@ export default function DocumentsPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="create-expiryDate">Expiry Date</Label>
-                <Input
-                  id="create-expiryDate"
-                  type="date"
+                <DatePicker
                   value={createFormData.expiryDate}
-                  onChange={(e) => setCreateFormData({ ...createFormData, expiryDate: e.target.value })}
+                  onChange={(v) => setCreateFormData({ ...createFormData, expiryDate: v })}
                 />
               </div>
             </div>
@@ -1928,11 +1927,9 @@ export default function DocumentsPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="expiryDate">Expiry Date</Label>
-                <Input
-                  id="expiryDate"
-                  type="date"
+                <DatePicker
                   value={editFormData.expiryDate}
-                  onChange={(e) => setEditFormData({ ...editFormData, expiryDate: e.target.value })}
+                  onChange={(v) => setEditFormData({ ...editFormData, expiryDate: v })}
                 />
               </div>
             </div>
@@ -2039,11 +2036,9 @@ export default function DocumentsPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="upload-expiry">Expiry Date (Optional)</Label>
-              <Input
-                id="upload-expiry"
-                type="date"
+              <DatePicker
                 value={uploadFormData.expiryDate}
-                onChange={(e) => setUploadFormData({ ...uploadFormData, expiryDate: e.target.value })}
+                onChange={(v) => setUploadFormData({ ...uploadFormData, expiryDate: v })}
               />
             </div>
             <div className="space-y-2">

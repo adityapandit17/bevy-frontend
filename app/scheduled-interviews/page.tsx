@@ -35,6 +35,8 @@ import { apiRequest, getApiUrl, getEndpointUrl } from "@/lib/api"
 import { toast } from "@/hooks/use-toast"
 import { useAuthContext } from "@/lib/auth"
 import { useRouter, useSearchParams } from "next/navigation"
+import { DatePicker } from "@/components/ui/date-picker"
+import { TimePicker } from "@/components/ui/time-picker"
 
 interface Interview {
   id: number
@@ -793,23 +795,17 @@ export default function ScheduledInterviewsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="reschedule-date">New Date *</Label>
-                  <Input
-                    id="reschedule-date"
-                    type="date"
+                  <DatePicker
                     value={rescheduleData.scheduled_date}
-                    onChange={(e) => setRescheduleData({ ...rescheduleData, scheduled_date: e.target.value })}
-                    min={new Date().toISOString().split('T')[0]}
-                    required
+                    onChange={(v) => setRescheduleData({ ...rescheduleData, scheduled_date: v })}
+                    min={new Date()}
                   />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="reschedule-time">New Time *</Label>
-                  <Input
-                    id="reschedule-time"
-                    type="time"
+                  <TimePicker
                     value={rescheduleData.scheduled_time}
-                    onChange={(e) => setRescheduleData({ ...rescheduleData, scheduled_time: e.target.value })}
-                    required
+                    onChange={(v) => setRescheduleData({ ...rescheduleData, scheduled_time: v })}
                   />
                 </div>
               </div>
