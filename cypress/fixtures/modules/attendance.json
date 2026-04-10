@@ -1,0 +1,47 @@
+{
+  "records": [
+    {
+      "id": 1,
+      "employee_id": 1,
+      "employee_name": "Alice Johnson",
+      "date": "2026-04-10",
+      "check_in": "09:00:00",
+      "check_out": "17:30:00",
+      "status": "present",
+      "working_hours": 8.5,
+      "formatted_check_in": "09:00 AM",
+      "formatted_check_out": "05:30 PM"
+    },
+    {
+      "id": 2,
+      "employee_id": 2,
+      "employee_name": "Bob Smith",
+      "date": "2026-04-10",
+      "check_in": "09:45:00",
+      "check_out": "18:00:00",
+      "status": "late",
+      "working_hours": 8.25,
+      "formatted_check_in": "09:45 AM",
+      "formatted_check_out": "06:00 PM"
+    },
+    {
+      "id": 3,
+      "employee_id": 3,
+      "employee_name": "Carol Williams",
+      "date": "2026-04-10",
+      "check_in": null,
+      "check_out": null,
+      "status": "absent",
+      "working_hours": 0,
+      "formatted_check_in": null,
+      "formatted_check_out": null
+    }
+  ],
+  "summary": {
+    "total": 3,
+    "present": 1,
+    "late": 1,
+    "absent": 1,
+    "on_leave": 0
+  }
+}

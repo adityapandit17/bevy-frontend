@@ -1,0 +1,46 @@
+{
+  "records": [
+    {
+      "id": 1,
+      "employee_id": 1,
+      "employee_name": "Alice Johnson",
+      "month": "March 2026",
+      "basic_salary": 80000,
+      "allowances": 15000,
+      "deductions": 10000,
+      "net_salary": 85000,
+      "status": "processed",
+      "payment_date": "2026-03-31"
+    },
+    {
+      "id": 2,
+      "employee_id": 2,
+      "employee_name": "Bob Smith",
+      "month": "March 2026",
+      "basic_salary": 90000,
+      "allowances": 20000,
+      "deductions": 12000,
+      "net_salary": 98000,
+      "status": "processed",
+      "payment_date": "2026-03-31"
+    }
+  ],
+  "salary_structures": [
+    {
+      "id": 1,
+      "name": "Junior Engineer",
+      "basic": 60000,
+      "hra": 24000,
+      "pf": 7200,
+      "tax": 5000
+    },
+    {
+      "id": 2,
+      "name": "Senior Engineer",
+      "basic": 90000,
+      "hra": 36000,
+      "pf": 10800,
+      "tax": 12000
+    }
+  ]
+}

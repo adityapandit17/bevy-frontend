@@ -1,0 +1,56 @@
+{
+  "job_openings": [
+    {
+      "id": 1,
+      "title": "Senior Frontend Developer",
+      "department": "Engineering",
+      "location": "Remote",
+      "type": "full_time",
+      "status": "active",
+      "applications": 12,
+      "posted_date": "2026-03-01",
+      "deadline": "2026-05-01"
+    },
+    {
+      "id": 2,
+      "title": "Product Manager",
+      "department": "Product",
+      "location": "New York",
+      "type": "full_time",
+      "status": "active",
+      "applications": 8,
+      "posted_date": "2026-03-15",
+      "deadline": "2026-05-15"
+    }
+  ],
+  "candidates": [
+    {
+      "id": 1,
+      "name": "Michael Torres",
+      "email": "michael@example.com",
+      "phone": "555-1234",
+      "job_opening_id": 1,
+      "job_title": "Senior Frontend Developer",
+      "stage": "technical_interview",
+      "status": "active",
+      "applied_date": "2026-03-10"
+    },
+    {
+      "id": 2,
+      "name": "Priya Sharma",
+      "email": "priya@example.com",
+      "phone": "555-5678",
+      "job_opening_id": 2,
+      "job_title": "Product Manager",
+      "stage": "hr_round",
+      "status": "active",
+      "applied_date": "2026-03-20"
+    }
+  ],
+  "stats": {
+    "active_openings": 2,
+    "total_applications": 20,
+    "interviews_scheduled": 5,
+    "offers_extended": 2
+  }
+}

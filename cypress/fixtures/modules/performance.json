@@ -1,0 +1,50 @@
+{
+  "reviews": [
+    {
+      "id": 1,
+      "employee_id": 1,
+      "employee_name": "Alice Johnson",
+      "reviewer": "Admin User",
+      "period": "Q1 2026",
+      "rating": 4.5,
+      "status": "completed",
+      "review_date": "2026-03-31"
+    },
+    {
+      "id": 2,
+      "employee_id": 2,
+      "employee_name": "Bob Smith",
+      "reviewer": "Admin User",
+      "period": "Q1 2026",
+      "rating": null,
+      "status": "pending",
+      "review_date": "2026-04-15"
+    }
+  ],
+  "goals": [
+    {
+      "id": 1,
+      "employee_id": 1,
+      "title": "Launch new dashboard",
+      "description": "Complete the new analytics dashboard",
+      "due_date": "2026-06-30",
+      "progress": 70,
+      "status": "in_progress"
+    },
+    {
+      "id": 2,
+      "employee_id": 1,
+      "title": "Complete React certification",
+      "description": "Obtain official React certification",
+      "due_date": "2026-05-31",
+      "progress": 100,
+      "status": "completed"
+    }
+  ],
+  "stats": {
+    "average_rating": 4.2,
+    "reviews_completed": 15,
+    "reviews_pending": 5,
+    "goals_completed": 32
+  }
+}

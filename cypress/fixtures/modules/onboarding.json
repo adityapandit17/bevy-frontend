@@ -1,0 +1,29 @@
+{
+  "list": [
+    {
+      "id": 1,
+      "employee_id": 10,
+      "employee_name": "David Lee",
+      "department": "Engineering",
+      "start_date": "2026-04-15",
+      "status": "in_progress",
+      "progress": 60,
+      "tasks": [
+        { "id": 1, "title": "Complete paperwork", "completed": true },
+        { "id": 2, "title": "Setup workstation", "completed": true },
+        { "id": 3, "title": "Meet the team", "completed": false },
+        { "id": 4, "title": "Complete compliance training", "completed": false }
+      ]
+    },
+    {
+      "id": 2,
+      "employee_id": 11,
+      "employee_name": "Sara Chen",
+      "department": "Product",
+      "start_date": "2026-05-01",
+      "status": "pending",
+      "progress": 0,
+      "tasks": []
+    }
+  ]
+}

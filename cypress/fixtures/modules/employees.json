@@ -1,0 +1,65 @@
+{
+  "list": {
+    "data": [
+      {
+        "id": 1,
+        "first_name": "Alice",
+        "last_name": "Johnson",
+        "email": "alice@bevyhr.com",
+        "phone": "555-0001",
+        "department_id": 1,
+        "designation": "Software Engineer",
+        "date_of_joining": "2023-01-15",
+        "status": "active",
+        "badge_level": "gold",
+        "badge_level_label": "Gold",
+        "badge_level_color": "#FFD700",
+        "location": "New York",
+        "created_at": "2023-01-15T00:00:00Z",
+        "updated_at": "2023-01-15T00:00:00Z"
+      },
+      {
+        "id": 2,
+        "first_name": "Bob",
+        "last_name": "Smith",
+        "email": "bob@bevyhr.com",
+        "phone": "555-0002",
+        "department_id": 2,
+        "designation": "Product Manager",
+        "date_of_joining": "2022-06-01",
+        "status": "active",
+        "badge_level": "silver",
+        "badge_level_label": "Silver",
+        "badge_level_color": "#C0C0C0",
+        "location": "San Francisco",
+        "created_at": "2022-06-01T00:00:00Z",
+        "updated_at": "2022-06-01T00:00:00Z"
+      },
+      {
+        "id": 3,
+        "first_name": "Carol",
+        "last_name": "Williams",
+        "email": "carol@bevyhr.com",
+        "phone": "555-0003",
+        "department_id": 1,
+        "designation": "UX Designer",
+        "date_of_joining": "2021-09-10",
+        "status": "inactive",
+        "location": "Chicago",
+        "created_at": "2021-09-10T00:00:00Z",
+        "updated_at": "2021-09-10T00:00:00Z"
+      }
+    ],
+    "pagination": {
+      "current_page": 1,
+      "per_page": 10,
+      "total_count": 3,
+      "total_pages": 1
+    }
+  },
+  "departments": [
+    { "id": 1, "name": "Engineering", "created_at": "2022-01-01T00:00:00Z", "updated_at": "2022-01-01T00:00:00Z" },
+    { "id": 2, "name": "Product", "created_at": "2022-01-01T00:00:00Z", "updated_at": "2022-01-01T00:00:00Z" },
+    { "id": 3, "name": "Design", "created_at": "2022-01-01T00:00:00Z", "updated_at": "2022-01-01T00:00:00Z" }
+  ]
+}

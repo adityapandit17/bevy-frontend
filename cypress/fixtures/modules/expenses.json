@@ -1,0 +1,53 @@
+{
+  "expenses": [
+    {
+      "id": 1,
+      "employee_id": 1,
+      "employee_name": "Alice Johnson",
+      "title": "Client dinner",
+      "category": "meals",
+      "amount": 3500,
+      "currency": "INR",
+      "payment_method": "corporate_card",
+      "date": "2026-04-05",
+      "status": "approved",
+      "receipt": true
+    },
+    {
+      "id": 2,
+      "employee_id": 1,
+      "employee_name": "Alice Johnson",
+      "title": "Conference travel",
+      "category": "travel",
+      "amount": 15000,
+      "currency": "INR",
+      "payment_method": "personal",
+      "date": "2026-04-02",
+      "status": "pending",
+      "receipt": true
+    },
+    {
+      "id": 3,
+      "employee_id": 2,
+      "employee_name": "Bob Smith",
+      "title": "Office supplies",
+      "category": "office",
+      "amount": 800,
+      "currency": "INR",
+      "payment_method": "cash",
+      "date": "2026-04-08",
+      "status": "pending",
+      "receipt": false
+    }
+  ],
+  "summary": {
+    "total_this_month": 19300,
+    "approved": 3500,
+    "pending": 15800,
+    "by_category": {
+      "meals": 3500,
+      "travel": 15000,
+      "office": 800
+    }
+  }
+}

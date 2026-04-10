@@ -1,0 +1,11 @@
+{
+  "id": 5,
+  "email": "john.doe@bevyhr.com",
+  "name": "John Doe",
+  "first_name": "John",
+  "last_name": "Doe",
+  "role": "employee",
+  "department_id": 2,
+  "designation": "Software Engineer",
+  "permissions": ["view_own_attendance", "submit_leave", "view_own_payroll", "submit_expense"]
+}

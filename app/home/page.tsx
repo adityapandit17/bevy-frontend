@@ -362,7 +362,7 @@ export default function HomePage() {
             <Button 
               size="lg" 
               variant="outline" 
-              className="border-white text-white hover:bg-white hover:text-green-600 text-lg px-8 py-3"
+              className="border-white bg-transparent text-white hover:bg-white hover:text-green-600 text-lg px-8 py-3"
             >
               Contact Sales
             </Button>

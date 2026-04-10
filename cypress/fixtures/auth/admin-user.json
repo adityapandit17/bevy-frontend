@@ -1,0 +1,11 @@
+{
+  "id": 1,
+  "email": "admin@bevyhr.com",
+  "name": "Admin User",
+  "first_name": "Admin",
+  "last_name": "User",
+  "role": "admin",
+  "department_id": 1,
+  "designation": "HR Manager",
+  "permissions": ["manage_employees", "manage_payroll", "manage_attendance", "manage_recruitment", "manage_performance", "manage_leave", "manage_documents", "manage_helpdesk"]
+}

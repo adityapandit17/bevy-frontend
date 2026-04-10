@@ -1,0 +1,10 @@
+{
+  "validUser": {
+    "email": "admin@bevyhr.com",
+    "password": "password123"
+  },
+  "invalidUser": {
+    "email": "wrong@bevyhr.com",
+    "password": "wrongpassword"
+  }
+}
