@@ -2,6 +2,41 @@ describe("HRMS - Onboarding (full flow) + Assets allocation", () => {
   it("HR starts onboarding, completes tasks; super admin allocates an asset", () => {
     const today = new Date()
     const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+    const apiBaseUrl = Cypress.env("apiBaseUrl") || "http://localhost:3000"
+    const dayOfMonth = today.getDate()
+
+    // Admin JWT: reuse for setup (free onboarding slot + seed asset) and keep one login.
+    cy.request({
+      method: "POST",
+      url: `${apiBaseUrl}/api/v1/auth/login`,
+      body: {
+        email: Cypress.env("adminEmail"),
+        password: Cypress.env("adminPassword"),
+      },
+    }).then((loginRes) => {
+      expect(loginRes.status).to.eq(200)
+      const token = loginRes.body?.data?.token as string
+      cy.wrap(token).as("adminJwt")
+
+      // The UI only lists employees with no onboarding record. If everyone already has a row,
+      // the dropdown is empty — delete one onboarding record so someone can be added again.
+      return cy
+        .request({
+          method: "GET",
+          url: `${apiBaseUrl}/onboarding_employees`,
+          headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+        })
+        .then((listRes) => {
+          const rows = listRes.body as { id: number }[]
+          if (Array.isArray(rows) && rows.length > 0) {
+            return cy.request({
+              method: "DELETE",
+              url: `${apiBaseUrl}/onboarding_employees/${rows[0].id}`,
+              headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+            })
+          }
+        })
+    })
 
     // --- HR starts onboarding for a not-yet-onboarded employee ---
     cy.visitAs("hr", "/onboarding")
@@ -42,14 +77,18 @@ describe("HRMS - Onboarding (full flow) + Assets allocation", () => {
       cy.get("#employeeId").should("contain", String(name))
     })
 
-    // Pick start date (DatePicker emits YYYY-MM-DD to the form).
-    cy.contains("[role='dialog']", /add new employee to onboarding/i).within(() => {
-      cy.contains("button", /pick a date/i).click({ force: true })
-    })
+    // Pick start date (DatePicker: Popover + react-day-picker; trigger shows "Pick a date" until set).
+    cy.contains("[role='dialog']", /add new employee to onboarding/i)
+      .should("be.visible")
+      .find("button")
+      .contains(/pick a date/i)
+      .click({ force: true })
 
-    // Calendar renders day buttons; select today's day number.
+    // Day cells are buttons[name="day"]; exclude "outside" month days to avoid duplicate day numbers.
     cy.get(".rdp", { timeout: 20000 })
-      .contains("button", new RegExp(`^${today.getDate()}$`))
+      .find('button[name="day"]')
+      .not('[class*="day-outside"]')
+      .contains(new RegExp(`^${dayOfMonth}$`))
       .click({ force: true })
 
     cy.contains("[role='dialog']", /add new employee to onboarding/i)
@@ -85,6 +124,35 @@ describe("HRMS - Onboarding (full flow) + Assets allocation", () => {
     cy.contains(/100%/i, { timeout: 20000 }).should("exist")
 
     // --- Super Admin allocates an asset to the onboarded employee ---
+    // Ensure at least one available asset exists (CI/dev DB may have none).
+    const serial = `E2E-${Date.now()}`
+    cy.get<string>("@adminJwt").then((token) => {
+      return cy
+        .request({
+          method: "POST",
+          url: `${apiBaseUrl}/api/assets`,
+          headers: { Authorization: `Bearer ${token}` },
+          body: {
+            asset: {
+              name: `E2E ${serial}`,
+              asset_type: "laptop",
+              serial_number: serial,
+              brand: "Dell",
+              model: "Latitude",
+              purchase_date: "2024-06-01",
+              purchase_cost: 1500,
+              current_value: 1200,
+              status: "available",
+              location: "HQ",
+              department: "IT",
+              condition: "good",
+            },
+          },
+        })
+        .its("status")
+        .should("be.oneOf", [200, 201])
+    })
+
     cy.visitAs("admin", "/assets")
     cy.contains("h1", /asset management/i).should("be.visible")
 

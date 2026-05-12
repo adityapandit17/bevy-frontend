@@ -1,5 +1,6 @@
 import { AUTH_CONFIG } from '@/config/auth.config';
 import { toast } from '@/hooks/use-toast';
+import { getTenantMode } from '@/lib/tenant';
 /**
  * API Configuration Utility
  * Centralized configuration for API endpoints
@@ -44,6 +45,18 @@ export const apiRequest = async <T>(
   } else {
     // Log warning if token is missing (except for login)
     console.warn('API request made without authentication token:', url);
+  }
+
+  // Subdomain-based multitenancy: send tenant code for company subdomains.
+  // For admin subdomain, do NOT send tenant header (global workspace mgmt).
+  if (typeof window !== 'undefined') {
+    const mode = getTenantMode();
+    if (mode.kind === 'company') {
+      defaultHeaders['X-Company-Code'] = mode.code;
+    } else {
+      const companyId = localStorage.getItem(AUTH_CONFIG.companyIdKey);
+      if (companyId) defaultHeaders['X-Company-Id'] = companyId;
+    }
   }
 
   const config: RequestInit = {
@@ -96,6 +109,7 @@ export const apiRequest = async <T>(
           // Clear invalid token
           localStorage.removeItem(AUTH_CONFIG.tokenKey);
           localStorage.removeItem(AUTH_CONFIG.userKey);
+          localStorage.removeItem(AUTH_CONFIG.companyIdKey);
           
           // Show toast notification for authorization failure
           toast({
@@ -391,6 +405,10 @@ export const API_ENDPOINTS = {
   NOTIFICATIONS: '/notifications',
   NOTIFICATIONS_MARK_ALL_READ: '/notifications/mark_all_read',
   NOTIFICATIONS_DESTROY_ALL: '/notifications/destroy_all',
+
+  // Super Admin — tenant management (no X-Company-Id required; uses Super Admin role)
+  SUPER_ADMIN_COMPANIES: '/super_admin/companies',
+  SUPER_ADMIN_COMPANY_MEMBERSHIPS: '/super_admin/company_memberships',
 } as const;
 
 /**

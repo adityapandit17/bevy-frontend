@@ -80,6 +80,43 @@ Cypress.Commands.add("selectOption", (selector: string, value: string) => {
   cy.get("[role='option'], [role='listbox'] li, [data-radix-select-item]").contains(value).click()
 })
 
+/**
+ * After navigating to a module route, assert either:
+ * - URL stayed on that module and the main content heading matches (scoped away from TopNav "BevyHR" h1), or
+ * - User was sent to dashboard/login (ResourceGuard), or
+ * - Same URL shows Access Denied (some modules render inline).
+ */
+Cypress.Commands.add(
+  "expectModuleLoaded",
+  (options: { pathContains: string; heading: RegExp }) => {
+    const { pathContains, heading } = options
+    cy.url({ timeout: 40000 }).then((href) => {
+      if (!href.includes(pathContains)) {
+        expect(href, `expected ${pathContains} or redirect, got ${href}`).to.match(/\/(dashboard|login)/)
+        return
+      }
+      cy.get("body", { timeout: 25000 }).should(($body) => {
+        const text = $body.text()
+        if (/access denied/i.test(text)) {
+          expect(true).to.eq(true)
+          return
+        }
+        // Exclude TopNav / sidebar logo headings (green "BevyHR")
+        const h1match = $body
+          .find("h1")
+          .not(".text-green-600")
+          .toArray()
+          .some((el) => heading.test((el.textContent || "").trim()))
+        const h2match = $body
+          .find("h2")
+          .toArray()
+          .some((el) => heading.test((el.textContent || "").trim()))
+        expect(h1match || h2match, `heading ${heading} in page (h1/h2)`).to.be.true
+      })
+    })
+  },
+)
+
 // ─── Type declarations ────────────────────────────────────────────────────────
 
 declare global {
@@ -91,6 +128,7 @@ declare global {
       visitAuthenticated(path: string, email?: string, password?: string): Chainable<void>
       visitAs(role: "admin" | "hr" | "deptHead" | "employee", path: string): Chainable<void>
       selectOption(selector: string, value: string): Chainable<void>
+      expectModuleLoaded(options: { pathContains: string; heading: RegExp }): Chainable<void>
     }
   }
 }

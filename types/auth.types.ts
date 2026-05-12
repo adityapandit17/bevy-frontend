@@ -3,6 +3,12 @@
  * TypeScript interfaces and types for authentication system
  */
 
+export interface WorkspaceCompany {
+  id: number;
+  name: string;
+  code: string;
+}
+
 export interface User {
   id: number;
   email: string;
@@ -10,6 +16,10 @@ export interface User {
   roles: Role[];
   permissions: Permission[];
   employee_id: number;
+  /** Workspaces the user can access */
+  companies?: WorkspaceCompany[];
+  current_company_id?: number | null;
+  current_company?: WorkspaceCompany | null;
 }
 
 export interface Role {
@@ -53,4 +63,6 @@ export interface AuthContextType extends AuthState {
   clearError: () => void;
   checkPermission: (permission: string) => boolean;
   checkRole: (role: string) => boolean;
+  /** Switch active workspace (persists X-Company-Id for API calls) */
+  switchWorkspace: (companyId: number) => void;
 }

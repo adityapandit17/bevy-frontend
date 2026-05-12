@@ -34,6 +34,7 @@ import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { useAuthContext } from "@/lib/auth"
 import { NotificationsDropdown } from "@/components/notifications-dropdown"
+import { WorkspaceSwitcher } from "@/components/workspace-switcher"
 import Image from "next/image"
 
 type NavItem = {
@@ -237,6 +238,8 @@ export function TopNav() {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
               <Input placeholder="Search..." className="pl-10 w-64 h-9 bg-gray-50 border-gray-200 focus:bg-white" />
             </div>
+
+            <WorkspaceSwitcher />
 
             {/* Notifications */}
             <NotificationsDropdown>

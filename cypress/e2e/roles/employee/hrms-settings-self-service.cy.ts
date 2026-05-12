@@ -1,9 +1,9 @@
 describe("HRMS - Settings (Employee self-service)", () => {
-  it.skip("normal user can change personal settings", () => {
-    // Planned flow:
-    // - Employee visits /settings
-    // - Update a personal preference (e.g., notification toggle)
-    // - Save and verify persistence
+  it("employee uses /profile for personal updates; company Settings redirects", () => {
+    cy.visitAs("employee", "/profile")
+    cy.contains("h1", /my profile/i).should("be.visible")
+    cy.visit("/settings")
+    cy.url({ timeout: 15000 }).should("include", "/dashboard")
   })
 })
 

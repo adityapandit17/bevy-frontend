@@ -5,6 +5,7 @@
 
 import { LoginCredentials, AuthData, User } from '@/types/auth.types';
 import { API_ENDPOINTS, AUTH_CONFIG } from '@/config/auth.config';
+import { getTenantMode } from '@/lib/tenant';
 
 export class AuthServiceError extends Error {
   constructor(message: string, public status?: number) {
@@ -38,6 +39,17 @@ export class AuthService {
       const token = this.getToken();
       if (token) {
         defaultHeaders['Authorization'] = `Bearer ${token}`;
+      }
+      // Subdomain-based multitenancy: prefer tenant code header for company subdomains.
+      // For admin subdomain, do not send tenant header.
+      if (typeof window !== 'undefined') {
+        const mode = getTenantMode();
+        if (mode.kind === 'company') {
+          defaultHeaders['X-Company-Code'] = mode.code;
+        } else if (mode.kind !== 'admin') {
+          const companyId = this.getCompanyId();
+          if (companyId) defaultHeaders['X-Company-Id'] = companyId;
+        }
       }
     }
 
@@ -102,6 +114,11 @@ export class AuthService {
   private getToken(): string | null {
     if (typeof window === 'undefined') return null;
     return localStorage.getItem(AUTH_CONFIG.tokenKey);
+  }
+
+  private getCompanyId(): string | null {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem(AUTH_CONFIG.companyIdKey);
   }
 
   public async login(credentials: LoginCredentials): Promise<AuthData> {
@@ -248,6 +265,10 @@ export class AuthService {
     
     localStorage.setItem(AUTH_CONFIG.tokenKey, authData.token);
     localStorage.setItem(AUTH_CONFIG.userKey, JSON.stringify(authData.user));
+    const cid = (authData.user as User)?.current_company_id;
+    if (cid != null && cid !== undefined) {
+      localStorage.setItem(AUTH_CONFIG.companyIdKey, String(cid));
+    }
   }
 
   public clearAuthData(): void {
@@ -255,5 +276,6 @@ export class AuthService {
     
     localStorage.removeItem(AUTH_CONFIG.tokenKey);
     localStorage.removeItem(AUTH_CONFIG.userKey);
+    localStorage.removeItem(AUTH_CONFIG.companyIdKey);
   }
 }

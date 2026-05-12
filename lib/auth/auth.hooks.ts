@@ -16,6 +16,7 @@ import {
 } from '@/types/auth.types';
 import { AuthService, AuthServiceError } from './auth.service';
 import { AUTH_CONFIG } from '@/config/auth.config';
+import { getTenantMode } from '@/lib/tenant';
 
 /**
  * Main authentication hook
@@ -52,7 +53,11 @@ export function useAuth() {
 
         if (userData) {
           // Start from whatever we have in localStorage so UI can render quickly
-          const storedUser = JSON.parse(userData);
+          const storedUser = JSON.parse(userData) as User;
+
+          if (storedUser?.current_company_id != null && !localStorage.getItem(AUTH_CONFIG.companyIdKey)) {
+            localStorage.setItem(AUTH_CONFIG.companyIdKey, String(storedUser.current_company_id));
+          }
 
           // Transform roles from strings to objects if needed
           const transformedRolesFromStorage = (storedUser.roles || []).map((r: any) =>
@@ -256,8 +261,12 @@ export function useAuth() {
         isLoading: false,
         lastActivity: Date.now(),
       }));
-      
-      router.push('/dashboard');
+
+      // Subdomain-based UX:
+      // - admin.<domain> should land on workspace management
+      // - company.<domain> should land on the normal app dashboard
+      const mode = getTenantMode();
+      router.push(mode.kind === 'admin' ? '/super-admin/workspaces' : '/dashboard');
     } catch (error) {
       let errorMessage = 'Login failed. Please try again.';
       
@@ -334,6 +343,42 @@ export function useAuth() {
     });
   }, [state.roles]);
 
+  const switchWorkspace = useCallback((companyId: number) => {
+    const companies = state.user?.companies || [];
+    const sel = companies.find((c) => c.id === companyId);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(AUTH_CONFIG.companyIdKey, String(companyId));
+      try {
+        const raw = localStorage.getItem(AUTH_CONFIG.userKey);
+        if (raw) {
+          const u = JSON.parse(raw) as User;
+          u.current_company_id = companyId;
+          if (sel) {
+            u.current_company = { id: sel.id, name: sel.name, code: sel.code };
+          }
+          localStorage.setItem(AUTH_CONFIG.userKey, JSON.stringify(u));
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    setState((prev) => ({
+      ...prev,
+      user: prev.user
+        ? {
+            ...prev.user,
+            current_company_id: companyId,
+            current_company: sel
+              ? { id: sel.id, name: sel.name, code: sel.code }
+              : prev.user.current_company ?? null,
+          }
+        : null,
+    }));
+    if (typeof window !== 'undefined') {
+      window.location.reload();
+    }
+  }, [state.user]);
+
   return {
     ...state,
     login,
@@ -341,6 +386,7 @@ export function useAuth() {
     clearError,
     checkPermission,
     checkRole,
+    switchWorkspace,
   };
 }
 

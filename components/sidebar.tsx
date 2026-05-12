@@ -197,6 +197,13 @@ const navItems: NavItem[] = [
     segment: "super-admin",
     requiredRolesOr: ["Super Admin"],
   },
+  {
+    title: "Workspaces",
+    href: "/super-admin/workspaces",
+    icon: Building2,
+    segment: "super-admin/workspaces",
+    requiredRolesOr: ["Super Admin"],
+  },
 ]
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
@@ -252,6 +259,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     setOpenMobile(false)
   }
 
+  const isItemActive = (item: (typeof navItems)[0]) => {
+    if (pathname === item.href) return true
+    if (item.segment === "dashboard") return false
+    if (item.href === "/super-admin") return pathname === "/super-admin"
+    if (item.segment && item.segment !== "dashboard") return pathname.includes(item.segment)
+    return false
+  }
+
   return (
     <Sidebar className="bg-white border-r border-gray-200" collapsible="offcanvas" {...props}>
       <SidebarHeader className="p-6 border-b border-gray-200">
@@ -279,13 +294,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild
-                    isActive={
-                      pathname === item.href || (item.segment !== "dashboard" && pathname.includes(item.segment))
-                    }
+                    isActive={isItemActive(item)}
                     className={cn(
                       "text-gray-600 hover:bg-green-50 hover:text-green-700 transition-all duration-200 rounded-lg mx-2 my-1",
-                      (pathname === item.href || (item.segment !== "dashboard" && pathname.includes(item.segment))) &&
-                        "bg-green-100 text-green-700 font-medium",
+                      isItemActive(item) && "bg-green-100 text-green-700 font-medium",
                     )}
                   >
                     <button onClick={() => handleNavigation(item.href)} className="flex items-center gap-3 w-full p-3">
