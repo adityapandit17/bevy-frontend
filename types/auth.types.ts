@@ -29,6 +29,14 @@ export interface LoginCredentials {
   password: string;
 }
 
+export interface AcceptInvitationCredentials {
+  invitation_token: string;
+  password: string;
+  password_confirmation: string;
+  first_name?: string;
+  last_name?: string;
+}
+
 export interface AuthData {
   user: User;
   token: string;
@@ -49,6 +57,7 @@ export interface AuthState {
 
 export interface AuthContextType extends AuthState {
   login: (credentials: LoginCredentials) => Promise<void>;
+  acceptInvitation: (payload: AcceptInvitationCredentials) => Promise<void>;
   logout: () => Promise<void>;
   clearError: () => void;
   checkPermission: (permission: string) => boolean;

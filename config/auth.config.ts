@@ -11,6 +11,7 @@ export const AUTH_CONFIG = {
     LOGOUT: '/api/v1/auth/logout',
     ME: '/api/v1/auth/me',
     VERIFY_TOKEN: '/api/v1/auth/validate',
+    ACCEPT_INVITATION: '/api/v1/auth/accept_invitation',
   },
   
   // Local storage keys
@@ -34,4 +35,5 @@ export const API_ENDPOINTS = {
   LOGOUT: `${AUTH_CONFIG.API_BASE_URL}${AUTH_CONFIG.ENDPOINTS.LOGOUT}`,
   ME: `${AUTH_CONFIG.API_BASE_URL}${AUTH_CONFIG.ENDPOINTS.ME}`,
   VERIFY_TOKEN: `${AUTH_CONFIG.API_BASE_URL}${AUTH_CONFIG.ENDPOINTS.VERIFY_TOKEN}`,
+  ACCEPT_INVITATION: `${AUTH_CONFIG.API_BASE_URL}${AUTH_CONFIG.ENDPOINTS.ACCEPT_INVITATION}`,
 } as const;

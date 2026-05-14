@@ -3,7 +3,7 @@
  * Handles all API calls related to authentication
  */
 
-import { LoginCredentials, AuthData, User } from '@/types/auth.types';
+import { LoginCredentials, AuthData, User, AcceptInvitationCredentials } from '@/types/auth.types';
 import { API_ENDPOINTS, AUTH_CONFIG } from '@/config/auth.config';
 
 export class AuthServiceError extends Error {
@@ -165,6 +165,70 @@ export class AuthService {
       }
       
       throw new AuthServiceError('Login failed. Please try again.');
+    }
+  }
+
+  public async acceptInvitation(payload: AcceptInvitationCredentials): Promise<AuthData> {
+    try {
+      const response = await this.makeRequest<{
+        success: boolean;
+        data?: {
+          user: User;
+          token: string;
+          roles: any[];
+          permissions: any[];
+        };
+        error?: string;
+        message?: string;
+      }>(
+        API_ENDPOINTS.ACCEPT_INVITATION,
+        {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        },
+        true
+      );
+
+      if (!response.success) {
+        const errorMessage =
+          response.error || response.message || 'Could not complete account setup.';
+        throw new AuthServiceError(errorMessage, 422);
+      }
+
+      if (!response.data) {
+        throw new AuthServiceError('Invalid response from server');
+      }
+
+      const userRoles = response.data.user?.roles || response.data.roles || [];
+      const transformedRoles = userRoles.map((r: any) =>
+        typeof r === 'string' ? { id: 0, name: r, description: '' } : r
+      );
+
+      const userPermissions = response.data.user?.permissions || response.data.permissions || [];
+      const transformedPermissions = userPermissions.map((p: any) =>
+        typeof p === 'string' ? { id: 0, name: p, display_name: p } : p
+      );
+
+      return {
+        user: {
+          ...response.data.user,
+          roles: transformedRoles,
+          permissions: transformedPermissions,
+        },
+        token: response.data.token,
+        roles: transformedRoles,
+        permissions: transformedPermissions,
+      };
+    } catch (error) {
+      if (error instanceof AuthServiceError) {
+        throw error;
+      }
+
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new AuthServiceError('Unable to connect to server. Please check your internet connection.');
+      }
+
+      throw new AuthServiceError('Account setup failed. Please try again.');
     }
   }
 

@@ -14,6 +14,7 @@ export function LoginLayout({ children }: LoginLayoutProps) {
   const { isAuthenticated, isLoading } = useAuthContext()
   
   const isLoginPage = pathname === "/login"
+  const isAcceptInvitationPage = pathname === "/accept-invitation"
   const isHomePage = pathname === "/home"
   const isRootPage = pathname === "/"
 
@@ -29,8 +30,8 @@ export function LoginLayout({ children }: LoginLayoutProps) {
     )
   }
 
-  // Public pages (login, home, root)
-  if (isLoginPage || isHomePage || isRootPage) {
+  // Public pages (login, invitation accept, home, root)
+  if (isLoginPage || isAcceptInvitationPage || isHomePage || isRootPage) {
     return <>{children}</>
   }
 
