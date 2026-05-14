@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
@@ -13,44 +13,36 @@ import { useAuthContext } from "@/lib/auth"
 
 export function AcceptInvitationForm() {
   const searchParams = useSearchParams()
-  const tokenFromUrl = searchParams.get("invitation_token") ?? ""
+  const invitationToken = searchParams.get("invitation_token")?.trim() ?? ""
 
   const { acceptInvitation, isLoading, error, clearError } = useAuthContext()
 
-  const [formData, setFormData] = useState({
-    invitation_token: tokenFromUrl,
-    password: "",
-    password_confirmation: "",
-    first_name: "",
-    last_name: "",
-  })
+  const [password, setPassword] = useState("")
+  const [passwordConfirmation, setPasswordConfirmation] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  useEffect(() => {
-    setFormData((prev) => ({ ...prev, invitation_token: tokenFromUrl }))
-  }, [tokenFromUrl])
-
-  const handleChange = (field: keyof typeof formData, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }))
-    if (fieldErrors[field]) {
-      setFieldErrors((prev) => ({ ...prev, [field]: "" }))
-    }
-    if (error) clearError()
+  const clearFieldError = (key: string) => {
+    setFieldErrors((prev) => {
+      if (!prev[key]) return prev
+      const next = { ...prev }
+      delete next[key]
+      return next
+    })
   }
 
   const validate = () => {
     const next: Record<string, string> = {}
-    if (!formData.invitation_token.trim()) {
-      next.invitation_token = "Invitation link is missing or invalid. Open the link from your email."
+    if (!invitationToken) {
+      next.invitation_token = "This link is invalid or incomplete. Open the invitation from your email."
     }
-    if (!formData.password) {
+    if (!password) {
       next.password = "Password is required"
-    } else if (formData.password.length < 6) {
+    } else if (password.length < 6) {
       next.password = "Password must be at least 6 characters"
     }
-    if (formData.password !== formData.password_confirmation) {
+    if (password !== passwordConfirmation) {
       next.password_confirmation = "Passwords do not match"
     }
     setFieldErrors(next)
@@ -64,11 +56,9 @@ export function AcceptInvitationForm() {
     setIsSubmitting(true)
     try {
       await acceptInvitation({
-        invitation_token: formData.invitation_token.trim(),
-        password: formData.password,
-        password_confirmation: formData.password_confirmation,
-        ...(formData.first_name.trim() ? { first_name: formData.first_name.trim() } : {}),
-        ...(formData.last_name.trim() ? { last_name: formData.last_name.trim() } : {}),
+        invitation_token: invitationToken,
+        password,
+        password_confirmation: passwordConfirmation,
       })
     } catch {
       // Error surfaced via context
@@ -103,44 +93,19 @@ export function AcceptInvitationForm() {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="invitation_token">Invitation token</Label>
-                <Input
-                  id="invitation_token"
-                  name="invitation_token"
-                  type="text"
-                  autoComplete="off"
-                  value={formData.invitation_token}
-                  onChange={(e) => handleChange("invitation_token", e.target.value)}
-                  placeholder="Pasted from your email link"
-                  className={fieldErrors.invitation_token ? "border-red-500" : ""}
-                />
-                {fieldErrors.invitation_token && (
-                  <p className="text-sm text-red-600">{fieldErrors.invitation_token}</p>
-                )}
+            {!invitationToken && (
+              <div className="mb-4 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                <span>This page needs a valid invitation link. Check your email for &quot;Complete your setup&quot;.</span>
               </div>
+            )}
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label htmlFor="first_name">First name (optional)</Label>
-                  <Input
-                    id="first_name"
-                    value={formData.first_name}
-                    onChange={(e) => handleChange("first_name", e.target.value)}
-                    autoComplete="given-name"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="last_name">Last name (optional)</Label>
-                  <Input
-                    id="last_name"
-                    value={formData.last_name}
-                    onChange={(e) => handleChange("last_name", e.target.value)}
-                    autoComplete="family-name"
-                  />
-                </div>
-              </div>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <input type="hidden" name="invitation_token" value={invitationToken} readOnly aria-hidden />
+
+              {fieldErrors.invitation_token && (
+                <p className="text-sm text-red-600">{fieldErrors.invitation_token}</p>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
@@ -150,8 +115,12 @@ export function AcceptInvitationForm() {
                     id="password"
                     type={showPassword ? "text" : "password"}
                     className={`pl-10 pr-10 ${fieldErrors.password ? "border-red-500" : ""}`}
-                    value={formData.password}
-                    onChange={(e) => handleChange("password", e.target.value)}
+                    value={password}
+                    onChange={(e) => {
+                      setPassword(e.target.value)
+                      clearFieldError("password")
+                      if (error) clearError()
+                    }}
                     autoComplete="new-password"
                   />
                   <button
@@ -171,8 +140,12 @@ export function AcceptInvitationForm() {
                 <Input
                   id="password_confirmation"
                   type={showPassword ? "text" : "password"}
-                  value={formData.password_confirmation}
-                  onChange={(e) => handleChange("password_confirmation", e.target.value)}
+                  value={passwordConfirmation}
+                  onChange={(e) => {
+                    setPasswordConfirmation(e.target.value)
+                    clearFieldError("password_confirmation")
+                    if (error) clearError()
+                  }}
                   autoComplete="new-password"
                   className={fieldErrors.password_confirmation ? "border-red-500" : ""}
                 />
@@ -181,7 +154,7 @@ export function AcceptInvitationForm() {
                 )}
               </div>
 
-              <Button type="submit" className="w-full" disabled={isSubmitting || isLoading}>
+              <Button type="submit" className="w-full" disabled={isSubmitting || isLoading || !invitationToken}>
                 {isSubmitting || isLoading ? "Saving…" : "Complete setup"}
               </Button>
             </form>
