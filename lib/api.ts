@@ -327,6 +327,7 @@ export const API_ENDPOINTS = {
   ATTENDANCE_TODAY: '/attendance_records/today',
   ATTENDANCE_STATS: '/attendance_records/stats',
   ATTENDANCE_CALENDAR: '/attendance_records/calendar',
+  ATTENDANCE_COMPLIANCE_REPORT: '/attendance_records/compliance_report',
   ATTENDANCE_CHECK_IN: '/attendance_records/{id}/check_in',
   ATTENDANCE_CHECK_OUT: '/attendance_records/{id}/check_out',
   LEAVE_REQUESTS: '/leave_requests',

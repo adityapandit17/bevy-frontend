@@ -277,6 +277,8 @@ export default function SettingsPage() {
   const [edit, setEdit] = useState(false)
   const [workStartTime, setWorkStartTime] = useState<string>("09:00")
   const [workEndTime, setWorkEndTime] = useState<string>("18:00")
+  const [weeklyWorkingHours, setWeeklyWorkingHours] = useState<string>("40")
+  const [lunchDuration, setLunchDuration] = useState<string>("60")
 
   useEffect(() => {
     fetchCompany()
@@ -287,6 +289,10 @@ export default function SettingsPage() {
     try {
       const res = await apiRequest<any>(getEndpointUrl('COMPANY'))
       setCompany(res as any)
+      if (res?.work_start_time) setWorkStartTime(res.work_start_time)
+      if (res?.work_end_time) setWorkEndTime(res.work_end_time)
+      if (res?.weekly_working_hours != null) setWeeklyWorkingHours(String(res.weekly_working_hours))
+      if (res?.lunch_duration_minutes != null) setLunchDuration(String(res.lunch_duration_minutes))
     } catch (err) {
       console.error("Error fetching company data:", err)
       // Keep the default state if fetch fails
@@ -305,7 +311,15 @@ export default function SettingsPage() {
       // Get JWT token from localStorage
       await apiRequest<any>(getEndpointUrl('COMPANY'), {
         method: "PATCH",
-        body: JSON.stringify({ company })
+        body: JSON.stringify({
+          company: {
+            ...company,
+            work_start_time: workStartTime,
+            work_end_time: workEndTime,
+            weekly_working_hours: parseFloat(weeklyWorkingHours) || 40,
+            lunch_duration_minutes: parseInt(lunchDuration, 10) || 60,
+          },
+        }),
       })
 
       setEdit(false)
@@ -468,11 +482,26 @@ export default function SettingsPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="lunch-duration">Lunch Duration (minutes)</Label>
-                  <Input id="lunch-duration" type="number" defaultValue="60" />
+                  <Input
+                    id="lunch-duration"
+                    type="number"
+                    value={lunchDuration}
+                    onChange={(e) => setLunchDuration(e.target.value)}
+                    disabled={!edit}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="weekly-hours">Weekly Working Hours</Label>
-                  <Input id="weekly-hours" type="number" defaultValue="40" />
+                  <Input
+                    id="weekly-hours"
+                    type="number"
+                    min={1}
+                    max={80}
+                    value={weeklyWorkingHours}
+                    onChange={(e) => setWeeklyWorkingHours(e.target.value)}
+                    disabled={!edit}
+                  />
+                  <p className="text-xs text-gray-500">Used for attendance compliance and hours-behind calculations</p>
                 </div>
               </div>
 

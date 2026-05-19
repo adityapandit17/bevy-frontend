@@ -39,7 +39,9 @@ import {
 import { LeaveRequestForm } from "@/components/forms/leave-request-form"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { LeaveRequestDetailsDialog } from "@/components/attendance/leave-request-details-dialog"
-import { format } from "date-fns"
+import { EmployeePunchCard } from "@/components/attendance/employee-punch-card"
+import { format, endOfMonth } from "date-fns"
+import { AttendanceHoursSummary, type AttendanceComplianceSummary } from "@/components/attendance/attendance-hours-summary"
 import { DatePicker } from "@/components/ui/date-picker"
 import { TimePicker } from "@/components/ui/time-picker"
 import { useToast } from "@/hooks/use-toast"
@@ -114,9 +116,20 @@ interface AttendanceStat {
   bgColor: string
 }
 
+type CalendarDayIndicator = "present" | "absent" | "leave" | "not_marked" | "weekend" | "future" | "none"
+
 export default function AttendanceLeavePage() {
-  const { user, isAuthenticated, checkPermission } = useAuth()
+  const { user, isAuthenticated, checkPermission, checkRole } = useAuth()
   const searchParams = useSearchParams()
+
+  const canViewAttendance = checkPermission("attendance_records.index")
+  const canViewLeave = checkPermission("leave_requests.index")
+  const canApplyLeave = checkPermission("leave_requests.create")
+  const canManageAllAttendance =
+    checkPermission("leave_management.index") || checkPermission("attendance_records.approve")
+  const canManageAllLeave = checkPermission("leave_management.index")
+  const canApproveLeave =
+    checkPermission("leave_requests.approve") || checkRole("Department Head") || checkRole("HR Manager")
   const [date, setDate] = useState<Date | undefined>(new Date())
   const [month, setMonth] = useState<number>(new Date().getMonth())
   const [year, setYear] = useState<number>(new Date().getFullYear())
@@ -128,6 +141,8 @@ export default function AttendanceLeavePage() {
   const [attendanceStats, setAttendanceStats] = useState<AttendanceStat[]>([])
   const [todayAttendance, setTodayAttendance] = useState<AttendanceRecord[]>([])
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([])
+  const [pendingApprovals, setPendingApprovals] = useState<LeaveRequest[]>([])
+  const showApprovalsTab = canApproveLeave || pendingApprovals.length > 0
   const [employees, setEmployees] = useState<Employee[]>([])
   const [departments, setDepartments] = useState<Department[]>([])
   const [loading, setLoading] = useState(false)
@@ -148,6 +163,9 @@ export default function AttendanceLeavePage() {
   const [leaveCurrentPage, setLeaveCurrentPage] = useState<number>(1)
   const [leavePageSize, setLeavePageSize] = useState<number>(10)
   const [actionLoading, setActionLoading] = useState<number | null>(null)
+  const [calendarDayMap, setCalendarDayMap] = useState<Record<string, CalendarDayIndicator>>({})
+  const [monthlyCompliance, setMonthlyCompliance] = useState<AttendanceComplianceSummary | null>(null)
+  const [loadingCalendar, setLoadingCalendar] = useState(false)
   const { toast } = useToast()
 
   useEffect(() => {
@@ -160,15 +178,99 @@ export default function AttendanceLeavePage() {
     }
     
     fetchAttendance()
-    fetchLeaveRequests(managerPending === 'true')
-    fetchEmployees()
-    fetchDepartments()
-  }, [searchParams])
+    fetchLeaveRequests(managerPending === "true")
+    if (canManageAllAttendance) {
+      fetchEmployees()
+      fetchDepartments()
+    }
+    if (user?.employee_id) {
+      fetchPendingApprovals()
+      fetchCalendarData()
+    }
+  }, [searchParams, canManageAllAttendance, user?.employee_id, month, year])
+
+  const fetchCalendarData = async () => {
+    const employeeId = user?.employee_id
+    if (!employeeId || !canViewAttendance) return
+
+    setLoadingCalendar(true)
+    try {
+      const monthStart = new Date(year, month, 1)
+      const start = format(monthStart, "yyyy-MM-dd")
+      const end = format(endOfMonth(monthStart), "yyyy-MM-dd")
+      const url = `${getEndpointUrl("ATTENDANCE_CALENDAR")}?employee_id=${employeeId}&start_date=${start}&end_date=${end}`
+      const res = await apiRequest<{
+        days: Array<{ date: string; indicator: CalendarDayIndicator }>
+        compliance: AttendanceComplianceSummary
+      }>(url, { suppressToast: true })
+
+      const map: Record<string, CalendarDayIndicator> = {}
+      ;(res.days || []).forEach((d) => {
+        const key = d.date?.slice(0, 10)
+        if (key) map[key] = d.indicator
+      })
+      setCalendarDayMap(map)
+      setMonthlyCompliance(res.compliance)
+
+      if (res.compliance) {
+        const c = res.compliance
+        setAttendanceStats([
+          {
+            title: "Total Hours",
+            value: `${c.total_hours_worked}h`,
+            change: `Target ${c.required_hours_to_date}h to date`,
+            icon: Clock,
+            color: "text-blue-600",
+            bgColor: "bg-blue-50",
+          },
+          {
+            title: "Avg Daily Hours",
+            value: `${c.average_daily_hours}h`,
+            change: `${c.daily_target_hours}h/day expected`,
+            icon: CalendarCheck,
+            color: "text-green-600",
+            bgColor: "bg-green-50",
+          },
+          {
+            title: "Present Days",
+            value: String(c.present_days),
+            change: `${c.absent_days} absent · ${c.not_marked_days} unmarked`,
+            icon: CheckCircle,
+            color: "text-emerald-600",
+            bgColor: "bg-emerald-50",
+          },
+          {
+            title: "Behind Schedule",
+            value: c.hours_behind_schedule > 0 ? `${c.hours_behind_schedule}h` : "On track",
+            change: `${c.compliance_percent}% of required hours`,
+            icon: c.hours_behind_schedule > 0 ? AlertCircle : CheckCircle,
+            color: c.hours_behind_schedule > 0 ? "text-red-600" : "text-green-600",
+            bgColor: c.hours_behind_schedule > 0 ? "bg-red-50" : "bg-green-50",
+          },
+        ])
+      }
+    } catch {
+      setCalendarDayMap({})
+      setMonthlyCompliance(null)
+    } finally {
+      setLoadingCalendar(false)
+    }
+  }
+
+  const calendarDatesFor = (indicator: CalendarDayIndicator) =>
+    Object.entries(calendarDayMap)
+      .filter(([, v]) => v === indicator)
+      .map(([dateStr]) => new Date(`${dateStr}T12:00:00`))
 
   const fetchAttendance = async () => {
+    if (!canViewAttendance) return
     setLoading(true)
     try {
-      const res = await apiRequest<AttendanceRecord[]>(getEndpointUrl('ATTENDANCE_RECORDS'), { suppressToast: true })
+      let url = getEndpointUrl("ATTENDANCE_RECORDS")
+      if (!canManageAllAttendance && user?.employee_id) {
+        url += `?employee_id=${user.employee_id}`
+      }
+      const res = await apiRequest<AttendanceRecord[]>(url, { suppressToast: true })
       setTodayAttendance(Array.isArray(res) ? res : [])
     } catch (error: any) {
       console.error('Error fetching attendance:', error)
@@ -185,15 +287,46 @@ export default function AttendanceLeavePage() {
     }
   }
 
+  const fetchPendingApprovals = async () => {
+    if (!user?.employee_id) return
+    try {
+      const url = `${getEndpointUrl("LEAVE_REQUESTS")}?manager_pending=true&status=pending`
+      const res = await apiRequest<any[]>(url, { suppressToast: true })
+      const mapped = Array.isArray(res)
+        ? res.map((item) => {
+            const mapped = mapLeaveRequestFromBackend(item)
+            return {
+              ...mapped,
+              employee_id: mapped.employeeId || item.employee_id,
+              leave_type: mapped.leaveType || item.leave_type,
+              leave_type_label: mapped.leaveTypeLabel || item.leave_type_label,
+              start_date: mapped.startDate || item.start_date,
+              end_date: mapped.endDate || item.end_date,
+              formatted_start_date: mapped.formattedStartDate || item.formatted_start_date,
+              formatted_end_date: mapped.formattedEndDate || item.formatted_end_date,
+              status: mapped.status || item.status,
+              status_label: mapped.statusLabel || item.status_label,
+            }
+          })
+        : []
+      setPendingApprovals(mapped)
+    } catch {
+      setPendingApprovals([])
+    }
+  }
+
   const fetchLeaveRequests = async (managerPending: boolean = false) => {
+    if (!canViewLeave) return
     setLoading(true)
     try {
-      let url = getEndpointUrl('LEAVE_REQUESTS')
+      let url = getEndpointUrl("LEAVE_REQUESTS")
       if (managerPending) {
         const params = new URLSearchParams()
-        params.append('manager_pending', 'true')
-        params.append('status', 'pending')
+        params.append("manager_pending", "true")
+        params.append("status", "pending")
         url += `?${params.toString()}`
+      } else if (!canManageAllLeave && user?.employee_id) {
+        url += `?employee_id=${user.employee_id}`
       }
       const res = await apiRequest<any[]>(url, { suppressToast: true })
       // Map backend response to frontend format, preserving both formats for compatibility
@@ -235,8 +368,9 @@ export default function AttendanceLeavePage() {
   }
 
   const fetchEmployees = async () => {
+    if (!canManageAllAttendance) return
     try {
-      const res = await apiRequest<any>(`${getEndpointUrl('EMPLOYEES')}?per_page=1000`, { suppressToast: true })
+      const res = await apiRequest<any>(`${getEndpointUrl("EMPLOYEES")}?per_page=1000`, { suppressToast: true })
       
       // Handle both paginated response { data: [...], pagination: {...} } and direct array
       let employeeList: Employee[] = []
@@ -603,8 +737,8 @@ export default function AttendanceLeavePage() {
         variant: "default",
       })
       
-      // Refresh the list
       await fetchLeaveRequests()
+      await fetchPendingApprovals()
     } catch (error: any) {
       console.error('Error approving leave request:', error)
       toast({
@@ -630,8 +764,8 @@ export default function AttendanceLeavePage() {
         variant: "default",
       })
       
-      // Refresh the list
       await fetchLeaveRequests()
+      await fetchPendingApprovals()
     } catch (error: any) {
       console.error('Error rejecting leave request:', error)
       toast({
@@ -653,8 +787,7 @@ export default function AttendanceLeavePage() {
       })
     : todayAttendance
   ).filter((record) => {
-    // Filter by search term
-    if (searchTerm) {
+    if (canManageAllAttendance && searchTerm) {
       const employeeName = getEmployeeName(record.employee_id).toLowerCase();
       if (!employeeName.includes(searchTerm.toLowerCase())) {
         return false;
@@ -675,7 +808,9 @@ export default function AttendanceLeavePage() {
     // Filter by search term (search in employee name, leave type, reason)
     if (leaveSearchTerm) {
       const searchLower = leaveSearchTerm.toLowerCase();
-      const employeeName = getEmployeeName(request.employee_id).toLowerCase();
+      const employeeName = canManageAllLeave
+        ? getEmployeeName(request.employee_id).toLowerCase()
+        : "";
       const leaveType = (request.leaveTypeLabel || request.leave_type_label || request.leaveType || request.leave_type || '').toLowerCase();
       const reason = (request.reason || '').toLowerCase();
       
@@ -707,8 +842,17 @@ export default function AttendanceLeavePage() {
     setLeaveCurrentPage(nextPage);
   };
 
-  // Calendar styling is now handled through CSS
-  const calendarClassNames = {};
+  const calendarDotClass =
+    "relative after:content-[''] after:absolute after:bottom-0.5 after:left-1/2 after:-translate-x-1/2 after:w-1.5 after:h-1.5 after:rounded-full"
+  const calendarClassNames = {
+    day: "h-9 w-9 p-0 font-normal relative",
+  }
+  const calendarModifiersClassNames = {
+    present: `${calendarDotClass} after:bg-green-500`,
+    absent: `${calendarDotClass} after:bg-red-500`,
+    not_marked: `${calendarDotClass} after:bg-red-400`,
+    leave: `${calendarDotClass} after:bg-blue-500`,
+  }
 
   // Reset leave pagination when filters, data, or page size change
   useEffect(() => {
@@ -779,16 +923,20 @@ export default function AttendanceLeavePage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Attendance & Leave</h1>
-          <p className="text-gray-600">Track employee attendance and manage leave requests</p>
+          <p className="text-gray-600">
+            {canManageAllAttendance
+              ? "Track employee attendance and manage leave requests"
+              : "View your attendance, apply for leave, and manage team approvals"}
+          </p>
         </div>
         <div className="flex gap-2">
-          {checkPermission('attendance_records.approve') && (
+          {canManageAllAttendance && checkPermission("attendance_records.approve") && (
             <Button variant="outline" size="sm" onClick={() => setShowAttendanceModal(true)}>
               <CalendarIcon className="w-4 h-4 mr-2" />
               Mark Attendance
             </Button>
           )}
-          {checkPermission('leave_requests.index') && (
+          {canApplyLeave && user?.employee_id && (
             <Button size="sm" onClick={() => setShowLeaveForm(true)}>
               <Plus className="w-4 h-4 mr-2" />
               Apply Leave
@@ -798,25 +946,6 @@ export default function AttendanceLeavePage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {attendanceStats.map((stat, index) => (
-          <Card key={index} className="hover:shadow-md transition-shadow">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">{stat.title}</p>
-                  <p className="text-2xl font-bold text-gray-900 mt-1">{stat.value}</p>
-                  <p className="text-sm text-gray-500 mt-1">{stat.change}</p>
-                </div>
-                <div className={`p-3 rounded-lg ${stat.bgColor}`}>
-                  <stat.icon className={`w-6 h-6 ${stat.color}`} />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Calendar */}
         <Card className="lg:col-span-1 h-fit shadow-sm">
@@ -887,7 +1016,29 @@ export default function AttendanceLeavePage() {
                 }}
                 className="rounded-lg border border-gray-200 shadow-sm bg-white"
                 classNames={calendarClassNames}
+                modifiers={{
+                  present: calendarDatesFor("present"),
+                  absent: calendarDatesFor("absent"),
+                  not_marked: calendarDatesFor("not_marked"),
+                  leave: calendarDatesFor("leave"),
+                }}
+                modifiersClassNames={calendarModifiersClassNames}
               />
+            </div>
+
+            <div className="flex flex-wrap gap-3 text-xs text-gray-600 justify-center pt-1">
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-green-500" /> Present
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-red-500" /> Absent
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-red-400" /> Not marked
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-blue-500" /> On leave
+              </span>
             </div>
 
             {/* Clear and Today Buttons */}
@@ -915,13 +1066,33 @@ export default function AttendanceLeavePage() {
         {/* Tabs for Attendance and Leave */}
         <div className="lg:col-span-3">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className={`grid w-full ${showApprovalsTab ? "grid-cols-3" : "grid-cols-2"}`}>
               <TabsTrigger value="attendance">Attendance</TabsTrigger>
               <TabsTrigger value="leave">Leave Requests</TabsTrigger>
+              {showApprovalsTab && (
+                <TabsTrigger value="approvals">
+                  Approvals
+                  {pendingApprovals.length > 0 && (
+                    <Badge className="ml-2 bg-orange-500 text-white">{pendingApprovals.length}</Badge>
+                  )}
+                </TabsTrigger>
+              )}
             </TabsList>
 
             <TabsContent value="attendance" className="space-y-4">
-              {checkPermission('attendance_records.index') ? (
+              {user?.employee_id && canViewAttendance && (
+                <>
+                  <EmployeePunchCard
+                    employeeId={Number(user.employee_id)}
+                    onPunchChange={() => {
+                      fetchAttendance()
+                      fetchCalendarData()
+                    }}
+                  />
+                  <AttendanceHoursSummary compliance={monthlyCompliance} loading={loadingCalendar} />
+                </>
+              )}
+              {canViewAttendance ? (
                 <Card>
                   <CardHeader className="pb-4">
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -954,6 +1125,7 @@ export default function AttendanceLeavePage() {
                   </CardHeader>
                   <CardContent>
                   <div className="flex flex-col sm:flex-row gap-4 mb-6">
+                    {canManageAllAttendance && (
                     <div className="relative flex-1">
                       <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                       <Input
@@ -963,6 +1135,7 @@ export default function AttendanceLeavePage() {
                         className="pl-10"
                       />
                     </div>
+                    )}
                     <Select value={attendanceStatusFilter} onValueChange={setAttendanceStatusFilter}>
                       <SelectTrigger className="w-full sm:w-48">
                         <SelectValue placeholder="Filter by status" />
@@ -980,7 +1153,7 @@ export default function AttendanceLeavePage() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Employee</TableHead>
+                          {canManageAllAttendance && <TableHead>Employee</TableHead>}
                           <TableHead className="text-center">Check In</TableHead>
                           <TableHead className="text-center">Check Out</TableHead>
                           <TableHead className="text-center">Work Hours</TableHead>
@@ -992,13 +1165,14 @@ export default function AttendanceLeavePage() {
                       <TableBody>
                         {filteredAttendance.length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={7} className="text-center text-gray-500 py-8">
+                            <TableCell colSpan={canManageAllAttendance ? 7 : 6} className="text-center text-gray-500 py-8">
                               No attendance records for this date.
                             </TableCell>
                           </TableRow>
                         ) : (
                           filteredAttendance.map((record) => (
                             <TableRow key={record.id}>
+                              {canManageAllAttendance && (
                               <TableCell>
                                 <div>
                                   <p className="font-medium text-gray-900">{getEmployeeName(record.employee_id)}</p>
@@ -1007,6 +1181,7 @@ export default function AttendanceLeavePage() {
                                   </p>
                                 </div>
                               </TableCell>
+                              )}
                               <TableCell className="text-center">
                                 <span className="text-sm text-gray-600">
                                   {record.status?.toLowerCase() === "absent" ? "-" : (getCheckInTime(record) || "-")}
@@ -1071,14 +1246,18 @@ export default function AttendanceLeavePage() {
             </TabsContent>
 
             <TabsContent value="leave" className="space-y-6">
-              {checkPermission('leave_requests.index') ? (
+              {canViewLeave ? (
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <Users className="w-5 h-5" />
                       Leave Requests
                     </CardTitle>
-                    <CardDescription>Manage employee leave applications</CardDescription>
+                    <CardDescription>
+                      {canManageAllLeave
+                        ? "Manage employee leave applications"
+                        : "Your leave applications and history"}
+                    </CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="flex flex-col sm:flex-row gap-4 mb-6">
@@ -1109,7 +1288,7 @@ export default function AttendanceLeavePage() {
                         <Table>
                           <TableHeader className="sticky top-0 bg-white z-10">
                             <TableRow>
-                              <TableHead>Employee</TableHead>
+                              {canManageAllLeave && <TableHead>Employee</TableHead>}
                               <TableHead>Leave Type</TableHead>
                               <TableHead>Duration</TableHead>
                               <TableHead>Days</TableHead>
@@ -1121,13 +1300,14 @@ export default function AttendanceLeavePage() {
                           <TableBody>
                             {filteredLeaveRequests.length === 0 ? (
                               <TableRow>
-                                <TableCell colSpan={7} className="text-center text-gray-500 py-8">
+                                <TableCell colSpan={canManageAllLeave ? 7 : 6} className="text-center text-gray-500 py-8">
                                   No leave requests found.
                                 </TableCell>
                               </TableRow>
                             ) : (
                               paginatedLeaveRequests.map((request) => (
                               <TableRow key={request.id}>
+                                {canManageAllLeave && (
                                 <TableCell>
                                   <div>
                                     <p className="font-medium text-gray-900">{getEmployeeName(request.employee_id)}</p>
@@ -1136,6 +1316,7 @@ export default function AttendanceLeavePage() {
                                     </p>
                                   </div>
                                 </TableCell>
+                                )}
                                 <TableCell>
                                   <span className="text-sm text-gray-600">
                                     {request.leaveTypeLabel || request.leave_type_label || request.leaveType || request.leave_type || 'N/A'}
@@ -1193,7 +1374,8 @@ export default function AttendanceLeavePage() {
                                         <Eye className="w-4 h-4 mr-2" />
                                         View Details
                                       </DropdownMenuItem>
-                                      {(request.status?.toLowerCase() === "pending" || request.statusLabel?.toLowerCase() === "pending") && (
+                                      {canApproveLeave &&
+                                        (request.status?.toLowerCase() === "pending" || request.statusLabel?.toLowerCase() === "pending") && (
                                         <>
                                           <DropdownMenuItem
                                             onClick={() => handleApprove(request.id)}
@@ -1312,6 +1494,88 @@ export default function AttendanceLeavePage() {
                 </Card>
               )}
             </TabsContent>
+
+            {showApprovalsTab && (
+            <TabsContent value="approvals" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <CheckCircle className="w-5 h-5" />
+                    Pending approvals
+                  </CardTitle>
+                  <CardDescription>Leave requests from your direct reports awaiting action</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="rounded-md border overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Employee</TableHead>
+                          <TableHead>Leave Type</TableHead>
+                          <TableHead>Duration</TableHead>
+                          <TableHead>Days</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead className="w-32">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {pendingApprovals.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={6} className="text-center text-gray-500 py-8">
+                              No pending approvals.
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          pendingApprovals.map((request) => (
+                            <TableRow key={request.id}>
+                              <TableCell>
+                                <p className="font-medium">{getEmployeeName(request.employee_id)}</p>
+                              </TableCell>
+                              <TableCell>
+                                {request.leaveTypeLabel || request.leave_type_label || request.leave_type || "N/A"}
+                              </TableCell>
+                              <TableCell className="text-sm text-gray-600">
+                                {(request.formattedStartDate || request.formatted_start_date) ?? request.start_date} –{" "}
+                                {(request.formattedEndDate || request.formatted_end_date) ?? request.end_date}
+                              </TableCell>
+                              <TableCell>{request.days} days</TableCell>
+                              <TableCell>
+                                <Badge className={getLeaveStatusColor(request.status)}>
+                                  {request.statusLabel || request.status}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex gap-2">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="text-green-600"
+                                    disabled={actionLoading === request.id}
+                                    onClick={() => handleApprove(request.id)}
+                                  >
+                                    Approve
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="text-red-600"
+                                    disabled={actionLoading === request.id}
+                                    onClick={() => handleReject(request.id)}
+                                  >
+                                    Reject
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+            )}
           </Tabs>
         </div>
       </div>
@@ -1324,7 +1588,7 @@ export default function AttendanceLeavePage() {
           mode="self"
         />
       )}
-      {checkPermission('attendance_records.approve') && (
+      {canManageAllAttendance && checkPermission("attendance_records.approve") && (
         <Dialog open={showAttendanceModal} onOpenChange={(open) => {
           setShowAttendanceModal(open)
           if (!open) {

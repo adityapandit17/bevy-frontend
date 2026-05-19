@@ -18,6 +18,7 @@ import {
   Activity,
 } from "lucide-react"
 import { useEffect, useState } from "react"
+import Link from "next/link"
 import { getEndpointUrl, apiRequest } from "@/lib/api"
 import { ResourceGuard } from "@/lib/auth/auth.guards"
 
@@ -80,7 +81,12 @@ export default function ReportsPage() {
       bgColor: "bg-green-50",
       reports: [
         { name: "Daily Attendance", description: "Today's attendance summary", lastGenerated: "1 hour ago" },
-        { name: "Monthly Attendance", description: "Month-wise attendance patterns", lastGenerated: "2 days ago" },
+        {
+          name: "Hours compliance & attendance",
+          description: "Worked vs required hours, behind-schedule chart",
+          lastGenerated: "Live",
+          href: "/reports/attendance",
+        },
         {
           name: "Late Arrivals Report",
           description: "Employees with frequent late arrivals",
@@ -265,12 +271,20 @@ export default function ReportsPage() {
                           <p className="text-xs text-gray-400 mt-1">Last generated: {report.lastGenerated}</p>
                         </div>
                         <div className="flex gap-2">
-                          <Button variant="ghost" size="sm">
-                            <FileText className="w-4 h-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm">
-                            <Download className="w-4 h-4" />
-                          </Button>
+                          {"href" in report && (report as { href?: string }).href ? (
+                            <Button variant="outline" size="sm" asChild>
+                              <Link href={(report as { href: string }).href}>Open</Link>
+                            </Button>
+                          ) : (
+                            <>
+                              <Button variant="ghost" size="sm">
+                                <FileText className="w-4 h-4" />
+                              </Button>
+                              <Button variant="ghost" size="sm">
+                                <Download className="w-4 h-4" />
+                              </Button>
+                            </>
+                          )}
                         </div>
                       </div>
                     ))}
