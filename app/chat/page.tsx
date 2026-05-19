@@ -246,42 +246,25 @@ export default function ChatPage() {
       loadMessages(selectedChannel.id)
       
       // Subscribe to real-time updates (may fail silently if ActionCable not available)
-      const subscription = cable.subscribeToChannel(selectedChannel.id, (message: Message) => {
-        console.log('ActionCable received message:', message)
-        setMessages((prev) => {
-          // Only process messages for the current channel
-          if (message.channel_id !== selectedChannel.id) {
-            console.log('Ignoring message for different channel:', message.channel_id)
-            return prev
-          }
-          
-          // Avoid duplicates - check by id and channel_id
-          const isDuplicate = prev.some((m) => 
-            m.id === message.id && 
-            m.channel_id === message.channel_id
-          )
-          if (isDuplicate) {
-            console.log('Skipping duplicate message:', message.id)
-            return prev
-          }
-          
-          // Ensure message has user data
-          if (!message.user_name && !message.user_email) {
-            console.warn('Message missing user data:', message)
-          }
-          
-          console.log('Adding new message from ActionCable:', message.id, 'User:', message.user_name || message.user_email)
-          
-          // Insert message in chronological order
-          const newMessages = [...prev, message].sort((a, b) => {
-            const timeA = new Date(a.created_at).getTime()
-            const timeB = new Date(b.created_at).getTime()
-            return timeA - timeB
+      const subscription = cable.subscribeToChannel(selectedChannel.id, {
+        onMessage: (message: Message) => {
+          if (message.channel_id !== selectedChannel.id) return
+
+          setMessages((prev) => {
+            if (prev.some((m) => m.id === message.id && m.channel_id === message.channel_id)) {
+              return prev
+            }
+            return [...prev, message].sort(
+              (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+            )
           })
-          
-          return newMessages
-        })
-        scrollToBottom()
+          scrollToBottom()
+        },
+        onChannelUpdated: (channelId) => {
+          if (channelId === selectedChannel.id) {
+            loadChannels()
+          }
+        },
       })
       
       return () => {
@@ -353,16 +336,13 @@ export default function ChatPage() {
   const loadUsers = async () => {
     try {
       setLoadingUsers(true)
-      const response = await apiRequest<{ users: User[] } | User[]>(getApiUrl("users"))
-      const users = Array.isArray(response) ? response : (response as any).users || []
-      // Filter out current user
-      const filtered = users.filter((u: User) => u.id !== currentUser?.id)
-      setAvailableUsers(filtered)
+      const users = await chatApi.getDirectoryUsers()
+      setAvailableUsers(users as User[])
     } catch (error) {
       console.error("Failed to load users:", error)
       toast({
         title: "Error",
-        description: "Failed to load users",
+        description: "Failed to load colleagues for chat",
         variant: "destructive",
       })
     } finally {
@@ -370,23 +350,35 @@ export default function ChatPage() {
     }
   }
 
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+  }
+
+  const appendMessage = useCallback((message: Message) => {
+    setMessages((prev) => {
+      if (prev.some((m) => m.id === message.id && m.channel_id === message.channel_id)) {
+        return prev
+      }
+      return [...prev, message].sort(
+        (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      )
+    })
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+  }, [])
+
   const handleSendMessage = async () => {
     if (!messageInput.trim() || !selectedChannel || sending) return
 
+    const messageContent = messageInput.trim()
+    setMessageInput("")
+
     try {
       setSending(true)
-      const messageContent = messageInput.trim()
-      setMessageInput("") // Clear input immediately for better UX
-      
-      // Send message - ActionCable will add it to the list when received
-      // So we don't need to add it manually from the API response
-      await chatApi.sendMessage(selectedChannel.id, messageContent)
-      
-      // Don't add message here - let ActionCable handle it for consistency
-      // This ensures the message has proper user data from the broadcast
+      const sent = await chatApi.sendMessage(selectedChannel.id, messageContent)
+      // Always show the API response (works when WebSocket is down in production)
+      appendMessage(sent)
     } catch (error) {
       console.error("Failed to send message:", error)
-      // Restore input on error
       setMessageInput(messageContent)
       toast({
         title: "Error",
@@ -534,10 +526,6 @@ export default function ChatPage() {
         fileInputRef.current.value = ""
       }
     }
-  }
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }
 
   // Huddle functions
@@ -1062,9 +1050,12 @@ export default function ChatPage() {
               <div className="p-4 space-y-4">
                 {messages.map((message, index) => {
                   // Ensure both are numbers for comparison
-                  const currentUserId = currentUser?.id ? Number(currentUser.id) : null
-                  const messageUserId = message.user_id ? Number(message.user_id) : null
-                  const isCurrentUser = currentUserId !== null && messageUserId !== null && currentUserId === messageUserId
+                  if (!message.id || message.content == null) return null
+
+                  const currentUserId = currentUser?.id != null ? Number(currentUser.id) : null
+                  const messageUserId = message.user_id != null ? Number(message.user_id) : null
+                  const isCurrentUser =
+                    currentUserId !== null && messageUserId !== null && currentUserId === messageUserId
                   
                   // Safely get user name with fallback - use currentUser data if it's the current user's message
                   let userName = message.user_name || message.user_email?.split('@')[0] || ""

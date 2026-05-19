@@ -141,6 +141,28 @@ export const chatApi = {
     });
   },
 
+  // Active users for DMs / group chat (no users.index permission required)
+  getDirectoryUsers: async (search?: string): Promise<Array<{
+    id: number;
+    email: string;
+    first_name: string;
+    last_name: string;
+    name: string;
+    employee_id?: number | null;
+  }>> => {
+    const params = search?.trim() ? `?search=${encodeURIComponent(search.trim())}` : '';
+    const url = getApiUrl(`api/v1/users/directory${params}`);
+    const response = await apiRequest<{ success: boolean; users: Array<{
+      id: number;
+      email: string;
+      first_name: string;
+      last_name: string;
+      name: string;
+      employee_id?: number | null;
+    }> }>(url, { suppressToast: true });
+    return response.users ?? [];
+  },
+
   // Add members to a channel
   addMembers: async (channelId: number, userIds: number[]): Promise<Channel> => {
     const url = getApiUrl(`api/v1/channels/${channelId}/add_members`);
@@ -184,9 +206,15 @@ const getActionCable = async (): Promise<any> => {
   return ActionCableLoading;
 }
 
+type ChannelHandlers = {
+  onMessage: (message: Message) => void;
+  onChannelUpdated?: (channelId: number) => void;
+};
+
 export class ChatCable {
   private consumer: any = null;
-  private subscriptions: Map<number, any> = new Map();
+  private mainSubscription: any = null;
+  private channelHandlers: Map<number, ChannelHandlers> = new Map();
   private connecting: boolean = false;
 
   async connect() {
@@ -246,14 +274,14 @@ export class ChatCable {
     }
   }
 
-  subscribeToChannel(channelId: number, callback: (message: Message) => void) {
+  subscribeToChannel(channelId: number, handlers: ChannelHandlers) {
     // Ensure connection exists
     if (!this.consumer) {
       // Try to connect asynchronously
       this.connect().then(() => {
         if (this.consumer) {
           console.log('ActionCable connected, subscribing to channel:', channelId);
-          this.doSubscribe(channelId, callback);
+          this.doSubscribe(channelId, handlers);
         } else {
           console.warn('ActionCable connection failed, cannot subscribe to channel:', channelId);
         }
@@ -264,73 +292,48 @@ export class ChatCable {
     }
 
     console.log('ActionCable already connected, subscribing to channel:', channelId);
-    return this.doSubscribe(channelId, callback);
+    return this.doSubscribe(channelId, handlers);
   }
 
-  private doSubscribe(channelId: number, callback: (message: Message) => void) {
+  private doSubscribe(channelId: number, handlers: ChannelHandlers) {
     if (!this.consumer) {
-      // Silently fail - real-time updates won't work but app continues
       return null;
     }
 
     try {
-      // Create a single subscription that listens to all channels
-      // The backend ChatChannel already subscribes to all user channels
-      if (!this.subscriptions.has(0)) {
-        const subscription = this.consumer.subscriptions.create(
-          {
-            channel: 'ChatChannel',
-          },
+      if (!this.mainSubscription) {
+        this.mainSubscription = this.consumer.subscriptions.create(
+          { channel: 'ChatChannel' },
           {
             received: (data: any) => {
-              console.log('ActionCable received data:', data);
-              if (data.type === 'message' && data.message) {
-                // Ensure message has required fields
-                const message = {
+              if (data.type === 'message' && data.message?.id != null) {
+                const message: Message = {
                   ...data.message,
                   user_name: data.message.user_name || '',
                   user_email: data.message.user_email || '',
                 };
-                console.log('Processing message for channel:', message.channel_id);
-                // Find the callback for this channel
-                const channelCallback = this.subscriptions.get(message.channel_id);
-                if (channelCallback) {
-                  console.log('Calling callback for channel:', message.channel_id);
-                  channelCallback(message);
-                } else {
-                  console.warn('No callback found for channel:', message.channel_id);
-                }
-              } else if (data.type === 'channel_updated') {
-                // Handle channel updates
-                const channelCallback = this.subscriptions.get(data.channel_id);
-                if (channelCallback) {
-                  channelCallback(data);
-                }
-              } else if (data.type === 'huddle_started' || data.type === 'huddle_updated' || data.type === 'huddle_ended') {
-                // Handle huddle events - pass to channel callback
-                const channelCallback = this.subscriptions.get(data.huddle?.channel_id || data.channel_id);
-                if (channelCallback) {
-                  channelCallback(data);
-                }
+                const h = this.channelHandlers.get(message.channel_id);
+                h?.onMessage(message);
+              } else if (data.type === 'channel_updated' && data.channel_id != null) {
+                const h = this.channelHandlers.get(data.channel_id);
+                h?.onChannelUpdated?.(data.channel_id);
               }
             },
             connected: () => {
-              console.log('✅ Subscribed to ChatChannel - ready to receive messages');
+              console.log('✅ Subscribed to ChatChannel');
             },
             disconnected: () => {
               console.log('❌ Disconnected from ChatChannel');
             },
             rejected: () => {
-              console.error('❌ Subscription to ChatChannel was rejected');
+              console.error('❌ ChatChannel subscription rejected');
             },
           }
         );
-        this.subscriptions.set(0, subscription);
       }
 
-      // Store the callback for this specific channel
-      this.subscriptions.set(channelId, callback);
-      return this.subscriptions.get(0);
+      this.channelHandlers.set(channelId, handlers);
+      return this.mainSubscription;
     } catch (error) {
       console.error('Error subscribing to channel:', error);
       return null;
@@ -338,26 +341,20 @@ export class ChatCable {
   }
 
   unsubscribeFromChannel(channelId: number) {
-    // Remove the callback for this channel
-    this.subscriptions.delete(channelId);
-    
-    // If no more channels are subscribed, disconnect
-    if (this.subscriptions.size === 1 && this.subscriptions.has(0)) {
-      const mainSubscription = this.subscriptions.get(0);
-      if (mainSubscription) {
-        mainSubscription.unsubscribe();
-      }
-      this.subscriptions.clear();
+    this.channelHandlers.delete(channelId);
+
+    if (this.channelHandlers.size === 0 && this.mainSubscription) {
+      this.mainSubscription.unsubscribe();
+      this.mainSubscription = null;
     }
   }
 
   disconnect() {
-    // Only unsubscribe from actual subscription objects (key 0), not callbacks
-    const mainSubscription = this.subscriptions.get(0);
-    if (mainSubscription && typeof mainSubscription.unsubscribe === 'function') {
-      mainSubscription.unsubscribe();
+    if (this.mainSubscription && typeof this.mainSubscription.unsubscribe === 'function') {
+      this.mainSubscription.unsubscribe();
     }
-    this.subscriptions.clear();
+    this.mainSubscription = null;
+    this.channelHandlers.clear();
     if (this.consumer) {
       this.consumer.disconnect();
       this.consumer = null;
