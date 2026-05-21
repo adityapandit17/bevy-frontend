@@ -16,6 +16,7 @@ export function LoginLayout({ children }: LoginLayoutProps) {
   const isLoginPage = pathname === "/login"
   const isAcceptInvitationPage = pathname === "/accept-invitation"
   const isHomePage = pathname === "/home"
+  const isPricingPage = pathname === "/pricing"
   const isRootPage = pathname === "/"
 
   // Show loading state while checking authentication
@@ -30,8 +31,8 @@ export function LoginLayout({ children }: LoginLayoutProps) {
     )
   }
 
-  // Public pages (login, invitation accept, home, root)
-  if (isLoginPage || isAcceptInvitationPage || isHomePage || isRootPage) {
+  // Public pages (login, invitation accept, marketing pages, root)
+  if (isLoginPage || isAcceptInvitationPage || isHomePage || isPricingPage || isRootPage) {
     return <>{children}</>
   }
 
