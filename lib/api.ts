@@ -317,6 +317,10 @@ export const API_ENDPOINTS = {
 
   // Job Openings
   JOB_OPENINGS: '/job_openings',
+  JOB_OPENING_CANDIDATES: '/job_openings/{id}/candidates',
+  PUBLIC_JOB: '/api/v1/public/{companySlug}/jobs/{jobSlug}',
+  PUBLIC_JOB_APPLY: '/api/v1/public/{companySlug}/jobs/{jobSlug}/apply',
+  PUBLIC_JOB_RESOLVE: '/api/v1/public/resolve/{jobSlug}',
 
   // Interviews
   INTERVIEWS: '/interviews',
@@ -345,6 +349,11 @@ export const API_ENDPOINTS = {
 
   // Company
   COMPANY: '/company',
+
+  // Google Calendar (Settings → Integrations)
+  GOOGLE_CALENDAR_STATUS: '/api/v1/google_calendar/status',
+  GOOGLE_CALENDAR_AUTHORIZE: '/api/v1/google_calendar/authorize_url',
+  GOOGLE_CALENDAR_DISCONNECT: '/api/v1/google_calendar/disconnect',
 
   // Onboarding
   ONBOARDING_EMPLOYEES: '/onboarding_employees',
@@ -399,6 +408,103 @@ export const API_ENDPOINTS = {
  * @param endpoint - The endpoint key from API_ENDPOINTS
  * @returns The complete API URL
  */
+/**
+ * Public API request (no JWT) for careers pages
+ */
+export const publicApiRequest = async <T>(url: string, options: RequestInit = {}): Promise<T> => {
+  const config: RequestInit = {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      ...(options.headers as Record<string, string>),
+    },
+  }
+
+  const response = await fetch(url, config)
+  const text = await response.text()
+  const data = text ? JSON.parse(text) : {}
+
+  if (!response.ok) {
+    const message = data.error || data.errors?.join?.(', ') || `Request failed (${response.status})`
+    throw new Error(message)
+  }
+
+  return data as T
+}
+
+/**
+ * Authenticated multipart upload (no JSON Content-Type — browser sets boundary)
+ */
+export const apiFormRequest = async <T>(
+  url: string,
+  formData: FormData,
+  options: RequestInit = {}
+): Promise<T> => {
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    ...(options.headers as Record<string, string>),
+  }
+
+  const token = getToken()
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+
+  const response = await fetch(url, {
+    ...options,
+    method: options.method || 'POST',
+    body: formData,
+    headers,
+  })
+
+  const text = await response.text()
+  const data = text ? JSON.parse(text) : {}
+
+  if (!response.ok) {
+    const message = data.error || data.errors?.join?.(', ') || `Request failed (${response.status})`
+    throw new Error(message)
+  }
+
+  return data as T
+}
+
+/**
+ * Public multipart form submit (no JWT, no JSON Content-Type)
+ */
+export const publicApiFormRequest = async <T>(url: string, formData: FormData): Promise<T> => {
+  const response = await fetch(url, {
+    method: 'POST',
+    body: formData,
+    headers: { Accept: 'application/json' },
+  })
+  const text = await response.text()
+  const data = text ? JSON.parse(text) : {}
+
+  if (!response.ok) {
+    const message = data.error || data.errors?.join?.(', ') || `Request failed (${response.status})`
+    throw new Error(message)
+  }
+
+  return data as T
+}
+
+export const getPublicJobUrl = (companySlug: string, jobSlug: string): string => {
+  const base =
+    typeof window !== 'undefined'
+      ? window.location.origin
+      : (process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3001').replace(/\/$/, '')
+  return `${base}/careers/${companySlug}/${jobSlug}`
+}
+
+export const getCareersPageUrl = (companySlug: string): string => {
+  const base =
+    typeof window !== 'undefined'
+      ? window.location.origin
+      : (process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3001').replace(/\/$/, '')
+  return `${base}/careers/${companySlug}`
+}
+
 export const getEndpointUrl = (endpoint: keyof typeof API_ENDPOINTS): string => {
   const endpointPath = API_ENDPOINTS[endpoint];
   if (!endpointPath) {
@@ -470,6 +576,9 @@ export default {
   getApiUrl,
   getEndpointUrl,
   apiRequest,
+  publicApiRequest,
+  publicApiFormRequest,
+  getPublicJobUrl,
   getDocumentUrl,
   getFileType,
   getDisplayName,

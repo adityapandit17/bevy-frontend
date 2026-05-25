@@ -9,10 +9,15 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Building2, Users, Shield, Bell, Database, Globe, Save, Download, Calendar } from "lucide-react"
+import Image from "next/image"
+import { Building2, Users, Shield, Bell, Database, Globe, Save, Download, Calendar, Upload, Trash2 } from "lucide-react"
+import { toast } from "@/hooks/use-toast"
 import { TimePicker } from "@/components/ui/time-picker"
-import { useEffect, useState } from "react"
-import { apiRequest, getEndpointUrl, getApiUrl } from "@/lib/api"
+import { useEffect, useState, Suspense } from "react"
+import { useSearchParams, useRouter } from "next/navigation"
+import { IntegrationsTab } from "@/components/settings/integrations-tab"
+import { apiRequest, apiFormRequest, getEndpointUrl } from "@/lib/api"
+import { cn } from "@/lib/utils"
 import { ResourceGuard } from "@/lib/auth/auth.guards"
 import { AUTH_CONFIG } from "@/config/auth.config"
 
@@ -260,7 +265,30 @@ function LeavePoliciesTab() {
   )
 }
 
-export default function SettingsPage() {
+function SettingsPageContent() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const tabFromUrl = searchParams.get("tab")
+  const [activeTab, setActiveTab] = useState(tabFromUrl || "company")
+
+  useEffect(() => {
+    if (tabFromUrl && tabFromUrl !== activeTab) {
+      setActiveTab(tabFromUrl)
+    }
+  }, [tabFromUrl, activeTab])
+
+  const handleTabChange = (value: string) => {
+    setActiveTab(value)
+    const params = new URLSearchParams(searchParams.toString())
+    if (value === "company") {
+      params.delete("tab")
+    } else {
+      params.set("tab", value)
+    }
+    const query = params.toString()
+    router.replace(query ? `/settings?${query}` : "/settings")
+  }
+
   const defaultCompany = {
     name: "",
     code: "",
@@ -279,6 +307,9 @@ export default function SettingsPage() {
   const [workEndTime, setWorkEndTime] = useState<string>("18:00")
   const [weeklyWorkingHours, setWeeklyWorkingHours] = useState<string>("40")
   const [lunchDuration, setLunchDuration] = useState<string>("60")
+  const [pendingLogoFile, setPendingLogoFile] = useState<File | null>(null)
+  const [pendingLogoPreview, setPendingLogoPreview] = useState<string | null>(null)
+  const [removeLogoOnSave, setRemoveLogoOnSave] = useState(false)
 
   useEffect(() => {
     fetchCompany()
@@ -305,31 +336,100 @@ export default function SettingsPage() {
     setCompany((prev) => ({ ...prev, [field]: value }))
   }
 
+  const clearPendingLogo = () => {
+    if (pendingLogoPreview?.startsWith("blob:")) {
+      URL.revokeObjectURL(pendingLogoPreview)
+    }
+    setPendingLogoFile(null)
+    setPendingLogoPreview(null)
+    setRemoveLogoOnSave(false)
+  }
+
+  const handleLogoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ""
+    if (pendingLogoPreview?.startsWith("blob:")) {
+      URL.revokeObjectURL(pendingLogoPreview)
+    }
+    setPendingLogoFile(file)
+    setPendingLogoPreview(URL.createObjectURL(file))
+    setRemoveLogoOnSave(false)
+  }
+
+  const handleLogoRemovePending = () => {
+    clearPendingLogo()
+    setRemoveLogoOnSave(true)
+  }
+
+  const appendCompanyToFormData = (form: FormData) => {
+    const c = safeCompany
+    form.append("company[name]", c.name || "")
+    form.append("company[code]", c.code || "")
+    form.append("company[industry]", c.industry || "")
+    form.append("company[employee_count]", c.employee_count || "")
+    form.append("company[address]", c.address || "")
+    form.append("company[timezone]", c.timezone || "")
+    form.append("company[currency]", c.currency || "")
+    form.append("company[country_code]", (c as { country_code?: string }).country_code || "IN")
+    form.append("company[work_start_time]", workStartTime)
+    form.append("company[work_end_time]", workEndTime)
+    form.append("company[weekly_working_hours]", String(parseFloat(weeklyWorkingHours) || 40))
+    form.append("company[lunch_duration_minutes]", String(parseInt(lunchDuration, 10) || 60))
+  }
+
   const handleSave = async () => {
     setLoading(true)
     try {
-      // Get JWT token from localStorage
-      await apiRequest<any>(getEndpointUrl('COMPANY'), {
-        method: "PATCH",
-        body: JSON.stringify({
-          company: {
-            ...company,
-            work_start_time: workStartTime,
-            work_end_time: workEndTime,
-            weekly_working_hours: parseFloat(weeklyWorkingHours) || 40,
-            lunch_duration_minutes: parseInt(lunchDuration, 10) || 60,
-          },
-        }),
-      })
+      const useMultipart = Boolean(pendingLogoFile || removeLogoOnSave)
 
+      if (useMultipart) {
+        const form = new FormData()
+        appendCompanyToFormData(form)
+        if (pendingLogoFile) form.append("logo", pendingLogoFile)
+        if (removeLogoOnSave) form.append("remove_logo", "true")
+        await apiFormRequest<any>(getEndpointUrl("COMPANY"), form, { method: "PATCH" })
+      } else {
+        await apiRequest<any>(getEndpointUrl("COMPANY"), {
+          method: "PATCH",
+          body: JSON.stringify({
+            company: {
+              name: safeCompany.name,
+              code: safeCompany.code,
+              industry: safeCompany.industry,
+              employee_count: safeCompany.employee_count,
+              address: safeCompany.address,
+              timezone: safeCompany.timezone,
+              currency: safeCompany.currency,
+              country_code: (safeCompany as { country_code?: string }).country_code,
+              work_start_time: workStartTime,
+              work_end_time: workEndTime,
+              weekly_working_hours: parseFloat(weeklyWorkingHours) || 40,
+              lunch_duration_minutes: parseInt(lunchDuration, 10) || 60,
+            },
+          }),
+        })
+      }
+
+      clearPendingLogo()
       setEdit(false)
-      fetchCompany()
-      console.log("Company data saved successfully")
+      await fetchCompany()
+      toast({ title: "Company settings saved" })
     } catch (err) {
-      console.error("Error saving company data:", err)
+      toast({
+        title: "Could not save",
+        description: err instanceof Error ? err.message : "Please try again",
+        variant: "destructive",
+      })
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleCancelEdit = () => {
+    clearPendingLogo()
+    setEdit(false)
+    fetchCompany()
   }
 
   // Ensure company is never null
@@ -344,14 +444,21 @@ export default function SettingsPage() {
           <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Settings</h1>
           <p className="text-gray-600">Manage your BevyHR system configuration</p>
         </div>
-        <Button onClick={edit ? handleSave : () => setEdit(true)} disabled={loading}>
-          <Save className="w-4 h-4 mr-2" />
-          {edit ? "Save Changes" : "Edit"}
-        </Button>
+        <div className="flex gap-2">
+          {edit && (
+            <Button variant="outline" onClick={handleCancelEdit} disabled={loading}>
+              Cancel
+            </Button>
+          )}
+          <Button onClick={edit ? handleSave : () => setEdit(true)} disabled={loading}>
+            <Save className="w-4 h-4 mr-2" />
+            {edit ? "Save Changes" : "Edit"}
+          </Button>
+        </div>
       </div>
 
       {/* Settings Tabs */}
-      <Tabs defaultValue="company" className="space-y-6">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
         <TabsList className="grid w-full grid-cols-3 lg:grid-cols-7">
           <TabsTrigger value="company">Company</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
@@ -382,6 +489,9 @@ export default function SettingsPage() {
                   <Label htmlFor="company-code">Company Code</Label>
                   <Input id="company-code" value={safeCompany.code} onChange={e => handleChange("code", e.target.value)} disabled={!edit} />
                 </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="industry">Industry</Label>
                   <Select value={safeCompany.industry} onValueChange={v => handleChange("industry", v)} disabled={!edit}>
@@ -414,16 +524,117 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="address">Address</Label>
-                <Textarea id="address" value={safeCompany.address || ""} onChange={e => handleChange("address", e.target.value)} rows={3} disabled={!edit} />
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+                <div className="space-y-2 lg:col-span-8 flex flex-col">
+                  <Label htmlFor="address">Address</Label>
+                  <Textarea
+                    id="address"
+                    value={safeCompany.address || ""}
+                    onChange={e => handleChange("address", e.target.value)}
+                    rows={3}
+                    disabled={!edit}
+                    className="min-h-[88px] flex-1 resize-none"
+                  />
+                </div>
+                <div className="space-y-2 lg:col-span-4 flex flex-col">
+                  <Label htmlFor="company-logo">
+                    Company Logo{" "}
+                    <span className="font-normal text-muted-foreground">(optional)</span>
+                  </Label>
+                  {(() => {
+                    const logoPreview =
+                      removeLogoOnSave
+                        ? null
+                        : pendingLogoPreview ||
+                          (safeCompany as { logo_url?: string | null }).logo_url ||
+                          null
+                    const hasLogo = Boolean(logoPreview)
+
+                    return (
+                      <div
+                        className={cn(
+                          "flex min-h-[88px] w-full flex-1 items-center gap-3 rounded-md border border-input bg-background px-3 py-2 ring-offset-background",
+                          !edit && "cursor-not-allowed opacity-50"
+                        )}
+                      >
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md border border-input bg-muted/40">
+                          {logoPreview ? (
+                            <Image
+                              src={logoPreview}
+                              alt={`${safeCompany.name} logo`}
+                              width={40}
+                              height={40}
+                              className="h-full w-full object-contain"
+                              unoptimized
+                            />
+                          ) : (
+                            <span className="text-sm font-medium text-muted-foreground">
+                              {safeCompany.name?.charAt(0)?.toUpperCase() || "—"}
+                            </span>
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1 space-y-2">
+                          {edit ? (
+                            <>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-9"
+                                  disabled={loading}
+                                  asChild
+                                >
+                                  <label htmlFor="company-logo" className="cursor-pointer">
+                                    <Upload className="mr-2 h-4 w-4" />
+                                    {hasLogo ? "Change file" : "Choose file"}
+                                    <input
+                                      id="company-logo"
+                                      type="file"
+                                      accept="image/png,image/jpeg,image/webp,image/svg+xml,.png,.jpg,.jpeg,.webp,.svg"
+                                      className="sr-only"
+                                      onChange={handleLogoSelect}
+                                      disabled={loading}
+                                    />
+                                  </label>
+                                </Button>
+                                {hasLogo && (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-9 text-muted-foreground"
+                                    onClick={handleLogoRemovePending}
+                                    disabled={loading}
+                                  >
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Remove
+                                  </Button>
+                                )}
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                {pendingLogoFile || removeLogoOnSave
+                                  ? "Save company settings to apply logo changes."
+                                  : "PNG, JPG, WEBP, or SVG · max 2MB"}
+                              </p>
+                            </>
+                          ) : (
+                            <p className="text-sm text-muted-foreground md:text-sm">
+                              {hasLogo ? "Logo uploaded" : "No logo uploaded, Edit to change"}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })()}
+                </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="timezone">Timezone</Label>
                   <Select value={safeCompany.timezone} onValueChange={v => handleChange("timezone", v)} disabled={!edit}>
-                    <SelectTrigger>
+                    <SelectTrigger id="timezone">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -436,7 +647,7 @@ export default function SettingsPage() {
                 <div className="space-y-2">
                   <Label htmlFor="currency">Currency</Label>
                   <Select value={safeCompany.currency} onValueChange={v => handleChange("currency", v)} disabled={!edit}>
-                    <SelectTrigger>
+                    <SelectTrigger id="currency">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -449,7 +660,7 @@ export default function SettingsPage() {
                 <div className="space-y-2">
                   <Label htmlFor="country_code">Country</Label>
                   <Select value={(safeCompany as any).country_code || "IN"} onValueChange={v => handleChange("country_code", v)} disabled={!edit}>
-                    <SelectTrigger>
+                    <SelectTrigger id="country_code">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -712,64 +923,7 @@ export default function SettingsPage() {
 
         {/* Integrations */}
         <TabsContent value="integrations" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Globe className="w-5 h-5" />
-                Third-party Integrations
-              </CardTitle>
-              <CardDescription>Connect with external services and applications</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid gap-4">
-                {[
-                  {
-                    name: "Slack",
-                    description: "Team communication and notifications",
-                    icon: "💬",
-                    connected: true,
-                  },
-                  {
-                    name: "Google Workspace",
-                    description: "Email and calendar integration",
-                    icon: "📧",
-                    connected: true,
-                  },
-                  {
-                    name: "Zoom",
-                    description: "Video conferencing for interviews",
-                    icon: "📹",
-                    connected: false,
-                  },
-                  {
-                    name: "Banking API",
-                    description: "Automated salary transfers",
-                    icon: "🏦",
-                    connected: true,
-                  },
-                  {
-                    name: "Biometric System",
-                    description: "Fingerprint attendance tracking",
-                    icon: "👆",
-                    connected: false,
-                  },
-                ].map((integration, index) => (
-                  <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <span className="text-2xl">{integration.icon}</span>
-                      <div>
-                        <h4 className="font-medium text-gray-900">{integration.name}</h4>
-                        <p className="text-sm text-gray-500">{integration.description}</p>
-                      </div>
-                    </div>
-                    <Button variant={integration.connected ? "outline" : "default"} size="sm">
-                      {integration.connected ? "Disconnect" : "Connect"}
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+          <IntegrationsTab />
         </TabsContent>
 
         {/* System Settings */}
@@ -881,5 +1035,13 @@ export default function SettingsPage() {
       </Tabs>
     </div>
     </ResourceGuard>
+  )
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense fallback={<div className="max-w-7xl mx-auto p-6 text-gray-500">Loading settings…</div>}>
+      <SettingsPageContent />
+    </Suspense>
   )
 }
