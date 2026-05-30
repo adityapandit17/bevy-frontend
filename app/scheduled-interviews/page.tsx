@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -37,6 +37,11 @@ import { useAuthContext } from "@/lib/auth"
 import { useRouter, useSearchParams } from "next/navigation"
 import { DatePicker } from "@/components/ui/date-picker"
 import { TimePicker } from "@/components/ui/time-picker"
+import {
+  isScheduleInPast,
+  minScheduleTimeForDate,
+  SCHEDULE_IN_PAST_MESSAGE,
+} from "@/lib/interview-schedule"
 
 interface Interview {
   id: number
@@ -85,6 +90,11 @@ export default function ScheduledInterviewsPage() {
     scheduled_date: "",
     scheduled_time: ""
   })
+
+  const minRescheduleTime = useMemo(
+    () => minScheduleTimeForDate(rescheduleData.scheduled_date),
+    [rescheduleData.scheduled_date]
+  )
   
   const isMissedInterviews = searchParams?.get('missed') === 'true'
 
@@ -328,6 +338,15 @@ export default function ScheduledInterviewsPage() {
       toast({
         title: "Validation Error",
         description: "Please select both date and time for rescheduling.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (isScheduleInPast(rescheduleData.scheduled_date, rescheduleData.scheduled_time)) {
+      toast({
+        title: "Invalid schedule",
+        description: SCHEDULE_IN_PAST_MESSAGE,
         variant: "destructive",
       })
       return
@@ -806,6 +825,7 @@ export default function ScheduledInterviewsPage() {
                   <TimePicker
                     value={rescheduleData.scheduled_time}
                     onChange={(v) => setRescheduleData({ ...rescheduleData, scheduled_time: v })}
+                    min={minRescheduleTime}
                   />
                 </div>
               </div>

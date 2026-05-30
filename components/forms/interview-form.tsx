@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { getApiUrl, getEndpointUrl, apiRequest } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -24,6 +24,16 @@ import {
 } from "@/components/ui/dialog"
 import { Calendar, Clock, User, Video, Phone, MapPin } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
+import {
+  INTERVIEW_DURATION_PRESETS,
+  durationMinutesFromForm,
+  durationPresetFromMinutes,
+} from "@/lib/interview-duration"
+import {
+  isScheduleInPast,
+  minScheduleTimeForDate,
+  SCHEDULE_IN_PAST_MESSAGE,
+} from "@/lib/interview-schedule"
 
 interface InterviewFormProps {
   open: boolean
@@ -41,6 +51,7 @@ interface InterviewFormProps {
     scheduled_date: string
     scheduled_time: string
     interviewer: string
+    duration_minutes?: number
     notes?: string
   }
 }
@@ -68,6 +79,8 @@ export function InterviewForm({
     scheduled_date: "",
     scheduled_time: "",
     interviewer: "",
+    duration_preset: "60" as string,
+    custom_duration_minutes: "60",
     notes: ""
   })
 
@@ -93,6 +106,8 @@ export function InterviewForm({
         scheduled_date: editInterview.scheduled_date,
         scheduled_time: editInterview.scheduled_time,
         interviewer: employee ? String(employee.id) : "",
+        duration_preset: durationPresetFromMinutes(editInterview.duration_minutes),
+        custom_duration_minutes: String(editInterview.duration_minutes ?? 60),
         notes: editInterview.notes || ""
       }))
     }
@@ -112,8 +127,27 @@ export function InterviewForm({
     }
   }
 
+  const minScheduleTime = useMemo(
+    () => minScheduleTimeForDate(formData.scheduled_date),
+    [formData.scheduled_date]
+  )
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (
+      formData.scheduled_date &&
+      formData.scheduled_time &&
+      isScheduleInPast(formData.scheduled_date, formData.scheduled_time)
+    ) {
+      toast({
+        title: "Invalid schedule",
+        description: SCHEDULE_IN_PAST_MESSAGE,
+        variant: "destructive",
+      })
+      return
+    }
+
     setLoading(true)
 
     try {
@@ -129,22 +163,33 @@ export function InterviewForm({
         ? `${employee.first_name} ${employee.last_name}`
         : formData.interviewer // Fallback to stored value if not found
       
+      const durationMinutes = durationMinutesFromForm(
+        formData.duration_preset,
+        formData.custom_duration_minutes
+      )
+
       await apiRequest(url, {
         method,
         body: JSON.stringify({
           interview: {
-            ...formData,
+            candidate_id: formData.candidate_id,
+            interview_type: formData.interview_type,
+            scheduled_date: formData.scheduled_date,
+            scheduled_time: formData.scheduled_time,
             interviewer: interviewerName,
-            status: "scheduled"
-          }
-        })
+            interviewer_employee_id: employee?.id ?? null,
+            duration_minutes: durationMinutes,
+            notes: formData.notes,
+            status: "scheduled",
+          },
+        }),
       })
 
       toast({
         title: editInterview ? "Interview Updated" : "Interview Scheduled",
-        description: editInterview 
+        description: editInterview
           ? "Interview has been updated successfully."
-          : "Interview has been scheduled successfully."
+          : "Calendar invites are sent when Google Calendar is connected (check Integrations).",
       })
       onSuccess?.()
       onOpenChange(false)
@@ -164,6 +209,8 @@ export function InterviewForm({
       scheduled_date: "",
       scheduled_time: "",
       interviewer: "",
+      duration_preset: "60",
+      custom_duration_minutes: "60",
       notes: ""
     })
   }
@@ -196,7 +243,7 @@ export function InterviewForm({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Calendar className="h-5 w-5" />
@@ -280,8 +327,49 @@ export function InterviewForm({
               <TimePicker
                 value={formData.scheduled_time}
                 onChange={(v) => setFormData((prev) => ({ ...prev, scheduled_time: v }))}
+                min={minScheduleTime}
               />
             </div>
+          </div>
+
+          {/* Duration */}
+          <div className="space-y-2">
+            <Label>Meeting duration *</Label>
+            <Select
+              value={formData.duration_preset}
+              onValueChange={(value) => setFormData((prev) => ({ ...prev, duration_preset: value }))}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select duration" />
+              </SelectTrigger>
+              <SelectContent>
+                {INTERVIEW_DURATION_PRESETS.map((preset) => (
+                  <SelectItem key={preset.value} value={preset.value}>
+                    {preset.label}
+                  </SelectItem>
+                ))}
+                <SelectItem value="custom">Custom</SelectItem>
+              </SelectContent>
+            </Select>
+            {formData.duration_preset === "custom" && (
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min={5}
+                  max={480}
+                  step={5}
+                  value={formData.custom_duration_minutes}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, custom_duration_minutes: e.target.value }))
+                  }
+                  className="w-32"
+                />
+                <span className="text-sm text-muted-foreground">minutes</span>
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Used for the Google Calendar event. Video interviews include a Meet link and email invites to the candidate and interviewer.
+            </p>
           </div>
 
           {/* Interviewer */}
@@ -334,7 +422,10 @@ export function InterviewForm({
                 </div>
                 <div className="flex items-center gap-2">
                   <Clock className="h-4 w-4" />
-                  <span>{formData.scheduled_time}</span>
+                  <span>
+                    {formData.scheduled_time} ·{" "}
+                    {durationMinutesFromForm(formData.duration_preset, formData.custom_duration_minutes)} min
+                  </span>
                 </div>
                 {formData.interviewer && (() => {
                   const employee = employees.find(emp => String(emp.id) === formData.interviewer)

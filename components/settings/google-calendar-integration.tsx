@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Loader2, ExternalLink } from "lucide-react"
+import { Loader2, ExternalLink, Copy, Check } from "lucide-react"
 import { apiRequest, getEndpointUrl } from "@/lib/api"
 import { useAuthContext } from "@/lib/auth/auth.context"
 import { toast } from "@/hooks/use-toast"
@@ -18,6 +18,8 @@ type GoogleCalendarStatus = {
   oauth_configured: boolean
   mode: GoogleCalendarMode
   platform_managed?: boolean
+  redirect_uri?: string | null
+  client_id_prefix?: string | null
 }
 
 type ApiSuccess<T> = { success: true; data: T }
@@ -38,6 +40,7 @@ export function GoogleCalendarIntegration() {
   const [status, setStatus] = useState<GoogleCalendarStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
+  const [copiedRedirect, setCopiedRedirect] = useState(false)
 
   const fetchStatus = useCallback(async () => {
     setLoading(true)
@@ -118,8 +121,22 @@ export function GoogleCalendarIntegration() {
   const oauthConfigured = status?.oauth_configured ?? false
   const platformMode = status?.mode === "platform"
   const companyMode = status?.mode === "company"
+  const redirectUri =
+    status?.redirect_uri || "http://localhost:3000/api/v1/google_calendar/callback"
+
+  const copyRedirectUri = async () => {
+    try {
+      await navigator.clipboard.writeText(redirectUri)
+      setCopiedRedirect(true)
+      toast({ title: "Redirect URI copied" })
+      setTimeout(() => setCopiedRedirect(false), 2000)
+    } catch {
+      toast({ title: "Could not copy", variant: "destructive" })
+    }
+  }
 
   return (
+    <div className="space-y-3">
     <div className="flex items-center justify-between p-4 border rounded-lg">
       <div className="flex items-center gap-3">
         <span className="text-2xl" aria-hidden>
@@ -167,6 +184,40 @@ export function GoogleCalendarIntegration() {
               Server OAuth credentials are not configured. Contact your administrator.
             </p>
           )}
+          {oauthConfigured && !connected && !platformMode && !loading && (
+            <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+              <p className="font-medium">If Google shows &quot;redirect_uri_mismatch&quot;</p>
+              <p className="mt-1 text-amber-900/90">
+                In Google Cloud Console → <strong>Credentials</strong> → OAuth 2.0 Client ID
+                (type <strong>Web application</strong>, not Desktop) → add this under{" "}
+                <strong>Authorized redirect URIs</strong> (not JavaScript origins):
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <code className="text-xs break-all rounded bg-white px-2 py-1 border border-amber-200">
+                  {redirectUri}
+                </code>
+                <Button type="button" variant="outline" size="sm" className="h-8" onClick={copyRedirectUri}>
+                  {copiedRedirect ? (
+                    <Check className="h-3.5 w-3.5 mr-1" />
+                  ) : (
+                    <Copy className="h-3.5 w-3.5 mr-1" />
+                  )}
+                  Copy
+                </Button>
+              </div>
+              {status?.client_id_prefix && (
+                <p className="mt-2 text-xs text-amber-800">
+                  OAuth client in .env should start with:{" "}
+                  <code className="bg-white px-1 rounded">{status.client_id_prefix}</code> — match this
+                  in the Google Cloud project you edited.
+                </p>
+              )}
+              <p className="mt-2 text-xs text-amber-800">
+                OAuth consent screen → add <strong>{status?.email || "bevyhrms@gmail.com"}</strong> as a
+                Test user while the app is in Testing.
+              </p>
+            </div>
+          )}
         </div>
       </div>
       <div className="flex items-center gap-2 shrink-0">
@@ -209,6 +260,7 @@ export function GoogleCalendarIntegration() {
           <span className="text-xs text-gray-500">View only</span>
         )}
       </div>
+    </div>
     </div>
   )
 }

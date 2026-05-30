@@ -35,7 +35,8 @@ export function DatePicker({
   disabled,
   placeholder = "Pick a date",
   className,
-  yearRange = 60,
+  fromYear,
+  toYear,
 }: {
   value: DatePickerValue
   onChange: (next: DatePickerValue) => void
@@ -43,8 +44,10 @@ export function DatePicker({
   disabled?: boolean
   placeholder?: string
   className?: string
-  /** Total years shown centered around current year. */
-  yearRange?: number
+  /** First year in the year dropdown (default: 1950, or min year when min is set). */
+  fromYear?: number
+  /** Last year in the year dropdown (default: current year + 30). */
+  toYear?: number
 }) {
   const selected = toDate(value)
   const today = React.useMemo(() => new Date(), [])
@@ -62,11 +65,13 @@ export function DatePicker({
   }, [value]) // intentionally key off the external string value
 
   const years = React.useMemo(() => {
-    const span = Math.max(10, Math.min(120, yearRange))
-    const half = Math.floor(span / 2)
-    const start = today.getFullYear() - half
-    return Array.from({ length: span }, (_, i) => start + i)
-  }, [today, yearRange])
+    const currentYear = today.getFullYear()
+    const startYear = fromYear ?? (minDay ? minDay.getFullYear() : 1950)
+    const endYear = toYear ?? (minDay ? currentYear + 30 : currentYear + 30)
+    const start = Math.min(startYear, endYear)
+    const end = Math.max(startYear, endYear)
+    return Array.from({ length: end - start + 1 }, (_, i) => start + i)
+  }, [today, fromYear, toYear, minDay])
 
   const months = React.useMemo(
     () => [

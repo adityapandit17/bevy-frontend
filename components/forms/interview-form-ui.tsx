@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { getApiUrl, getEndpointUrl, apiRequest } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -24,6 +24,16 @@ import {
 } from "@/components/ui/dialog"
 import { Calendar, Clock, User, Video, Phone, MapPin } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
+import {
+  INTERVIEW_DURATION_PRESETS,
+  durationMinutesFromForm,
+  durationPresetFromMinutes,
+} from "@/lib/interview-duration"
+import {
+  isScheduleInPast,
+  minScheduleTimeForDate,
+  SCHEDULE_IN_PAST_MESSAGE,
+} from "@/lib/interview-schedule"
 
 interface InterviewFormUIProps {
   open: boolean
@@ -41,18 +51,18 @@ interface InterviewFormUIProps {
     scheduled_date: string
     scheduled_time: string
     interviewer: string
+    duration_minutes?: number
     notes?: string
   }
 }
 
-// Mock employee data
-const mockEmployees = [
-  { id: "1", name: "Sarah Johnson", email: "sarah.johnson@company.com", designation: "Senior HR Manager" },
-  { id: "2", name: "Mike Chen", email: "mike.chen@company.com", designation: "Technical Lead" },
-  { id: "3", name: "Lisa Wang", email: "lisa.wang@company.com", designation: "Product Manager" },
-  { id: "4", name: "David Brown", email: "david.brown@company.com", designation: "Engineering Manager" },
-  { id: "5", name: "Emma Wilson", email: "emma.wilson@company.com", designation: "Design Lead" },
-]
+interface Employee {
+  id: number
+  first_name: string
+  last_name: string
+  email: string
+  designation: string
+}
 
 export function InterviewFormUI({ 
   open, 
@@ -62,35 +72,77 @@ export function InterviewFormUI({
   editInterview 
 }: InterviewFormUIProps) {
   const [loading, setLoading] = useState(false)
+  const [employees, setEmployees] = useState<Employee[]>([])
   const [formData, setFormData] = useState({
     candidate_id: "",
     interview_type: "",
     scheduled_date: "",
     scheduled_time: "",
     interviewer: "",
+    duration_preset: "60",
+    custom_duration_minutes: "60",
     notes: ""
   })
 
   useEffect(() => {
     if (open) {
+      fetchEmployees()
       if (candidate) {
         setFormData(prev => ({ ...prev, candidate_id: candidate.id }))
       }
-      if (editInterview) {
-        setFormData({
-          candidate_id: candidate?.id || "",
-          interview_type: editInterview.interview_type,
-          scheduled_date: editInterview.scheduled_date,
-          scheduled_time: editInterview.scheduled_time,
-          interviewer: editInterview.interviewer,
-          notes: editInterview.notes || ""
-        })
-      }
     }
-  }, [open, candidate, editInterview])
+  }, [open, candidate])
+
+  useEffect(() => {
+    if (open && editInterview && employees.length > 0) {
+      const employee = employees.find(
+        (emp) => `${emp.first_name} ${emp.last_name}` === editInterview.interviewer
+      )
+      setFormData((prev) => ({
+        ...prev,
+        interview_type: editInterview.interview_type,
+        scheduled_date: editInterview.scheduled_date,
+        scheduled_time: editInterview.scheduled_time,
+        interviewer: employee ? String(employee.id) : "",
+        duration_preset: durationPresetFromMinutes(editInterview.duration_minutes),
+        custom_duration_minutes: String(editInterview.duration_minutes ?? 60),
+        notes: editInterview.notes || "",
+      }))
+    }
+  }, [open, editInterview, employees])
+
+  const fetchEmployees = async () => {
+    try {
+      const response = await apiRequest<{ data: Employee[] }>(
+        `${getEndpointUrl("EMPLOYEES")}?page=1&per_page=1000`
+      )
+      setEmployees(Array.isArray(response?.data) ? response.data : [])
+    } catch {
+      setEmployees([])
+    }
+  }
+
+  const minScheduleTime = useMemo(
+    () => minScheduleTimeForDate(formData.scheduled_date),
+    [formData.scheduled_date]
+  )
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (
+      formData.scheduled_date &&
+      formData.scheduled_time &&
+      isScheduleInPast(formData.scheduled_date, formData.scheduled_time)
+    ) {
+      toast({
+        title: "Invalid schedule",
+        description: SCHEDULE_IN_PAST_MESSAGE,
+        variant: "destructive",
+      })
+      return
+    }
+
     setLoading(true)
 
     try {
@@ -100,22 +152,37 @@ export function InterviewFormUI({
       
       const method = editInterview ? "PATCH" : "POST"
       
+      const employee = employees.find((emp) => String(emp.id) === formData.interviewer)
+      const interviewerName = employee
+        ? `${employee.first_name} ${employee.last_name}`
+        : formData.interviewer
+      const durationMinutes = durationMinutesFromForm(
+        formData.duration_preset,
+        formData.custom_duration_minutes
+      )
+
       await apiRequest(url, {
         method,
         body: JSON.stringify({
           interview: {
-            ...formData,
-            candidate_id: formData.candidate_id ? parseInt(formData.candidate_id) : null,
-            status: "scheduled"
-          }
-        })
+            candidate_id: formData.candidate_id ? parseInt(formData.candidate_id, 10) : null,
+            interview_type: formData.interview_type,
+            scheduled_date: formData.scheduled_date,
+            scheduled_time: formData.scheduled_time,
+            interviewer: interviewerName,
+            interviewer_employee_id: employee?.id ?? null,
+            duration_minutes: durationMinutes,
+            notes: formData.notes,
+            status: "scheduled",
+          },
+        }),
       })
 
       toast({
         title: editInterview ? "Interview Updated" : "Interview Scheduled",
-        description: editInterview 
+        description: editInterview
           ? "Interview has been updated successfully."
-          : "Interview has been scheduled successfully."
+          : "Calendar invites are sent when Google Calendar is connected.",
       })
       onSuccess?.()
       onOpenChange(false)
@@ -135,6 +202,8 @@ export function InterviewFormUI({
       scheduled_date: "",
       scheduled_time: "",
       interviewer: "",
+      duration_preset: "60",
+      custom_duration_minutes: "60",
       notes: ""
     })
   }
@@ -251,8 +320,46 @@ export function InterviewFormUI({
               <TimePicker
                 value={formData.scheduled_time}
                 onChange={(v) => setFormData(prev => ({ ...prev, scheduled_time: v }))}
+                min={minScheduleTime}
               />
             </div>
+          </div>
+
+          {/* Duration */}
+          <div className="space-y-2">
+            <Label>Meeting duration *</Label>
+            <Select
+              value={formData.duration_preset}
+              onValueChange={(value) => setFormData((prev) => ({ ...prev, duration_preset: value }))}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select duration" />
+              </SelectTrigger>
+              <SelectContent>
+                {INTERVIEW_DURATION_PRESETS.map((preset) => (
+                  <SelectItem key={preset.value} value={preset.value}>
+                    {preset.label}
+                  </SelectItem>
+                ))}
+                <SelectItem value="custom">Custom</SelectItem>
+              </SelectContent>
+            </Select>
+            {formData.duration_preset === "custom" && (
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min={5}
+                  max={480}
+                  step={5}
+                  value={formData.custom_duration_minutes}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, custom_duration_minutes: e.target.value }))
+                  }
+                  className="w-32"
+                />
+                <span className="text-sm text-muted-foreground">minutes</span>
+              </div>
+            )}
           </div>
 
           {/* Interviewer */}
@@ -266,11 +373,11 @@ export function InterviewFormUI({
                 <SelectValue placeholder="Select interviewer" />
               </SelectTrigger>
               <SelectContent>
-                {mockEmployees.map((employee) => (
-                  <SelectItem key={employee.id} value={employee.name}>
+                {employees.map((employee) => (
+                  <SelectItem key={employee.id} value={String(employee.id)}>
                     <div className="flex items-center gap-2">
                       <User className="h-4 w-4" />
-                      {employee.name} - {employee.designation}
+                      {employee.first_name} {employee.last_name} - {employee.designation}
                     </div>
                   </SelectItem>
                 ))}
@@ -305,14 +412,20 @@ export function InterviewFormUI({
                 </div>
                 <div className="flex items-center gap-2">
                   <Clock className="h-4 w-4" />
-                  <span>{formData.scheduled_time}</span>
+                  <span>
+                    {formData.scheduled_time} ·{" "}
+                    {durationMinutesFromForm(formData.duration_preset, formData.custom_duration_minutes)} min
+                  </span>
                 </div>
-                {formData.interviewer && (
-                  <div className="flex items-center gap-2">
-                    <User className="h-4 w-4" />
-                    <span>{formData.interviewer}</span>
-                  </div>
-                )}
+                {formData.interviewer && (() => {
+                  const employee = employees.find((emp) => String(emp.id) === formData.interviewer)
+                  return employee ? (
+                    <div className="flex items-center gap-2">
+                      <User className="h-4 w-4" />
+                      <span>{employee.first_name} {employee.last_name}</span>
+                    </div>
+                  ) : null
+                })()}
               </div>
             </div>
           )}

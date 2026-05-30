@@ -40,12 +40,19 @@ function formatDisplay(value: TimePickerValue) {
   return `${h12}:${pad2(m)} ${ampm}`
 }
 
+function timeToMinutes(time: TimePickerValue): number | null {
+  const { h, m } = parseValue(time)
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return null
+  return h * 60 + m
+}
+
 export function TimePicker({
   value,
   onChange,
   disabled,
   placeholder = "Pick a time",
   stepMinutes = 5,
+  min,
   className,
 }: {
   value: TimePickerValue
@@ -53,9 +60,12 @@ export function TimePicker({
   disabled?: boolean
   placeholder?: string
   stepMinutes?: number
+  /** Earliest selectable time as "HH:MM" (24h). */
+  min?: TimePickerValue
   className?: string
 }) {
   const [open, setOpen] = React.useState(false)
+  const [minError, setMinError] = React.useState(false)
   const { h, m } = parseValue(value)
   const initial12 = to12h(h)
   const [hour, setHour] = React.useState<number>(initial12.h12)
@@ -77,8 +87,21 @@ export function TimePicker({
     return out
   }, [stepMinutes])
 
+  const minMinutes = min ? timeToMinutes(min) : null
+
+  const isSelectionBeforeMin = (h24: number, minuteValue: number) => {
+    if (minMinutes === null) return false
+    const selected = h24 * 60 + minuteValue
+    return selected < minMinutes
+  }
+
   const apply = () => {
     const h24 = to24h(hour, ampm)
+    if (isSelectionBeforeMin(h24, minute)) {
+      setMinError(true)
+      return
+    }
+    setMinError(false)
     onChange(`${pad2(h24)}:${pad2(minute)}`)
     setOpen(false)
   }
@@ -129,14 +152,24 @@ export function TimePicker({
               {Array.from({ length: 12 }).map((_, i) => {
                 const v = i + 1
                 const active = v === hour
+                const hourDisabled =
+                  minMinutes !== null &&
+                  minutesList.every((minuteValue) =>
+                    isSelectionBeforeMin(to24h(v, ampm), minuteValue)
+                  )
                 return (
                   <button
                     key={v}
                     type="button"
-                    onClick={() => setHour(v)}
+                    disabled={hourDisabled}
+                    onClick={() => {
+                      setMinError(false)
+                      setHour(v)
+                    }}
                     className={cn(
                       "w-full px-3 py-2 text-sm text-left hover:bg-gray-50",
-                      active && "bg-green-50 text-green-800 font-medium"
+                      active && "bg-green-50 text-green-800 font-medium",
+                      hourDisabled && "cursor-not-allowed opacity-40 hover:bg-transparent"
                     )}
                   >
                     {v}
@@ -154,14 +187,20 @@ export function TimePicker({
             >
               {minutesList.map((v) => {
                 const active = v === minute
+                const minuteDisabled = isSelectionBeforeMin(to24h(hour, ampm), v)
                 return (
                   <button
                     key={v}
                     type="button"
-                    onClick={() => setMinute(v)}
+                    disabled={minuteDisabled}
+                    onClick={() => {
+                      setMinError(false)
+                      setMinute(v)
+                    }}
                     className={cn(
                       "w-full px-3 py-2 text-sm text-left hover:bg-gray-50",
-                      active && "bg-green-50 text-green-800 font-medium"
+                      active && "bg-green-50 text-green-800 font-medium",
+                      minuteDisabled && "cursor-not-allowed opacity-40 hover:bg-transparent"
                     )}
                   >
                     {pad2(v)}
@@ -176,14 +215,24 @@ export function TimePicker({
             <div className="rounded-md border bg-white overflow-hidden">
               {(["AM", "PM"] as const).map((v) => {
                 const active = v === ampm
+                const ampmDisabled =
+                  minMinutes !== null &&
+                  minutesList.every((minuteValue) =>
+                    isSelectionBeforeMin(to24h(hour, v), minuteValue)
+                  )
                 return (
                   <button
                     key={v}
                     type="button"
-                    onClick={() => setAmpm(v)}
+                    disabled={ampmDisabled}
+                    onClick={() => {
+                      setMinError(false)
+                      setAmpm(v)
+                    }}
                     className={cn(
                       "w-full px-3 py-2 text-sm text-left hover:bg-gray-50",
-                      active && "bg-green-50 text-green-800 font-medium"
+                      active && "bg-green-50 text-green-800 font-medium",
+                      ampmDisabled && "cursor-not-allowed opacity-40 hover:bg-transparent"
                     )}
                   >
                     {v}
@@ -194,6 +243,11 @@ export function TimePicker({
           </div>
         </div>
 
+        {minError && min && (
+          <p className="text-xs text-destructive pt-2">
+            Select a time at or after {formatDisplay(min)}.
+          </p>
+        )}
         <div className="flex justify-end gap-2 pt-3">
           <Button type="button" variant="outline" size="sm" onClick={clear}>
             Clear
