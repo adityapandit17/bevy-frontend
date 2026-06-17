@@ -15,6 +15,8 @@ export function LoginLayout({ children }: LoginLayoutProps) {
   
   const isLoginPage = pathname === "/login"
   const isAcceptInvitationPage = pathname === "/accept-invitation"
+  const isForgotPasswordPage = pathname === "/forgot-password"
+  const isResetPasswordPage = pathname === "/reset-password"
   const isHomePage = pathname === "/home"
   const isPricingPage = pathname === "/pricing"
   const isRootPage = pathname === "/"
@@ -33,7 +35,7 @@ export function LoginLayout({ children }: LoginLayoutProps) {
   }
 
   // Public pages (login, invitation accept, marketing pages, root)
-  if (isLoginPage || isAcceptInvitationPage || isHomePage || isPricingPage || isRootPage || isCareersPage) {
+  if (isLoginPage || isAcceptInvitationPage || isForgotPasswordPage || isResetPasswordPage || isHomePage || isPricingPage || isRootPage || isCareersPage) {
     return <>{children}</>
   }
 

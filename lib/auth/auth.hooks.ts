@@ -11,6 +11,7 @@ import {
   AuthState,
   LoginCredentials,
   AcceptInvitationCredentials,
+  ResetPasswordCredentials,
   User,
   Role,
   Permission
@@ -326,6 +327,58 @@ export function useAuth() {
     }
   }, [router]);
 
+  const resetPassword = useCallback(async (payload: ResetPasswordCredentials) => {
+    setState(prev => ({ ...prev, isLoading: true, error: null }));
+
+    try {
+      const authData = await authService.current.resetPassword(payload);
+
+      const transformedPermissions =
+        authData.user.permissions?.map(p =>
+          typeof p === 'string' ? { id: 0, name: p, display_name: p } : p
+        ) || [];
+
+      const transformedRoles = (authData.user.roles || []).map((r: any) =>
+        typeof r === 'string' ? { id: 0, name: r, description: '' } : r
+      );
+
+      const authDataToStore = {
+        ...authData,
+        user: {
+          ...authData.user,
+          permissions: transformedPermissions,
+          roles: transformedRoles,
+        },
+      };
+      authService.current.storeAuthData(authDataToStore);
+
+      setState(prev => ({
+        ...prev,
+        user: authData.user,
+        roles: transformedRoles,
+        permissions: transformedPermissions,
+        token: authData.token,
+        isAuthenticated: true,
+        isLoading: false,
+        lastActivity: Date.now(),
+      }));
+
+      router.push('/dashboard');
+    } catch (error) {
+      let errorMessage = 'Password reset failed. Please try again.';
+
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+
+      setState(prev => ({
+        ...prev,
+        isLoading: false,
+        error: errorMessage,
+      }));
+    }
+  }, [router]);
+
   const logout = useCallback(async () => {
     // Clear localStorage
     authService.current.clearAuthData();
@@ -391,6 +444,7 @@ export function useAuth() {
     ...state,
     login,
     acceptInvitation,
+    resetPassword,
     logout,
     clearError,
     checkPermission,

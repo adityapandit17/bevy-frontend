@@ -18,7 +18,7 @@ import {
   AlertCircle
 } from "lucide-react"
 import Image from "next/image"
-import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { useAuthContext } from "@/lib/auth"
 
 export default function LoginPage() {
@@ -30,7 +30,6 @@ export default function LoginPage() {
   })
   const [errors, setErrors] = useState<{[key: string]: string}>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const router = useRouter()
   const { login, isLoading, error, clearError } = useAuthContext()
 
   const handleInputChange = (field: string, value: string) => {
@@ -247,8 +246,9 @@ export default function LoginPage() {
                   variant="link"
                   className="text-sm text-green-600 hover:text-green-700 p-0 h-auto"
                   disabled={isLoading}
+                  asChild
                 >
-                  Forgot password?
+                  <Link href="/forgot-password">Forgot password?</Link>
                 </Button>
               </div>
 
