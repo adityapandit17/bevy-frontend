@@ -3,7 +3,7 @@
  * Handles all API calls related to authentication
  */
 
-import { LoginCredentials, AuthData, User, AcceptInvitationCredentials, ResetPasswordCredentials } from '@/types/auth.types';
+import { LoginCredentials, AuthData, User, AcceptInvitationCredentials, ResetPasswordCredentials, DashboardLayout } from '@/types/auth.types';
 import { API_ENDPOINTS, AUTH_CONFIG } from '@/config/auth.config';
 
 export class AuthServiceError extends Error {
@@ -104,7 +104,11 @@ export class AuthService {
     return localStorage.getItem(AUTH_CONFIG.tokenKey);
   }
 
-  public async login(credentials: LoginCredentials): Promise<AuthData> {
+  private parseDashboardLayout(data: any): DashboardLayout {
+    return data?.company?.dashboard_layout === 'sidebar' ? 'sidebar' : 'top_nav';
+  }
+
+  public async login(credentials: LoginCredentials): Promise<AuthData & { dashboardLayout: DashboardLayout }> {
     try {
       // Login request should NOT send token (skipToken = true)
       const response = await this.makeRequest<{
@@ -153,6 +157,7 @@ export class AuthService {
         token: response.data.token,
         roles: transformedRoles,
         permissions: transformedPermissions,
+        dashboardLayout: this.parseDashboardLayout(response.data),
       };
     } catch (error) {
       if (error instanceof AuthServiceError) {
@@ -348,17 +353,16 @@ export class AuthService {
     }
   }
 
-  public async getCurrentUser(): Promise<User> {
+  public async getCurrentUser(): Promise<{ user: User; dashboardLayout: DashboardLayout }> {
     const response = await this.makeRequest<{
       success: boolean;
-      data: { user: User } | User;
+      data: { user: User; company?: { dashboard_layout?: string } } | User;
     }>(API_ENDPOINTS.ME);
 
     if (!response || !response.success) {
       throw new AuthServiceError('Failed to get user data');
     }
 
-    // Support both { data: user } and { data: { user } } response shapes
     const data: any = response.data;
     const user: User | undefined =
       (data && (data as any).user) ? (data as any).user : (data as User | undefined);
@@ -367,7 +371,10 @@ export class AuthService {
       throw new AuthServiceError('Invalid user data in response');
     }
 
-    return user;
+    return {
+      user,
+      dashboardLayout: this.parseDashboardLayout(data),
+    };
   }
 
   public async verifyToken(): Promise<boolean> {

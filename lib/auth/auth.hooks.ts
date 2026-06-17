@@ -14,7 +14,8 @@ import {
   ResetPasswordCredentials,
   User,
   Role,
-  Permission
+  Permission,
+  DashboardLayout
 } from '@/types/auth.types';
 import { AuthService, AuthServiceError } from './auth.service';
 import { AUTH_CONFIG } from '@/config/auth.config';
@@ -32,6 +33,7 @@ export function useAuth() {
     isLoading: true,
     error: null,
     lastActivity: 0,
+    dashboardLayout: 'top_nav',
   });
 
   const authService = useRef(AuthService.getInstance());
@@ -79,7 +81,7 @@ export function useAuth() {
         // Try to fetch the latest user data from the API so that
         // any role/permission changes made after login are respected.
         try {
-          const currentUser = await authService.current.getCurrentUser();
+          const { user: currentUser, dashboardLayout } = await authService.current.getCurrentUser();
 
           // Normalize roles & permissions from API
           const transformedRoles = (currentUser.roles || []).map((r: any) =>
@@ -116,6 +118,7 @@ export function useAuth() {
             isAuthenticated: true,
             isLoading: false,
             lastActivity: Date.now(),
+            dashboardLayout,
           }));
         } catch (fetchError: any) {
           // If token is invalid/expired, clear auth; otherwise just stop loading.
@@ -134,6 +137,7 @@ export function useAuth() {
               isAuthenticated: false,
               isLoading: false,
               lastActivity: 0,
+              dashboardLayout: 'top_nav',
             }));
           } else {
             setState(prev => ({
@@ -257,6 +261,7 @@ export function useAuth() {
         isAuthenticated: true,
         isLoading: false,
         lastActivity: Date.now(),
+        dashboardLayout: authData.dashboardLayout,
       }));
       
       router.push('/dashboard');
@@ -392,6 +397,7 @@ export function useAuth() {
       isLoading: false,
       error: null,
       lastActivity: 0,
+      dashboardLayout: 'top_nav',
     });
     
     router.push('/home');
@@ -440,6 +446,33 @@ export function useAuth() {
     });
   }, [state.roles]);
 
+  const setDashboardLayout = useCallback((layout: DashboardLayout) => {
+    setState(prev => ({ ...prev, dashboardLayout: layout }));
+  }, []);
+
+  const refreshSession = useCallback(async () => {
+    const token = localStorage.getItem(AUTH_CONFIG.tokenKey);
+    if (!token) return;
+
+    const { user: currentUser, dashboardLayout } = await authService.current.getCurrentUser();
+    const transformedRoles = (currentUser.roles || []).map((r: any) =>
+      typeof r === 'string' ? { id: 0, name: r, description: '' } : r
+    );
+    const transformedPermissions =
+      currentUser.permissions?.map((p: any) =>
+        typeof p === 'string' ? { id: 0, name: p, display_name: p } : p
+      ) || [];
+
+    setState(prev => ({
+      ...prev,
+      user: { ...currentUser, roles: transformedRoles, permissions: transformedPermissions },
+      roles: transformedRoles,
+      permissions: transformedPermissions,
+      dashboardLayout,
+      lastActivity: Date.now(),
+    }));
+  }, []);
+
   return {
     ...state,
     login,
@@ -449,6 +482,8 @@ export function useAuth() {
     clearError,
     checkPermission,
     checkRole,
+    setDashboardLayout,
+    refreshSession,
   };
 }
 

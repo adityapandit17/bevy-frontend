@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import Image from "next/image"
-import { Building2, Users, Shield, Bell, Database, Globe, Save, Download, Calendar, Upload, Trash2 } from "lucide-react"
+import { Building2, Users, Shield, Bell, Database, Globe, Save, Download, Calendar, Upload, Trash2, LayoutPanelLeft } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { TimePicker } from "@/components/ui/time-picker"
 import { useEffect, useState, Suspense } from "react"
@@ -20,6 +20,8 @@ import { apiRequest, apiFormRequest, getEndpointUrl } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { ResourceGuard } from "@/lib/auth/auth.guards"
 import { AUTH_CONFIG } from "@/config/auth.config"
+import { useAuthContext } from "@/lib/auth"
+import type { DashboardLayout } from "@/types/auth.types"
 
 // Leave Policies Tab Component
 function LeavePoliciesTab() {
@@ -268,6 +270,7 @@ function LeavePoliciesTab() {
 function SettingsPageContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
+  const { setDashboardLayout } = useAuthContext()
   const tabFromUrl = searchParams.get("tab")
   const [activeTab, setActiveTab] = useState(tabFromUrl || "company")
 
@@ -297,7 +300,8 @@ function SettingsPageContent() {
     address: "",
     timezone: "asia-kolkata",
     currency: "inr",
-    country_code: "IN"
+    country_code: "IN",
+    dashboard_layout: "top_nav" as DashboardLayout,
   }
   
   const [company, setCompany] = useState(defaultCompany)
@@ -324,6 +328,7 @@ function SettingsPageContent() {
       if (res?.work_end_time) setWorkEndTime(res.work_end_time)
       if (res?.weekly_working_hours != null) setWeeklyWorkingHours(String(res.weekly_working_hours))
       if (res?.lunch_duration_minutes != null) setLunchDuration(String(res.lunch_duration_minutes))
+      if (res?.dashboard_layout) handleChange("dashboard_layout", res.dashboard_layout)
     } catch (err) {
       console.error("Error fetching company data:", err)
       // Keep the default state if fetch fails
@@ -376,6 +381,7 @@ function SettingsPageContent() {
     form.append("company[work_end_time]", workEndTime)
     form.append("company[weekly_working_hours]", String(parseFloat(weeklyWorkingHours) || 40))
     form.append("company[lunch_duration_minutes]", String(parseInt(lunchDuration, 10) || 60))
+    form.append("company[dashboard_layout]", (c as { dashboard_layout?: string }).dashboard_layout || "top_nav")
   }
 
   const handleSave = async () => {
@@ -406,6 +412,7 @@ function SettingsPageContent() {
               work_end_time: workEndTime,
               weekly_working_hours: parseFloat(weeklyWorkingHours) || 40,
               lunch_duration_minutes: parseInt(lunchDuration, 10) || 60,
+              dashboard_layout: (safeCompany as { dashboard_layout?: DashboardLayout }).dashboard_layout || "top_nav",
             },
           }),
         })
@@ -414,6 +421,8 @@ function SettingsPageContent() {
       clearPendingLogo()
       setEdit(false)
       await fetchCompany()
+      const layout = ((safeCompany as { dashboard_layout?: DashboardLayout }).dashboard_layout || "top_nav") as DashboardLayout
+      setDashboardLayout(layout)
       toast({ title: "Company settings saved" })
     } catch (err) {
       toast({
@@ -739,6 +748,55 @@ function SettingsPageContent() {
                   <Switch defaultChecked />
                 </div>
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <LayoutPanelLeft className="w-5 h-5" />
+                Dashboard Layout
+              </CardTitle>
+              <CardDescription>
+                Choose how navigation appears for everyone in your company. This applies company-wide.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <button
+                  type="button"
+                  disabled={!edit}
+                  onClick={() => handleChange("dashboard_layout", "top_nav")}
+                  className={cn(
+                    "rounded-lg border-2 p-4 text-left transition-colors",
+                    (safeCompany as { dashboard_layout?: string }).dashboard_layout !== "sidebar"
+                      ? "border-green-600 bg-green-50"
+                      : "border-gray-200 hover:border-gray-300",
+                    !edit && "cursor-default opacity-80"
+                  )}
+                >
+                  <p className="font-medium text-gray-900">Top Navigation</p>
+                  <p className="mt-1 text-sm text-gray-500">Horizontal menu across the top of the screen (default).</p>
+                </button>
+                <button
+                  type="button"
+                  disabled={!edit}
+                  onClick={() => handleChange("dashboard_layout", "sidebar")}
+                  className={cn(
+                    "rounded-lg border-2 p-4 text-left transition-colors",
+                    (safeCompany as { dashboard_layout?: string }).dashboard_layout === "sidebar"
+                      ? "border-green-600 bg-green-50"
+                      : "border-gray-200 hover:border-gray-300",
+                    !edit && "cursor-default opacity-80"
+                  )}
+                >
+                  <p className="font-medium text-gray-900">Sidebar (Dashboard v2)</p>
+                  <p className="mt-1 text-sm text-gray-500">Vertical sidebar with full navigation on the left.</p>
+                </button>
+              </div>
+              <p className="text-xs text-gray-500">
+                Other users will see the updated layout after they refresh or navigate to a new page.
+              </p>
             </CardContent>
           </Card>
         </TabsContent>

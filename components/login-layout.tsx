@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation"
 import { useAuthContext } from "@/lib/auth"
 import { TopNav } from "@/components/top-nav"
+import { SidebarLayout } from "@/components/sidebar-layout"
 import { AuthGuard } from "@/lib/auth"
 
 interface LoginLayoutProps {
@@ -11,7 +12,7 @@ interface LoginLayoutProps {
 
 export function LoginLayout({ children }: LoginLayoutProps) {
   const pathname = usePathname()
-  const { isAuthenticated, isLoading } = useAuthContext()
+  const { isAuthenticated, isLoading, dashboardLayout } = useAuthContext()
   
   const isLoginPage = pathname === "/login"
   const isAcceptInvitationPage = pathname === "/accept-invitation"
@@ -22,7 +23,6 @@ export function LoginLayout({ children }: LoginLayoutProps) {
   const isRootPage = pathname === "/"
   const isCareersPage = pathname?.startsWith("/careers")
 
-  // Show loading state while checking authentication
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -34,16 +34,22 @@ export function LoginLayout({ children }: LoginLayoutProps) {
     )
   }
 
-  // Public pages (login, invitation accept, marketing pages, root)
   if (isLoginPage || isAcceptInvitationPage || isForgotPasswordPage || isResetPasswordPage || isHomePage || isPricingPage || isRootPage || isCareersPage) {
     return <>{children}</>
   }
 
-  // Protected pages - require authentication
+  if (dashboardLayout === "sidebar") {
+    return (
+      <AuthGuard>
+        <SidebarLayout>{children}</SidebarLayout>
+      </AuthGuard>
+    )
+  }
+
   return (
     <AuthGuard>
       <TopNav />
       <main className="pt-16 bg-gray-50 min-h-screen">{children}</main>
     </AuthGuard>
   )
-} 
+}

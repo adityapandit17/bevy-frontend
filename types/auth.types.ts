@@ -3,6 +3,8 @@
  * TypeScript interfaces and types for authentication system
  */
 
+export type DashboardLayout = 'top_nav' | 'sidebar';
+
 export interface User {
   id: number;
   email: string;
@@ -59,6 +61,7 @@ export interface AuthState {
   isLoading: boolean;
   error: string | null;
   lastActivity: number;
+  dashboardLayout: DashboardLayout;
 }
 
 export interface AuthContextType extends AuthState {
@@ -69,4 +72,6 @@ export interface AuthContextType extends AuthState {
   clearError: () => void;
   checkPermission: (permission: string) => boolean;
   checkRole: (role: string) => boolean;
+  setDashboardLayout: (layout: DashboardLayout) => void;
+  refreshSession: () => Promise<void>;
 }
