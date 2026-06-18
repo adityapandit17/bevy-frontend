@@ -1,0 +1,20 @@
+#!/bin/bash
+# Kamal pre-build hook — blocks deploy if Next.js / React packages are vulnerable.
+#
+# Runs automatically before `kamal deploy` builds the Docker image.
+# Manual check:  yarn deploy:check
+# Skip registry: KAMAL_SKIP_REGISTRY_CHECK=1 kamal deploy
+
+set -euo pipefail
+
+HOOK_DIR="$(cd "$(dirname "$0")" && pwd)"
+APP_ROOT="$(cd "$HOOK_DIR/../.." && pwd)"
+
+cd "$APP_ROOT"
+
+if [ ! -d "node_modules" ]; then
+  echo "node_modules missing — running yarn install..." >&2
+  yarn install --frozen-lockfile
+fi
+
+node "$HOOK_DIR/lib/check-deploy-security.mjs"

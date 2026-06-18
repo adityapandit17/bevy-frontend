@@ -1,0 +1,11 @@
+#!/bin/bash
+# Kamal pre-deploy hook — final security gate before containers are updated.
+# Reuses the same checks as pre-build in case deploy is retried without rebuild.
+
+set -euo pipefail
+
+HOOK_DIR="$(cd "$(dirname "$0")" && pwd)"
+APP_ROOT="$(cd "$HOOK_DIR/../.." && pwd)"
+
+cd "$APP_ROOT"
+node "$HOOK_DIR/lib/check-deploy-security.mjs"
