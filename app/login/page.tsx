@@ -274,15 +274,17 @@ export default function LoginPage() {
             {/* Sign Up Link */}
             <div className="text-center">
               <p className="text-sm text-gray-600">
-                Don't have an account?{" "}
-                <Button
-                  type="button"
-                  variant="link"
-                  className="text-green-600 hover:text-green-700 p-0 h-auto text-sm"
-                  disabled={isLoading}
+                Don&apos;t have an account?{" "}
+                <Link
+                  href="/signup"
+                  className={`text-green-600 hover:text-green-700 font-medium hover:underline text-sm ${
+                    isLoading ? "pointer-events-none opacity-50" : ""
+                  }`}
+                  aria-disabled={isLoading}
+                  tabIndex={isLoading ? -1 : 0}
                 >
                   Sign up
-                </Button>
+                </Link>
               </p>
             </div>
           </CardContent>
@@ -292,13 +294,13 @@ export default function LoginPage() {
         <div className="text-center mt-8">
           <p className="text-xs text-gray-500">
             By signing in, you agree to our{" "}
-            <Button variant="link" className="text-xs p-0 h-auto text-gray-500 hover:text-gray-700">
+            <Link href="/terms" className="text-gray-500 hover:text-gray-700 hover:underline">
               Terms of Service
-            </Button>{" "}
+            </Link>{" "}
             and{" "}
-            <Button variant="link" className="text-xs p-0 h-auto text-gray-500 hover:text-gray-700">
+            <Link href="/privacy" className="text-gray-500 hover:text-gray-700 hover:underline">
               Privacy Policy
-            </Button>
+            </Link>
           </p>
         </div>
       </div>

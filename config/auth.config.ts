@@ -19,6 +19,7 @@ export const AUTH_CONFIG = {
   // Local storage keys
   tokenKey: 'hrms_auth_token',
   userKey: 'hrms_auth_user',
+  companyKey: 'hrms_auth_company',
   
   // Token settings
   TOKEN_REFRESH_THRESHOLD: 5 * 60 * 1000, // 5 minutes

@@ -29,6 +29,7 @@ export function useAuth() {
     roles: [],
     permissions: [],
     token: null,
+    company: null,
     isAuthenticated: false,
     isLoading: true,
     error: null,
@@ -63,12 +64,15 @@ export function useAuth() {
             typeof r === 'string' ? { id: 0, name: r, description: '' } : r
           );
 
+          const storedCompany = authService.current.getStoredCompany();
+
           setState(prev => ({
             ...prev,
             user: storedUser,
             roles: transformedRolesFromStorage,
             permissions: storedUser.permissions || [],
             token,
+            company: storedCompany,
             isAuthenticated: true,
             isLoading: false,
             lastActivity: Date.now(),
@@ -81,7 +85,7 @@ export function useAuth() {
         // Try to fetch the latest user data from the API so that
         // any role/permission changes made after login are respected.
         try {
-          const { user: currentUser, dashboardLayout } = await authService.current.getCurrentUser();
+          const { user: currentUser, dashboardLayout, company } = await authService.current.getCurrentUser();
 
           // Normalize roles & permissions from API
           const transformedRoles = (currentUser.roles || []).map((r: any) =>
@@ -103,6 +107,7 @@ export function useAuth() {
             token,
             roles: transformedRoles,
             permissions: transformedPermissions,
+            company,
           });
 
           setState(prev => ({
@@ -115,6 +120,7 @@ export function useAuth() {
             roles: transformedRoles,
             permissions: transformedPermissions,
             token,
+            company,
             isAuthenticated: true,
             isLoading: false,
             lastActivity: Date.now(),
@@ -248,7 +254,8 @@ export function useAuth() {
           ...authData.user,
           permissions: transformedPermissions,
           roles: transformedRoles
-        }
+        },
+        company: authData.company ?? null,
       };
       authService.current.storeAuthData(authDataToStore);
       
@@ -258,6 +265,7 @@ export function useAuth() {
         roles: transformedRoles,
         permissions: transformedPermissions,
         token: authData.token,
+        company: authData.company ?? null,
         isAuthenticated: true,
         isLoading: false,
         lastActivity: Date.now(),
@@ -454,7 +462,7 @@ export function useAuth() {
     const token = localStorage.getItem(AUTH_CONFIG.tokenKey);
     if (!token) return;
 
-    const { user: currentUser, dashboardLayout } = await authService.current.getCurrentUser();
+    const { user: currentUser, dashboardLayout, company } = await authService.current.getCurrentUser();
     const transformedRoles = (currentUser.roles || []).map((r: any) =>
       typeof r === 'string' ? { id: 0, name: r, description: '' } : r
     );
@@ -468,6 +476,7 @@ export function useAuth() {
       user: { ...currentUser, roles: transformedRoles, permissions: transformedPermissions },
       roles: transformedRoles,
       permissions: transformedPermissions,
+      company,
       dashboardLayout,
       lastActivity: Date.now(),
     }));

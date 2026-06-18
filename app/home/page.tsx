@@ -125,7 +125,7 @@ export default function HomePage() {
               <Button
                 size="lg"
                 className="bg-green-600 hover:bg-green-700 text-lg px-8 py-3"
-                onClick={() => router.push("/login")}
+                onClick={() => router.push("/signup")}
               >
                 Start Free Trial
                 <ArrowRight className="ml-2 w-5 h-5" />
@@ -244,7 +244,7 @@ export default function HomePage() {
             <Button
               size="lg"
               className="bg-white text-green-600 hover:bg-gray-100 text-lg px-8 py-3"
-              onClick={() => router.push("/login")}
+              onClick={() => router.push("/signup")}
             >
               Start Free Trial
               <ArrowRight className="ml-2 w-5 h-5" />

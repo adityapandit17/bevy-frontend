@@ -321,6 +321,7 @@ export const API_ENDPOINTS = {
   PUBLIC_JOB: '/api/v1/public/{companySlug}/jobs/{jobSlug}',
   PUBLIC_JOB_APPLY: '/api/v1/public/{companySlug}/jobs/{jobSlug}/apply',
   PUBLIC_JOB_RESOLVE: '/api/v1/public/resolve/{jobSlug}',
+  TRIAL_SIGNUP: '/api/v1/public/signup',
 
   // Interviews
   INTERVIEWS: '/interviews',

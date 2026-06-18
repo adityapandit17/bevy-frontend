@@ -20,6 +20,9 @@ export function LoginLayout({ children }: LoginLayoutProps) {
   const isResetPasswordPage = pathname === "/reset-password"
   const isHomePage = pathname === "/home"
   const isPricingPage = pathname === "/pricing"
+  const isSignupPage = pathname === "/signup"
+  const isTermsPage = pathname === "/terms"
+  const isPrivacyPage = pathname === "/privacy"
   const isRootPage = pathname === "/"
   const isCareersPage = pathname?.startsWith("/careers")
 
@@ -34,7 +37,7 @@ export function LoginLayout({ children }: LoginLayoutProps) {
     )
   }
 
-  if (isLoginPage || isAcceptInvitationPage || isForgotPasswordPage || isResetPasswordPage || isHomePage || isPricingPage || isRootPage || isCareersPage) {
+  if (isLoginPage || isAcceptInvitationPage || isForgotPasswordPage || isResetPasswordPage || isHomePage || isPricingPage || isSignupPage || isTermsPage || isPrivacyPage || isRootPage || isCareersPage) {
     return <>{children}</>
   }
 

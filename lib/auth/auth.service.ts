@@ -3,7 +3,7 @@
  * Handles all API calls related to authentication
  */
 
-import { LoginCredentials, AuthData, User, AcceptInvitationCredentials, ResetPasswordCredentials, DashboardLayout } from '@/types/auth.types';
+import { LoginCredentials, AuthData, User, AcceptInvitationCredentials, ResetPasswordCredentials, DashboardLayout, TenantCompany } from '@/types/auth.types';
 import { API_ENDPOINTS, AUTH_CONFIG } from '@/config/auth.config';
 
 export class AuthServiceError extends Error {
@@ -104,8 +104,15 @@ export class AuthService {
     return localStorage.getItem(AUTH_CONFIG.tokenKey);
   }
 
+  private parseCompany(data: any): TenantCompany | null {
+    const company = data?.company;
+    if (!company || typeof company !== 'object') return null;
+    return company as TenantCompany;
+  }
+
   private parseDashboardLayout(data: any): DashboardLayout {
-    return data?.company?.dashboard_layout === 'sidebar' ? 'sidebar' : 'top_nav';
+    const layout = data?.company?.dashboard_layout;
+    return layout === 'sidebar' ? 'sidebar' : 'top_nav';
   }
 
   public async login(credentials: LoginCredentials): Promise<AuthData & { dashboardLayout: DashboardLayout }> {
@@ -157,6 +164,7 @@ export class AuthService {
         token: response.data.token,
         roles: transformedRoles,
         permissions: transformedPermissions,
+        company: this.parseCompany(response.data),
         dashboardLayout: this.parseDashboardLayout(response.data),
       };
     } catch (error) {
@@ -353,10 +361,10 @@ export class AuthService {
     }
   }
 
-  public async getCurrentUser(): Promise<{ user: User; dashboardLayout: DashboardLayout }> {
+  public async getCurrentUser(): Promise<{ user: User; dashboardLayout: DashboardLayout; company: TenantCompany | null }> {
     const response = await this.makeRequest<{
       success: boolean;
-      data: { user: User; company?: { dashboard_layout?: string } } | User;
+      data: { user: User; company?: TenantCompany } | User;
     }>(API_ENDPOINTS.ME);
 
     if (!response || !response.success) {
@@ -373,6 +381,7 @@ export class AuthService {
 
     return {
       user,
+      company: this.parseCompany(data),
       dashboardLayout: this.parseDashboardLayout(data),
     };
   }
@@ -424,6 +433,20 @@ export class AuthService {
     
     localStorage.setItem(AUTH_CONFIG.tokenKey, authData.token);
     localStorage.setItem(AUTH_CONFIG.userKey, JSON.stringify(authData.user));
+    if (authData.company) {
+      localStorage.setItem(AUTH_CONFIG.companyKey, JSON.stringify(authData.company));
+    }
+  }
+
+  public getStoredCompany(): TenantCompany | null {
+    if (typeof window === 'undefined') return null;
+
+    try {
+      const companyData = localStorage.getItem(AUTH_CONFIG.companyKey);
+      return companyData ? JSON.parse(companyData) : null;
+    } catch {
+      return null;
+    }
   }
 
   public clearAuthData(): void {
@@ -431,5 +454,6 @@ export class AuthService {
     
     localStorage.removeItem(AUTH_CONFIG.tokenKey);
     localStorage.removeItem(AUTH_CONFIG.userKey);
+    localStorage.removeItem(AUTH_CONFIG.companyKey);
   }
 }

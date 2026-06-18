@@ -184,7 +184,7 @@ export default function PricingPage() {
                     onClick={() =>
                       plan.id === "enterprise"
                         ? (window.location.href = "mailto:sales@bevyhr.com?subject=BevyHR Enterprise")
-                        : router.push("/login")
+                        : router.push(`/signup?plan=${plan.id}`)
                     }
                   >
                     {plan.cta}
@@ -270,7 +270,7 @@ export default function PricingPage() {
             <Button
               size="lg"
               className="bg-white text-green-600 hover:bg-gray-100 text-lg px-8 py-3"
-              onClick={() => router.push("/login")}
+              onClick={() => router.push("/signup")}
             >
               Start free trial
               <ArrowRight className="ml-2 w-5 h-5" />

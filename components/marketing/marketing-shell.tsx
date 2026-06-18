@@ -124,6 +124,16 @@ export function MarketingShell({ children }: MarketingShellProps) {
                     Contact
                   </a>
                 </li>
+                <li>
+                  <Link href="/terms" className="hover:text-white">
+                    Terms of Service
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/privacy" className="hover:text-white">
+                    Privacy Policy
+                  </Link>
+                </li>
               </ul>
             </div>
             <div>

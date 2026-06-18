@@ -5,6 +5,18 @@
 
 export type DashboardLayout = 'top_nav' | 'sidebar';
 
+export interface TenantCompany {
+  id: number;
+  name: string;
+  code: string;
+  plan?: string;
+  status?: string;
+  dashboard_layout?: DashboardLayout;
+  timezone?: string;
+  currency?: string;
+  country_code?: string;
+}
+
 export interface User {
   id: number;
   email: string;
@@ -29,6 +41,7 @@ export interface Permission {
 export interface LoginCredentials {
   email: string;
   password: string;
+  company_code?: string;
 }
 
 export interface AcceptInvitationCredentials {
@@ -50,6 +63,7 @@ export interface AuthData {
   token: string;
   roles: Role[];
   permissions: Permission[];
+  company?: TenantCompany | null;
 }
 
 export interface AuthState {
@@ -57,6 +71,7 @@ export interface AuthState {
   roles: Role[];
   permissions: Permission[];
   token: string | null;
+  company: TenantCompany | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
