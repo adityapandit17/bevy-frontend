@@ -367,37 +367,41 @@ export default function AssetsPage() {
   useEffect(() => {
     const fetchAllData = async () => {
       setLoading(true)
+      setEmployeesLoading(true)
       try {
-        // Fetch assets - use /api/assets (not /assets which is intercepted by Propshaft)
         const assetsUrl = getApiUrl('api/assets')
-        console.log('Fetching assets from:', assetsUrl)
-        
-        const assetsData = await apiRequest<any>(assetsUrl)
-        // Handle different response structures - check if assets is an array or nested
-        const assetsArray = Array.isArray(assetsData) 
-          ? assetsData 
+        const statsUrl = getApiUrl('api/assets/stats')
+
+        const [
+          assetsData,
+          statsResponse,
+          allocationsResult,
+          maintenanceResult,
+          employeesResponse,
+        ] = await Promise.all([
+          apiRequest<any>(assetsUrl),
+          apiRequest<any>(statsUrl),
+          apiRequest<{ allocations: any[] }>(getApiUrl('api/assets/allocations')).catch(() => ({ allocations: [] })),
+          apiRequest<{ maintenance_records: any[] }>(getApiUrl('maintenance_records')).catch(() => ({ maintenance_records: [] })),
+          apiRequest<any>(`${getApiUrl('employees')}?page=1&per_page=1000`).catch(() => ({ data: [] })),
+        ])
+
+        const assetsArray = Array.isArray(assetsData)
+          ? assetsData
           : (assetsData?.assets || assetsData?.data || [])
-        
-        // Ensure assetsArray is actually an array before mapping
+
         if (!Array.isArray(assetsArray)) {
           console.error('Assets data is not an array:', assetsArray)
           setAssets([])
         } else {
-          const transformedAssets = assetsArray.map(transformAsset)
-          setAssets(transformedAssets)
+          setAssets(assetsArray.map(transformAsset))
         }
 
-        // Fetch stats - use /api/assets/stats
-        const statsUrl = getApiUrl('api/assets/stats')
-        console.log('Fetching stats from:', statsUrl)
-        const statsResponse = await apiRequest<any>(statsUrl)
         setStatsData(statsResponse)
 
-        // Safely extract stats with null checks
         const overview = statsResponse?.overview || {}
         const distribution = statsResponse?.distribution || {}
-        
-        // Update stats cards
+
         setAssetStats([
           {
             title: "Total Assets",
@@ -433,7 +437,6 @@ export default function AssetsPage() {
           },
         ])
 
-        // Update asset types dynamically
         const typeDistribution = distribution.asset_types || {}
         const typeLabels: Record<string, any> = {
           laptop: Laptop,
@@ -444,7 +447,6 @@ export default function AssetsPage() {
           network: Network,
           other: Package
         }
-        // Safely map asset types with validation
         const dynamicAssetTypes = Object.entries(typeDistribution)
           .filter(([type, count]) => type && count !== undefined && count !== null)
           .map(([type, count]) => ({
@@ -456,62 +458,33 @@ export default function AssetsPage() {
           }))
         setAssetTypes(dynamicAssetTypes)
 
-        // Fetch allocations
-        try {
-          const allocationsData = await apiRequest<{ allocations: any[] }>(getApiUrl('api/assets/allocations'))
-          const transformedAllocations = allocationsData.allocations?.map(transformAllocation) || []
-          setAllocations(transformedAllocations)
-        } catch (error) {
-          console.error('Error fetching allocations:', error)
-          setAllocations([])
-        }
+        const transformedAllocations = allocationsResult.allocations?.map(transformAllocation) || []
+        setAllocations(transformedAllocations)
 
-        // Fetch maintenance records
-        try {
-          const maintenanceData = await apiRequest<{ maintenance_records: any[] }>(getApiUrl('maintenance_records'))
-          const records = maintenanceData.maintenance_records || []
-          setMaintenanceRecords(records.map(transformMaintenanceRecord))
-        } catch (error) {
-          console.error('Error fetching maintenance records:', error)
-          setMaintenanceRecords([])
-        }
+        const records = maintenanceResult.maintenance_records || []
+        setMaintenanceRecords(records.map(transformMaintenanceRecord))
 
-        // Fetch employees for allocation dropdown
-        setEmployeesLoading(true)
-        try {
-          const employeesResponse = await apiRequest<any>(`${getApiUrl('employees')}?page=1&per_page=1000`)
-          const employeesArray = Array.isArray(employeesResponse)
-            ? employeesResponse
-            : Array.isArray(employeesResponse?.data)
-              ? employeesResponse.data
-              : []
-          const formatted = employeesArray.map((emp: any) => ({
-            id: emp.id?.toString() || "",
-            name: [emp.first_name, emp.last_name].filter(Boolean).join(" "),
-            department: emp.department?.name || emp.department || ""
-          })).filter((emp: any) => emp.id)
-          setEmployees(formatted)
-        } catch (error) {
-          console.error('Error fetching employees:', error)
-          setEmployees([])
-        } finally {
-          setEmployeesLoading(false)
-        }
+        const employeesArray = Array.isArray(employeesResponse)
+          ? employeesResponse
+          : Array.isArray(employeesResponse?.data)
+            ? employeesResponse.data
+            : []
+        const formatted = employeesArray.map((emp: any) => ({
+          id: emp.id?.toString() || "",
+          name: [emp.first_name, emp.last_name].filter(Boolean).join(" "),
+          department: emp.department?.name || emp.department || ""
+        })).filter((emp: any) => emp.id)
+        setEmployees(formatted)
       } catch (error: any) {
         console.error('Error fetching asset data:', error)
-        console.error('Error details:', {
-          message: error?.message,
-          stack: error?.stack,
-          status: error?.statusCode
-        })
-        // Set empty data on error to prevent infinite loading
         setAssets([])
         setAllocations([])
         setMaintenanceRecords([])
         setAssetTypes([])
-        // Keep default stats values on error - they're already set to "0" and "Loading..."
+        setEmployees([])
       } finally {
         setLoading(false)
+        setEmployeesLoading(false)
       }
     }
 

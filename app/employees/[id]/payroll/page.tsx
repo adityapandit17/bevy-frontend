@@ -16,8 +16,6 @@ import {
 } from "@/components/ui/dialog"
 import { ArrowLeft, FileText, IndianRupee, Receipt, TrendingUp, Download, Printer, Building2, User, CreditCard } from "lucide-react"
 import { getApiUrl, getEndpointUrl, apiRequest } from "@/lib/api"
-import { jsPDF } from "jspdf"
-import html2canvas from "html2canvas"
 import Image from "next/image"
 
 interface Employee {
@@ -332,7 +330,7 @@ export default function EmployeePayrollPage() {
     return Array.from(years).sort((a, b) => b.localeCompare(a))
   }
 
-  const downloadSalarySlip = (slip: { month: string; year: string; amount: string; status: string; date: string }) => {
+  const downloadSalarySlip = async (slip: { month: string; year: string; amount: string; status: string; date: string }) => {
     if (!employee) return
 
     const departmentName = departments.find(d => d.id === employee.department_id)?.name || 'N/A'
@@ -762,13 +760,20 @@ export default function EmployeePayrollPage() {
     tempDiv.style.width = '800px'
     document.body.appendChild(tempDiv)
 
-    // Convert HTML to canvas then to PDF
-    html2canvas(tempDiv, {
-      scale: 2,
-      useCORS: true,
-      logging: false,
-      backgroundColor: '#ffffff'
-    }).then((canvas) => {
+    try {
+      const [{ jsPDF }, html2canvasModule] = await Promise.all([
+        import("jspdf"),
+        import("html2canvas"),
+      ])
+      const html2canvas = html2canvasModule.default
+
+      const canvas = await html2canvas(tempDiv, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff'
+      })
+
       const imgData = canvas.toDataURL('image/png')
       const pdf = new jsPDF('p', 'mm', 'a4')
       
@@ -778,11 +783,9 @@ export default function EmployeePayrollPage() {
       let heightLeft = imgHeight
       let position = 0
 
-      // Add first page
       pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight)
       heightLeft -= pageHeight
 
-      // Add additional pages if needed
       while (heightLeft > 0) {
         position = heightLeft - imgHeight
         pdf.addPage()
@@ -790,15 +793,12 @@ export default function EmployeePayrollPage() {
         heightLeft -= pageHeight
       }
 
-      // Download the PDF
       pdf.save(`Salary_Slip_${employee.first_name}_${employee.last_name}_${slip.month}_${slip.year}.pdf`)
-      
-      // Clean up
-      document.body.removeChild(tempDiv)
-    }).catch((error) => {
+    } catch (error) {
       console.error('Error generating PDF:', error)
+    } finally {
       document.body.removeChild(tempDiv)
-    })
+    }
   }
 
   if (loading) {

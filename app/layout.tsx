@@ -2,13 +2,11 @@ import type React from "react"
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import "./globals.css"
-import { TopNav } from "@/components/top-nav"
 import { cn } from "@/lib/utils"
 import { LoginLayout } from "@/components/login-layout"
 import { AuthProvider } from "@/lib/auth"
 import { Toaster } from "@/components/ui/toaster"
 import { ErrorSuppressor } from "@/components/error-suppressor"
-import { CallProvider } from "@/providers/call-provider"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -28,12 +26,10 @@ export default function RootLayout({
       <body className={cn("min-h-screen font-sans antialiased", inter.className)}>
         <ErrorSuppressor />
         <AuthProvider>
-          <CallProvider>
-            <LoginLayout>
-              {children}
-            </LoginLayout>
-            <Toaster />
-          </CallProvider>
+          <LoginLayout>
+            {children}
+          </LoginLayout>
+          <Toaster />
         </AuthProvider>
       </body>
     </html>

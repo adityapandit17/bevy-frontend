@@ -1,8 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { jsPDF } from "jspdf"
-import html2canvas from "html2canvas"
 import { getApiUrl, getEndpointUrl, apiRequest } from "@/lib/api"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -1429,6 +1427,12 @@ export default function PayrollPage() {
     document.body.appendChild(tempDiv)
 
     try {
+      const [{ jsPDF }, html2canvasModule] = await Promise.all([
+        import("jspdf"),
+        import("html2canvas"),
+      ])
+      const html2canvas = html2canvasModule.default
+
       const canvas = await html2canvas(tempDiv, {
         scale: 2,
         useCORS: true,

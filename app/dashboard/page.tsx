@@ -514,40 +514,20 @@ export default function Dashboard() {
     return `${formattedHrs}:${formattedMins}:${formattedSecs}`
   }
 
-  const fetchDashboardStats = async () => {
-    setStatsLoading(true)
+  const fetchDashboard = async ({ silent = false }: { silent?: boolean } = {}) => {
+    if (!silent) {
+      setStatsLoading(true)
+      setPendingTasksLoading(true)
+      setRecentActivitiesLoading(true)
+    }
     try {
       const data = await apiRequest<{
-        stats: {
+        stats?: {
           total_employees: number
           present_today: number
           on_leave: number
           monthly_payroll: number
         }
-      }>(getApiUrl('dashboard'), {
-        method: "GET"
-      })
-      if (data.stats) {
-        setDashboardStats(data.stats)
-      }
-    } catch (error) {
-      console.error("Failed to fetch dashboard stats:", error)
-      // Set default values on error
-      setDashboardStats({
-        total_employees: 0,
-        present_today: 0,
-        on_leave: 0,
-        monthly_payroll: 0
-      })
-    } finally {
-      setStatsLoading(false)
-    }
-  }
-
-  const fetchPendingTasks = async () => {
-    setPendingTasksLoading(true)
-    try {
-      const data = await apiRequest<{
         pending_tasks?: Array<{
           id: number
           title: string
@@ -555,27 +535,6 @@ export default function Dashboard() {
           priority: string
           dueDate: string
         }>
-      }>(getApiUrl('dashboard'), {
-        method: "GET"
-      })
-      
-      if (data.pending_tasks && Array.isArray(data.pending_tasks)) {
-        setPendingTasks(data.pending_tasks)
-      } else {
-        setPendingTasks([])
-      }
-    } catch (error) {
-      console.error("Failed to fetch pending tasks:", error)
-      setPendingTasks([])
-    } finally {
-      setPendingTasksLoading(false)
-    }
-  }
-
-  const fetchRecentActivities = async () => {
-    setRecentActivitiesLoading(true)
-    try {
-      const data = await apiRequest<{
         recent_activities?: Array<{
           id: string
           type: string
@@ -587,40 +546,59 @@ export default function Dashboard() {
         method: "GET"
       })
 
+      if (data.stats) {
+        setDashboardStats(data.stats)
+      } else if (!silent) {
+        setDashboardStats({
+          total_employees: 0,
+          present_today: 0,
+          on_leave: 0,
+          monthly_payroll: 0
+        })
+      }
+
+      if (data.pending_tasks && Array.isArray(data.pending_tasks)) {
+        setPendingTasks(data.pending_tasks)
+      } else if (!silent) {
+        setPendingTasks([])
+      }
+
       if (data.recent_activities && Array.isArray(data.recent_activities)) {
         setRecentActivities(data.recent_activities)
-      } else {
+      } else if (!silent) {
         setRecentActivities([])
       }
     } catch (error) {
-      console.error("Failed to fetch recent activities:", error)
-      setRecentActivities([])
+      console.error("Failed to fetch dashboard:", error)
+      if (!silent) {
+        setDashboardStats({
+          total_employees: 0,
+          present_today: 0,
+          on_leave: 0,
+          monthly_payroll: 0
+        })
+        setPendingTasks([])
+        setRecentActivities([])
+      }
     } finally {
-      setRecentActivitiesLoading(false)
+      if (!silent) {
+        setStatsLoading(false)
+        setPendingTasksLoading(false)
+        setRecentActivitiesLoading(false)
+      }
     }
   }
 
   useEffect(() => {
-    fetchDashboardStats()
+    fetchDashboard()
     fetchUpcomingEvents()
-    fetchPendingTasks()
-    fetchRecentActivities()
   }, [])
 
-  // Refresh pending tasks periodically (every 30 seconds) to catch new leave requests
+  // Refresh dashboard data periodically (every 30 seconds)
   useEffect(() => {
     const interval = setInterval(() => {
-      fetchPendingTasks()
-    }, 30000) // Refresh every 30 seconds
-
-    return () => clearInterval(interval)
-  }, [])
-
-  // Refresh recent activities periodically (every 30 seconds) to catch new employees and activities
-  useEffect(() => {
-    const interval = setInterval(() => {
-      fetchRecentActivities()
-    }, 30000) // Refresh every 30 seconds
+      fetchDashboard({ silent: true })
+    }, 30000)
 
     return () => clearInterval(interval)
   }, [])

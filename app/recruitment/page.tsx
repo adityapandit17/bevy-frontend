@@ -86,8 +86,7 @@ export default function RecruitmentPage() {
 
   useEffect(() => {
     fetchDepartments()
-    fetchAllJobOpenings() // Fetch all for stats
-    fetchJobOpenings() // Fetch for display (may be filtered)
+    fetchJobOpenings()
     fetchCandidates()
     fetchArchivedCandidates()
     fetchInterviews()
@@ -116,15 +115,6 @@ export default function RecruitmentPage() {
       setDepartments(res as any)
     } catch (err) {
       console.error("Error fetching departments:", err)
-    }
-  }
-
-  const fetchAllJobOpenings = async () => {
-    try {
-      const res = await apiRequest<any[]>(getEndpointUrl('JOB_OPENINGS'))
-      setAllJobOpenings(res as any) // Keep all job openings for stats
-    } catch (err) {
-      console.error("Error fetching all jobs:", err)
     }
   }
 
@@ -260,8 +250,7 @@ export default function RecruitmentPage() {
         method: "POST",
         body: JSON.stringify({ job_opening: formData })
       })
-      fetchJobOpenings()
-      fetchAllJobOpenings() // Refresh stats
+      fetchJobOpenings() // Refresh stats and display
       setShowForm(false)
       setEditJob(null)
     } catch (err) {
@@ -280,8 +269,7 @@ export default function RecruitmentPage() {
         method: "PATCH",
         body: JSON.stringify({ job_opening: formData })
       })
-      fetchJobOpenings()
-      fetchAllJobOpenings() // Refresh stats
+      fetchJobOpenings() // Refresh stats and display
       setShowForm(false)
       setEditJob(null)
     } catch (err) {
@@ -294,8 +282,7 @@ export default function RecruitmentPage() {
       await apiRequest<any>(getApiUrl(`job_openings/${job.id}`), {
         method: "DELETE",
       });
-      fetchJobOpenings(); // refresh display
-      fetchAllJobOpenings(); // refresh stats
+      fetchJobOpenings(); // refresh stats and display
     } catch (err) {
       console.error("Error closing job:", err);
     }
@@ -310,8 +297,7 @@ export default function RecruitmentPage() {
         job_opening: { status: "open" },
       }),
     });
-    fetchJobOpenings(); // refresh display
-    fetchAllJobOpenings(); // refresh stats
+    fetchJobOpenings(); // refresh stats and display
   } catch (err) {
     console.error("Error opening job:", err);
   }

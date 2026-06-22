@@ -21,7 +21,7 @@ import { Progress } from "@/components/ui/progress"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { ArrowLeft, AlertTriangle, Users, Clock } from "lucide-react"
+import { ArrowLeft, AlertTriangle, Users, Clock, Download } from "lucide-react"
 
 interface ComplianceRow {
   employee_id: number
@@ -99,6 +99,40 @@ export default function AttendanceComplianceReportPage() {
     return options
   }, [])
 
+  const downloadCsv = () => {
+    if (!report?.employees?.length) return
+    const headers = [
+      "Employee",
+      "Department",
+      "Worked (h)",
+      "Required (h)",
+      "Behind (h)",
+      "Avg/day",
+      "Compliance %",
+      "Unmarked days",
+      "Absent days",
+    ]
+    const rows = report.employees.map((row) => [
+      row.employee_name,
+      row.department_name || "",
+      row.total_hours_worked,
+      row.required_hours_to_date,
+      row.hours_behind_schedule,
+      row.average_daily_hours,
+      row.compliance_percent,
+      row.not_marked_days,
+      row.absent_days,
+    ])
+    const csv = [headers, ...rows].map((r) => r.join(",")).join("\n")
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = `attendance-compliance-${month}.csv`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <ResourceGuard
       resourceKeys={["reports", "leave_management", "attendance_records"]}
@@ -118,7 +152,12 @@ export default function AttendanceComplianceReportPage() {
               Employees behind weekly hour targets ({report?.weekly_working_hours ?? 40}h/week)
             </p>
           </div>
-          <Select value={month} onValueChange={setMonth}>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={downloadCsv} disabled={!report?.employees?.length}>
+              <Download className="w-4 h-4 mr-2" />
+              Download
+            </Button>
+            <Select value={month} onValueChange={setMonth}>
             <SelectTrigger className="w-48">
               <SelectValue />
             </SelectTrigger>
@@ -130,6 +169,7 @@ export default function AttendanceComplianceReportPage() {
               ))}
             </SelectContent>
           </Select>
+          </div>
         </div>
 
         {loading ? (
