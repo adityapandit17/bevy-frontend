@@ -13,8 +13,21 @@ APP_ROOT="$(cd "$HOOK_DIR/../.." && pwd)"
 cd "$APP_ROOT"
 
 if [ ! -d "node_modules" ]; then
-  echo "node_modules missing — running yarn install..." >&2
-  yarn install --frozen-lockfile
+  if [ -f "yarn.lock" ]; then
+    echo "node_modules missing — running yarn --frozen-lockfile..." >&2
+    yarn --frozen-lockfile
+  elif [ -f "package-lock.json" ]; then
+    echo "node_modules missing — running npm ci..." >&2
+    npm ci
+  else
+    echo "node_modules missing and no lockfile found (yarn.lock/package-lock.json)." >&2
+    exit 1
+  fi
+fi
+
+if [ -f "package-lock.json" ] && [ ! -d "node_modules" ]; then
+  echo "node_modules missing — running npm ci..." >&2
+  npm ci
 fi
 
 node "$HOOK_DIR/lib/check-deploy-security.mjs"

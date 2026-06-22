@@ -9,6 +9,5 @@
     "middleware.ts"
   ],
   "auditLevel": "high",
-  "blockAuditSeverities": ["critical", "high"],
-  "auditWatchlist": ["next", "react", "react-dom"]
+  "npmAuditLevel": "high"
 }

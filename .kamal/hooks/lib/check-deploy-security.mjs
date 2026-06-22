@@ -3,14 +3,15 @@
 /**
  * Pre-deploy security gate for Kamal.
  * - Enforces minimum versions for next / react / react-dom
- * - Runs yarn audit and blocks critical/high findings in production deps
+ * - Runs npm audit and blocks high/critical findings (moderate+ when npmAuditLevel=moderate)
  * - Verifies required security files exist (e.g. middleware.ts)
  */
 
-import { readFileSync, existsSync } from "node:fs"
+import { readFileSync, existsSync, copyFileSync, mkdtempSync, rmSync } from "node:fs"
 import { spawnSync } from "node:child_process"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
+import { tmpdir } from "node:os"
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const APP_ROOT = resolve(__dirname, "../../..")
@@ -129,75 +130,71 @@ function checkRegistryUpgrades(baseline) {
 }
 
 function checkAudit(baseline) {
-  console.log(`\n==> Running yarn audit (level: ${baseline.auditLevel})`)
+  const auditLevel = baseline.npmAuditLevel ?? baseline.auditLevel ?? "high"
+  const hasYarnLock = existsSync(join(APP_ROOT, "yarn.lock"))
 
-  const pkg = readJson(join(APP_ROOT, "package.json"))
-  const prodDeps = new Set(Object.keys(pkg.dependencies ?? {}))
-  const watchlist = new Set([
-    ...Object.keys(baseline.packages),
-    ...(baseline.auditWatchlist ?? []),
-    ...prodDeps,
-  ])
+  if (hasYarnLock) {
+    // Yarn v1 audit reports against the entire lockfile (including dev deps),
+    // which is too strict for deploy gating. We audit *production* deps only
+    // via npm in a temp dir to avoid writing package-lock.json into the repo.
+    console.log(`\n==> Running npm audit (production-only, level: ${auditLevel})`)
 
-  const result = spawnSync(
-    "yarn",
-    ["audit", "--level", baseline.auditLevel, "--json"],
-    { cwd: APP_ROOT, encoding: "utf8", maxBuffer: 20 * 1024 * 1024 }
-  )
-
-  const blocked = new Set(baseline.blockAuditSeverities)
-  const blockingFindings = []
-  const warnings = []
-
-  for (const line of result.stdout.split("\n")) {
-    if (!line.trim()) continue
-    let event
+    const auditDir = mkdtempSync(join(tmpdir(), "bevyhr-frontend-audit-"))
     try {
-      event = JSON.parse(line)
-    } catch {
-      continue
+      copyFileSync(join(APP_ROOT, "package.json"), join(auditDir, "package.json"))
+
+      const install = spawnSync(
+        "npm",
+        [
+          "i",
+          "--package-lock-only",
+          "--ignore-scripts",
+          "--omit=dev",
+          "--legacy-peer-deps",
+          "--no-audit",
+          "--no-fund",
+        ],
+        { cwd: auditDir, encoding: "utf8", stdio: "inherit" }
+      )
+      if (install.status !== 0) {
+        fail("Failed to generate production-only package-lock for audit")
+      }
+
+      const result = spawnSync("npm", ["audit", `--audit-level=${auditLevel}`, "--omit=dev"], {
+        cwd: auditDir,
+        encoding: "utf8",
+        stdio: "inherit",
+      })
+
+      if (result.status !== 0) {
+        fail(
+          `npm audit (production-only) found ${auditLevel} or higher vulnerabilities. ` +
+            `Run: npm audit --omit=dev --audit-level=${auditLevel}`
+        )
+      }
+
+      ok(`npm audit passed for production dependencies (no ${auditLevel}+ vulnerabilities)`)
+      return
+    } finally {
+      rmSync(auditDir, { recursive: true, force: true })
     }
-    if (event.type !== "auditAdvisory") continue
-
-    const advisory = event.data?.advisory
-    const moduleName = advisory?.module_name
-    const severity = advisory?.severity
-    if (!advisory || !blocked.has(severity)) continue
-
-    const finding = {
-      module: moduleName,
-      severity,
-      title: advisory.title,
-      recommendation: advisory.recommendation,
-      url: advisory.url,
-    }
-
-    if (watchlist.has(moduleName)) {
-      blockingFindings.push(finding)
-    } else {
-      warnings.push(finding)
-    }
   }
 
-  for (const finding of warnings) {
-    warn(`[${finding.severity}] ${finding.module} (transitive/dev): ${finding.title}`)
+  console.log(`\n==> Running npm audit (level: ${auditLevel})`)
+  const result = spawnSync("npm", ["audit", `--audit-level=${auditLevel}`], {
+    cwd: APP_ROOT,
+    encoding: "utf8",
+    stdio: "inherit",
+  })
+
+  if (result.status !== 0) {
+    fail(
+      `npm audit found ${auditLevel} or higher vulnerabilities. ` +
+        `Run: npm audit --audit-level=${auditLevel}`
+    )
   }
 
-  if (blockingFindings.length === 0) {
-    ok("No critical/high vulnerabilities in watched production dependencies")
-    return
-  }
-
-  console.error(
-    `\n${RED}Blocked: ${blockingFindings.length} critical/high advisories in production dependencies${RESET}\n`
-  )
-  for (const finding of blockingFindings) {
-    console.error(`  [${finding.severity}] ${finding.module}: ${finding.title}`)
-    if (finding.recommendation) console.error(`    Fix: ${finding.recommendation}`)
-    if (finding.url) console.error(`    ${finding.url}`)
-  }
-
-  fail("Resolve audit findings before deploying. Run: yarn audit --level high")
+  ok(`npm audit passed (no ${auditLevel}+ vulnerabilities)`)
 }
 
 function main() {

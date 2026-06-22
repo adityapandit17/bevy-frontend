@@ -71,6 +71,8 @@ interface Asset {
   id: string
   name: string
   assetType: string
+  assetTag?: string
+  scanPayload?: string
   serialNumber: string
   model: string
   brand: string
@@ -92,6 +94,14 @@ interface Asset {
   nextMaintenance?: string
   condition: "excellent" | "good" | "fair" | "poor"
   maintenanceHistory: MaintenanceRecord[]
+  label?: {
+    asset_tag?: string
+    scan_payload?: string
+    qr_code_url?: string
+    barcode_url?: string
+  }
+  qrCodeDataUrl?: string
+  barcodeDataUrl?: string
 }
 
 interface MaintenanceRecord {
@@ -236,6 +246,8 @@ export default function AssetsPage() {
       id: asset.id?.toString() || "",
       name: asset.name || "",
       assetType: asset.asset_type || asset.assetType || "",
+      assetTag: asset.asset_tag || asset.assetTag || "",
+      scanPayload: asset.scan_payload || asset.scanPayload || "",
       serialNumber: asset.serial_number || asset.serialNumber || "",
       model: asset.model || "",
       brand: asset.brand || "",
@@ -256,6 +268,7 @@ export default function AssetsPage() {
         email: asset.assigned_to.email || "",
         department: asset.assigned_to.department || ""
       } : undefined,
+      label: asset.label,
       maintenanceHistory: Array.isArray(asset.maintenance_history || asset.maintenanceHistory) 
         ? (asset.maintenance_history || asset.maintenanceHistory) 
         : []
@@ -537,12 +550,44 @@ export default function AssetsPage() {
       const data = await apiRequest<any>(getApiUrl(`api/assets/${asset.id}`))
       const transformedAsset = transformAsset(data.asset)
       transformedAsset.maintenanceHistory = data.maintenance_history?.map(transformMaintenanceRecord) || []
+      try {
+        const labelData = await apiRequest<any>(getApiUrl(`api/assets/${asset.id}/label`))
+        transformedAsset.qrCodeDataUrl = labelData.qr_code_data_url
+        transformedAsset.barcodeDataUrl = labelData.barcode_data_url
+        transformedAsset.label = labelData.label || transformedAsset.label
+      } catch {
+        // Label images are optional
+      }
       setSelectedAsset(transformedAsset)
     } catch (error) {
       console.error('Error fetching asset details:', error)
-      // Fallback to basic asset info if API fails
       setSelectedAsset(asset)
     }
+  }
+
+  const printAssetLabel = () => {
+    if (!selectedAsset?.qrCodeDataUrl || !selectedAsset?.barcodeDataUrl) return
+    const printWindow = window.open("", "_blank", "noopener,noreferrer,width=480,height=720")
+    if (!printWindow) return
+    printWindow.document.write(`
+      <html><head><title>Asset Label - ${selectedAsset.name}</title>
+      <style>
+        body { font-family: sans-serif; padding: 24px; text-align: center; }
+        h1 { font-size: 18px; margin-bottom: 4px; }
+        p { margin: 4px 0; color: #444; font-size: 13px; }
+        img { max-width: 220px; margin: 12px auto; display: block; }
+        .barcode { max-width: 320px; }
+      </style></head><body>
+      <h1>${selectedAsset.name}</h1>
+      <p>Tag: ${selectedAsset.assetTag || selectedAsset.label?.asset_tag || "—"}</p>
+      <p>Serial: ${selectedAsset.serialNumber}</p>
+      <img src="${selectedAsset.qrCodeDataUrl}" alt="Asset QR code" />
+      <img class="barcode" src="${selectedAsset.barcodeDataUrl}" alt="Asset barcode" />
+      <p>${selectedAsset.scanPayload || selectedAsset.label?.scan_payload || ""}</p>
+      <script>window.onload = () => { window.print(); }</script>
+      </body></html>
+    `)
+    printWindow.document.close()
   }
 
   const getStatusColor = (status: string) => {
@@ -1475,6 +1520,10 @@ export default function AssetsPage() {
                   <h3 className="font-medium mb-2">Asset Information</h3>
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
+                      <span className="text-gray-600">Asset Tag:</span>
+                      <span>{selectedAsset.assetTag || selectedAsset.label?.asset_tag || "—"}</span>
+                    </div>
+                    <div className="flex justify-between">
                       <span className="text-gray-600">Serial Number:</span>
                       <span>{selectedAsset.serialNumber}</span>
                     </div>
@@ -1549,6 +1598,33 @@ export default function AssetsPage() {
               </div>
 
               <div className="space-y-4">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-medium">Asset label</h3>
+                    {selectedAsset.qrCodeDataUrl && selectedAsset.barcodeDataUrl ? (
+                      <Button variant="outline" size="sm" onClick={printAssetLabel}>
+                        Print label
+                      </Button>
+                    ) : null}
+                  </div>
+                  <p className="text-xs text-gray-500 mb-3">
+                    Stick this QR/barcode on the physical asset. Mobile scans resolve to this record.
+                  </p>
+                  {selectedAsset.qrCodeDataUrl && selectedAsset.barcodeDataUrl ? (
+                    <div className="rounded-lg border p-4 bg-white flex flex-col items-center gap-3">
+                      <img src={selectedAsset.qrCodeDataUrl} alt="Asset QR code" className="h-36 w-36" />
+                      <img src={selectedAsset.barcodeDataUrl} alt="Asset barcode" className="max-w-full h-16 object-contain" />
+                      <p className="text-xs text-gray-600 break-all text-center">
+                        {selectedAsset.scanPayload || selectedAsset.label?.scan_payload}
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500">Label codes are generated when the asset is saved.</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-4 md:col-span-2">
                 <div>
                   <h3 className="font-medium mb-2">Maintenance History</h3>
                   <div className="space-y-3">

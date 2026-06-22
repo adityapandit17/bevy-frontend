@@ -8,6 +8,8 @@
     "dev:3001": "PORT=3001 next dev",
     "lint": "next lint",
     "start": "next start",
+    "prepare": "bash bin/install-githooks",
+    "audit:security": "bash scripts/npm-audit-security.sh",
     "deploy:check": "node .kamal/hooks/lib/check-deploy-security.mjs",
     "cypress:open": "cypress open",
     "cypress:run": "cypress run",
