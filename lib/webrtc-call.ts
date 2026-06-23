@@ -70,6 +70,63 @@ export class WebRTCCallManager {
   }
 
   /**
+   * Request microphone access (must run from a user gesture for incoming calls).
+   */
+  private async requestAudioStream(): Promise<MediaStream> {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new Error('Microphone is not supported in this browser.');
+    }
+
+    try {
+      return await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+        video: false,
+      });
+    } catch (error: any) {
+      if (error?.name === 'NotAllowedError') {
+        throw new Error(
+          'Microphone access was denied. Allow microphone for this site in your browser settings, then try again.'
+        );
+      }
+      if (error?.name === 'NotFoundError') {
+        throw new Error('No microphone found. Connect a microphone and try again.');
+      }
+      throw error;
+    }
+  }
+
+  private parseOffer(offer: RTCSessionDescriptionInit | string): RTCSessionDescriptionInit {
+    if (!offer) {
+      throw new Error('Invalid offer received from caller: offer is missing');
+    }
+
+    let offerToSet: RTCSessionDescriptionInit;
+    if (typeof offer === 'string') {
+      try {
+        offerToSet = JSON.parse(offer);
+      } catch {
+        throw new Error('Invalid offer format: cannot parse offer string');
+      }
+    } else {
+      offerToSet = offer;
+    }
+
+    if (!offerToSet.type || !offerToSet.sdp) {
+      throw new Error('Invalid offer received from caller: missing type or sdp');
+    }
+
+    if (offerToSet.type !== 'offer') {
+      console.warn('⚠️ Offer type is not "offer":', offerToSet.type);
+    }
+
+    return offerToSet;
+  }
+
+  /**
    * Initialize ActionCable connection for signaling
    */
   private async connectSignaling() {
@@ -184,15 +241,8 @@ export class WebRTCCallManager {
     }
 
     try {
-      // Get user media
-      this.localStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-        video: false,
-      });
+      // Get user media (outgoing call — triggered by user clicking Call)
+      this.localStream = await this.requestAudioStream();
 
       // Create call data
       const callId = `call_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -300,30 +350,19 @@ export class WebRTCCallManager {
   }
 
   /**
-   * Handle incoming call
+   * Handle incoming call — ring only; microphone is requested when the user taps Accept.
    */
   async handleIncomingCall(callData: CallData, offer: RTCSessionDescriptionInit): Promise<void> {
     console.log('📞 handleIncomingCall called:', { callData, offer });
-    
+
     if (this.currentCall) {
       console.log('⚠️ Already in a call, rejecting new call');
-      // Reject if already in a call
       this.rejectCall(callData.callId);
       return;
     }
 
     try {
-      console.log('🎤 Requesting user media...');
-      // Get user media
-      this.localStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-        video: false,
-      });
-      console.log('✅ User media obtained');
+      this.pendingOffer = this.parseOffer(offer);
 
       this.currentCall = {
         ...callData,
@@ -331,120 +370,20 @@ export class WebRTCCallManager {
         direction: 'incoming',
       };
 
-      console.log('📞 Setting call state to ringing');
+      console.log('📞 Incoming call ringing — waiting for user to accept');
       this.notifyCallStateChange();
 
-      // Create peer connection (localStream should already be set)
-      console.log('🔗 Creating peer connection...');
-      console.log('📊 Local stream available:', !!this.localStream);
-      if (this.localStream) {
-        console.log('📊 Local stream tracks:', this.localStream.getTracks().map(t => ({ kind: t.kind, enabled: t.enabled, id: t.id })));
-      }
-      this.peerConnection = this.createPeerConnection();
-      console.log('📊 Peer connection created, initial state:', this.peerConnection.signalingState);
-      console.log('📊 Peer connection local tracks after creation:', this.peerConnection.getSenders().map(s => ({ track: s.track?.kind, id: s.track?.id })));
-      
-      // Verify offer format
-      if (!offer) {
-        console.error('❌ No offer provided');
-        throw new Error('Invalid offer received from caller: offer is missing');
-      }
-      
-      // Ensure offer is in correct format (handle both object and string formats)
-      let offerToSet: RTCSessionDescriptionInit;
-      if (typeof offer === 'string') {
-        try {
-          offerToSet = JSON.parse(offer);
-        } catch {
-          throw new Error('Invalid offer format: cannot parse offer string');
-        }
-      } else {
-        offerToSet = offer;
-      }
-      
-      if (!offerToSet.type || !offerToSet.sdp) {
-        console.error('❌ Invalid offer format:', offerToSet);
-        throw new Error('Invalid offer received from caller: missing type or sdp');
-      }
-      
-      if (offerToSet.type !== 'offer') {
-        console.warn('⚠️ Offer type is not "offer":', offerToSet.type);
-      }
-      
-      console.log('📥 Setting remote description (offer):', {
-        type: offerToSet.type,
-        sdpLength: offerToSet.sdp?.length || 0,
-        currentState: this.peerConnection.signalingState
-      });
-      
-      try {
-        const rtcOffer = new RTCSessionDescription(offerToSet);
-        const stateBeforeSet = this.peerConnection.signalingState;
-        console.log('📊 State before setRemoteDescription:', stateBeforeSet);
-        
-        await this.peerConnection.setRemoteDescription(rtcOffer);
-        
-        // Wait a tick to ensure state has updated
-        await new Promise(resolve => setTimeout(resolve, 10));
-        
-        // Store the offer for potential recovery
-        this.pendingOffer = offerToSet;
-        
-        // Wait a bit more to ensure state has fully transitioned
-        await new Promise(resolve => setTimeout(resolve, 50));
-        
-        const stateAfterSet = this.peerConnection.signalingState;
-        console.log('✅ Remote description set successfully');
-        console.log('📊 Peer connection state after setting remote description:', stateAfterSet);
-        console.log('📊 Remote description details:', {
-          type: this.peerConnection.remoteDescription?.type,
-          sdpLength: this.peerConnection.remoteDescription?.sdp?.length || 0
-        });
-        console.log('📊 Local description details:', {
-          type: this.peerConnection.localDescription?.type,
-          sdpLength: this.peerConnection.localDescription?.sdp?.length || 0
-        });
-        console.log('📊 Peer connection senders:', this.peerConnection.getSenders().length);
-        console.log('📊 Peer connection receivers:', this.peerConnection.getReceivers().length);
-        
-        // Verify the state is correct
-        if (stateAfterSet !== 'have-remote-offer') {
-          console.error('❌ CRITICAL: Unexpected state after setting remote description:', stateAfterSet);
-          console.error('Expected: have-remote-offer, Got:', stateAfterSet);
-          console.error('📊 Full peer connection state:', {
-            signalingState: this.peerConnection.signalingState,
-            connectionState: this.peerConnection.connectionState,
-            iceConnectionState: this.peerConnection.iceConnectionState,
-            iceGatheringState: this.peerConnection.iceGatheringState,
-            hasRemoteDescription: !!this.peerConnection.remoteDescription,
-            hasLocalDescription: !!this.peerConnection.localDescription,
-            senders: this.peerConnection.getSenders().length,
-            receivers: this.peerConnection.getReceivers().length,
-          });
-          
-          // Don't throw here - let acceptCall handle it with recovery
-          console.warn('⚠️ State is not have-remote-offer, but continuing. acceptCall will attempt recovery.');
-        } else {
-          console.log('✅ State verification passed: have-remote-offer');
-        }
-      } catch (error: any) {
-        console.error('❌ Failed to set remote description:', error);
-        console.log('📊 Peer connection state at error:', this.peerConnection.signalingState);
-        throw new Error(`Failed to set remote description: ${error.message}`);
-      }
-
-      // Connect to signaling for sending answer/reject
       console.log('📡 Connecting to signaling...');
       const consumer = await this.connectSignaling();
       this.signalingConnected = false;
       this.signalingSubscription = consumer.subscriptions.create(
         {
           channel: 'CallChannel',
-          user_id: Number(callData.to.id), // Ensure user_id is a number
+          user_id: Number(callData.to.id),
         },
         {
           connected: () => {
-            console.log('✅ Connected to CallChannel for incoming call (to send answer), user_id:', callData.to.id);
+            console.log('✅ Connected to CallChannel for incoming call, user_id:', callData.to.id);
             this.signalingConnected = true;
           },
           disconnected: () => {
@@ -461,19 +400,18 @@ export class WebRTCCallManager {
           },
         }
       );
-      
-      // Wait for subscription to connect (with timeout)
+
       let attempts = 0;
       while (!this.signalingConnected && attempts < 10) {
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
         attempts++;
       }
-      
+
       if (!this.signalingConnected) {
         console.warn('⚠️ Signaling subscription not connected yet, but continuing...');
       }
-      
-      console.log('✅ Signaling subscription created for incoming call');
+
+      console.log('✅ Incoming call ready to accept');
     } catch (error) {
       console.error('❌ Failed to handle incoming call:', error);
       this.rejectCall(callData.callId);
@@ -489,90 +427,24 @@ export class WebRTCCallManager {
       throw new Error('No call to accept');
     }
 
-    if (!this.peerConnection) {
-      throw new Error('No peer connection available');
+    if (!this.pendingOffer) {
+      throw new Error('No call offer available');
     }
 
     console.log('📞 acceptCall called');
     console.log('📊 Current call state:', this.currentCall.state);
-    console.log('📊 Peer connection state:', this.peerConnection.signalingState);
-    console.log('📊 Has remote description:', !!this.peerConnection.remoteDescription);
-    console.log('📊 Has local description:', !!this.peerConnection.localDescription);
     console.log('📊 Pending offer exists:', !!this.pendingOffer);
-
-    // Verify remote description is set - if not, try to recover
-    if (!this.peerConnection.remoteDescription) {
-      console.error('❌ No remote description set on peer connection');
-      
-      // Try to recover by re-setting the offer if we have it stored
-      if (this.pendingOffer) {
-        console.log('🔄 Attempting to recover by re-setting remote description...');
-        try {
-          const rtcOffer = new RTCSessionDescription(this.pendingOffer);
-          await this.peerConnection.setRemoteDescription(rtcOffer);
-          console.log('✅ Remote description re-set successfully');
-          console.log('📊 State after recovery:', this.peerConnection.signalingState);
-        } catch (recoverError: any) {
-          console.error('❌ Failed to recover:', recoverError);
-          throw new Error('Remote description not set and recovery failed. Cannot create answer.');
-        }
-      } else {
-        throw new Error('Remote description not set and no pending offer available. Cannot create answer.');
-      }
-    }
-
-    // Verify peer connection is in correct state
-    const validStates = ['have-remote-offer', 'have-local-pranswer'];
-    const currentState = this.peerConnection.signalingState;
-    console.log('📊 Peer connection state before accept:', currentState);
-    
-    if (!validStates.includes(currentState)) {
-      console.error('❌ Peer connection not in correct state:', currentState);
-      console.log('📊 Peer connection details:', {
-        signalingState: this.peerConnection.signalingState,
-        connectionState: this.peerConnection.connectionState,
-        iceConnectionState: this.peerConnection.iceConnectionState,
-        hasRemoteDescription: !!this.peerConnection.remoteDescription,
-        hasLocalDescription: !!this.peerConnection.localDescription,
-        remoteDescriptionType: this.peerConnection.remoteDescription?.type,
-        localDescriptionType: this.peerConnection.localDescription?.type,
-      });
-      
-      // If state is stable but we have remote description, try to re-set it
-      if (currentState === 'stable' && this.peerConnection.remoteDescription && this.pendingOffer) {
-        console.log('🔄 State is stable but has remote description. Re-setting remote description...');
-        try {
-          const rtcOffer = new RTCSessionDescription(this.pendingOffer);
-          await this.peerConnection.setRemoteDescription(rtcOffer);
-          const newState = this.peerConnection.signalingState;
-          console.log('📊 State after re-setting:', newState);
-          
-          if (!validStates.includes(newState)) {
-            throw new Error(`State still invalid after recovery: ${newState}`);
-          }
-        } catch (recoverError: any) {
-          console.error('❌ Failed to recover from stable state:', recoverError);
-          throw new Error(`Peer connection not ready. Current state: ${currentState}. Recovery failed: ${recoverError.message}`);
-        }
-      } else {
-        throw new Error(`Peer connection not ready. Current state: ${currentState}. Expected: ${validStates.join(' or ')}`);
-      }
-    }
-    
-    console.log('✅ Peer connection state is valid:', currentState);
 
     if (!this.signalingSubscription) {
       console.error('❌ No signaling subscription available');
       throw new Error('No signaling subscription available. Please try again.');
     }
 
-    // Verify subscription is connected
     if (!this.signalingConnected) {
       console.warn('⚠️ Signaling subscription not connected yet, waiting...');
-      // Wait a bit more for connection
       let attempts = 0;
       while (!this.signalingConnected && attempts < 5) {
-        await new Promise(resolve => setTimeout(resolve, 200));
+        await new Promise((resolve) => setTimeout(resolve, 200));
         attempts++;
       }
       if (!this.signalingConnected) {
@@ -581,74 +453,32 @@ export class WebRTCCallManager {
     }
 
     try {
+      console.log('🎤 Requesting microphone (user accepted call)...');
+      this.localStream = await this.requestAudioStream();
+      console.log('✅ User media obtained');
+
+      this.peerConnection = this.createPeerConnection();
+
+      const rtcOffer = new RTCSessionDescription(this.pendingOffer);
+      await this.peerConnection.setRemoteDescription(rtcOffer);
+      console.log('✅ Remote description set, state:', this.peerConnection.signalingState);
+
+      if (!['have-remote-offer', 'have-local-pranswer'].includes(this.peerConnection.signalingState)) {
+        throw new Error(
+          `Peer connection not ready. Current state: ${this.peerConnection.signalingState}`
+        );
+      }
+
       console.log('✅ Accepting call:', this.currentCall.callId);
-      console.log('📊 Peer connection state:', this.peerConnection.signalingState);
-      
-      // Double-check state before creating answer
-      let currentState = this.peerConnection.signalingState;
-      console.log('📊 State before creating answer:', currentState);
-      
-      // If state is stable but we have remote description, re-set it
-      if (currentState === 'stable' && this.peerConnection.remoteDescription && this.pendingOffer) {
-        console.log('🔄 State is stable, re-setting remote description to get correct state...');
-        try {
-          const rtcOffer = new RTCSessionDescription(this.pendingOffer);
-          await this.peerConnection.setRemoteDescription(rtcOffer);
-          currentState = this.peerConnection.signalingState;
-          console.log('📊 State after re-setting:', currentState);
-        } catch (recoverError: any) {
-          console.error('❌ Failed to recover:', recoverError);
-          throw new Error(`Cannot create answer. State: stable. Recovery failed: ${recoverError.message}`);
-        }
-      }
-      
-      if (!['have-remote-offer', 'have-local-pranswer'].includes(currentState)) {
-        // Try to recover by checking if remote description exists
-        if (this.peerConnection.remoteDescription) {
-          console.log('⚠️ State is', currentState, 'but remote description exists. Attempting to proceed...');
-        } else {
-          throw new Error(`Cannot create answer. Peer connection state: ${currentState}. Remote description missing.`);
-        }
-      }
-      
-      // Create answer - check state immediately before calling
       console.log('🔧 Creating answer...');
-      const stateBeforeAnswer = this.peerConnection.signalingState;
-      console.log('📊 State immediately before createAnswer:', stateBeforeAnswer);
-      
-      // Final state check right before creating answer
-      if (!['have-remote-offer', 'have-local-pranswer'].includes(stateBeforeAnswer)) {
-        console.error('❌ Invalid state right before createAnswer:', stateBeforeAnswer);
-        
-        // Try to fix by re-setting remote description if we have it
-        if (this.pendingOffer) {
-          console.log('🔄 Attempting last-chance recovery by re-setting remote description...');
-          try {
-            const rtcOffer = new RTCSessionDescription(this.pendingOffer);
-            await this.peerConnection.setRemoteDescription(rtcOffer);
-            const newState = this.peerConnection.signalingState;
-            console.log('📊 State after recovery:', newState);
-            
-            if (!['have-remote-offer', 'have-local-pranswer'].includes(newState)) {
-              throw new Error(`State still invalid after recovery: ${newState}`);
-            }
-          } catch (recoverError: any) {
-            console.error('❌ Recovery failed:', recoverError);
-            throw new Error(`Cannot create answer. State: ${stateBeforeAnswer}. Recovery failed: ${recoverError.message}`);
-          }
-        } else {
-          throw new Error(`Cannot create answer. Peer connection state: ${stateBeforeAnswer}. Expected: have-remote-offer or have-local-pranswer`);
-        }
-      }
-      
+
       let answer: RTCSessionDescriptionInit;
       try {
-        // Double-check state one more time right before the call
         const finalStateCheck = this.peerConnection.signalingState;
         if (!['have-remote-offer', 'have-local-pranswer'].includes(finalStateCheck)) {
           throw new Error(`State changed between checks: ${finalStateCheck}`);
         }
-        
+
         answer = await this.peerConnection.createAnswer();
         console.log('✅ Answer created:', answer.type);
       } catch (error: any) {
@@ -784,15 +614,42 @@ export class WebRTCCallManager {
    */
   async handleSignalingMessage(data: any) {
     console.log('📨 handleSignalingMessage:', data, 'currentCall:', this.currentCall);
-    
-    if (!this.peerConnection || !this.currentCall) {
-      console.warn('⚠️ No peer connection or current call, ignoring message');
+
+    if (!this.currentCall) {
+      console.warn('⚠️ No current call, ignoring message');
       return;
     }
 
     try {
+      if (data.type === 'call-reject' || data.type === 'call-end') {
+        console.log('❌ Call rejected or ended');
+        this.endCall();
+        return;
+      }
+
+      if (data.type === 'ice-candidate') {
+        console.log('🧊 Processing ICE candidate:', data.candidate);
+        const candidate = new RTCIceCandidate(data.candidate);
+        try {
+          if (this.peerConnection?.remoteDescription) {
+            await this.peerConnection.addIceCandidate(candidate);
+            console.log('✅ ICE candidate added successfully');
+          } else {
+            console.log('⏳ Storing ICE candidate for later');
+            this.pendingIceCandidates.push(candidate);
+          }
+        } catch (error: any) {
+          console.error('❌ Failed to add ICE candidate:', error);
+        }
+        return;
+      }
+
+      if (!this.peerConnection) {
+        console.warn('⚠️ No peer connection yet, ignoring message type:', data.type);
+        return;
+      }
+
       if (data.type === 'call-offer' && this.currentCall.direction === 'incoming') {
-        // Already handled in handleIncomingCall
         console.log('📞 Call offer already handled for incoming call');
         return;
       }
@@ -830,28 +687,6 @@ export class WebRTCCallManager {
         this.callStartTime = new Date(); // Start duration timer for caller when connected
         this.notifyCallStateChange();
         console.log('✅ Call connected');
-      }
-
-      if (data.type === 'ice-candidate') {
-        console.log('🧊 Processing ICE candidate:', data.candidate);
-        try {
-          if (this.peerConnection.remoteDescription) {
-            await this.peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
-            console.log('✅ ICE candidate added successfully');
-          } else {
-            // Store ICE candidates if remote description not set yet
-            console.log('⏳ Storing ICE candidate for later (remote description not set)');
-            this.pendingIceCandidates.push(new RTCIceCandidate(data.candidate));
-          }
-        } catch (error: any) {
-          console.error('❌ Failed to add ICE candidate:', error);
-          // Don't throw - ICE candidates can fail and connection might still work
-        }
-      }
-
-      if (data.type === 'call-reject' || data.type === 'call-end') {
-        console.log('❌ Call rejected or ended');
-        this.endCall();
       }
     } catch (error) {
       console.error('❌ Failed to handle signaling message:', error);
