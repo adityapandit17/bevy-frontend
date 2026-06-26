@@ -44,6 +44,20 @@ const DEFAULT_ICE_SERVERS: RTCIceServer[] = [
 const SIGNALING_READY_TIMEOUT_MS = 5000;
 const DISCONNECT_GRACE_MS = 8000;
 
+function isTurnUrl(url: string): boolean {
+  return url.startsWith('turn:') || url.startsWith('turns:');
+}
+
+/** Browsers throw if TURN URLs are present without username + credential. */
+export function normalizeIceServers(servers: RTCIceServer[]): RTCIceServer[] {
+  return servers.filter((server) => {
+    const urls = Array.isArray(server.urls) ? server.urls : [server.urls];
+    const hasTurn = urls.some((url) => typeof url === 'string' && isTurnUrl(url));
+    if (!hasTurn) return true;
+    return Boolean(server.username && server.credential);
+  });
+}
+
 export class WebRTCCallManager {
   private localStream: MediaStream | null = null;
   private peerConnection: RTCPeerConnection | null = null;
@@ -96,7 +110,11 @@ export class WebRTCCallManager {
       );
       const servers = response.data?.ice_servers ?? response.ice_servers;
       if (servers?.length) {
-        this.iceServers = { iceServers: servers, iceCandidatePoolSize: 10 };
+        const normalized = normalizeIceServers(servers);
+        this.iceServers = {
+          iceServers: normalized.length ? normalized : DEFAULT_ICE_SERVERS,
+          iceCandidatePoolSize: 10,
+        };
       }
     } catch {
       this.iceServers = { iceServers: DEFAULT_ICE_SERVERS };
