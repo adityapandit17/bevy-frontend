@@ -333,7 +333,7 @@ export class WebRTCCallManager {
     this.notifyCallStateChange();
   }
 
-  async acceptCall(): Promise<void> {
+  async acceptCall(withVideo: boolean = false): Promise<void> {
     if (!this.currentCall) {
       throw new Error('No call to accept');
     }
@@ -345,8 +345,7 @@ export class WebRTCCallManager {
     await this.ensureSignalingReady();
 
     try {
-      const includeVideo = this.currentCall.mediaType === 'video';
-      this.localStream = await this.requestMediaStream(includeVideo);
+      this.localStream = await this.requestMediaStream(withVideo);
       this.onLocalStream?.(this.localStream);
 
       this.peerConnection = this.createPeerConnection();
@@ -377,6 +376,11 @@ export class WebRTCCallManager {
         to: this.currentCall.from,
         answer,
       });
+
+      if (withVideo) {
+        this.currentCall.mediaType = 'video';
+        this.notifyCallStateChange();
+      }
 
       // UI may show ringing until ICE connects; markConnected runs on connection events
       if (
@@ -505,6 +509,36 @@ export class WebRTCCallManager {
       ) {
         this.markConnected();
       }
+      return;
+    }
+
+    if (type === 'call-renegotiate-offer') {
+      const offer = this.parseOffer(data.offer as RTCSessionDescriptionInit | string);
+      await this.peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+      const answer = await this.peerConnection.createAnswer();
+      await this.peerConnection.setLocalDescription(answer);
+
+      this.currentCall.mediaType = 'video';
+      this.notifyCallStateChange();
+
+      const otherUser =
+        this.currentCall.direction === 'outgoing' ? this.currentCall.to : this.currentCall.from;
+      const fromUser =
+        this.currentCall.direction === 'outgoing' ? this.currentCall.from : this.currentCall.to;
+
+      this.sendSignaling({
+        type: 'call-renegotiate-answer',
+        callId: this.currentCall.callId,
+        from: fromUser,
+        to: otherUser,
+        answer,
+      });
+      return;
+    }
+
+    if (type === 'call-renegotiate-answer') {
+      const answer = data.answer as RTCSessionDescriptionInit;
+      await this.peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
     }
   }
 
@@ -529,7 +563,70 @@ export class WebRTCCallManager {
     const videoTrack = this.localStream?.getVideoTracks()[0];
     if (!videoTrack) return false;
     videoTrack.enabled = !videoTrack.enabled;
+    this.onLocalStream?.(this.localStream);
     return videoTrack.enabled;
+  }
+
+  async enableVideo(): Promise<void> {
+    if (!this.peerConnection || !this.localStream || !this.currentCall) {
+      throw new Error('Call not connected');
+    }
+
+    const existingTrack = this.localStream.getVideoTracks()[0];
+    if (existingTrack) {
+      existingTrack.enabled = true;
+      this.onLocalStream?.(this.localStream);
+      return;
+    }
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new Error('Camera is not supported in this browser.');
+    }
+
+    let videoStream: MediaStream;
+    try {
+      videoStream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          facingMode: 'user',
+        },
+      });
+    } catch (error: unknown) {
+      const err = error as { name?: string };
+      if (err?.name === 'NotAllowedError') {
+        throw new Error(
+          'Camera access was denied. Allow camera for this site in your browser settings, then try again.'
+        );
+      }
+      if (err?.name === 'NotFoundError') {
+        throw new Error('No camera found. Connect a camera and try again.');
+      }
+      throw error;
+    }
+
+    const videoTrack = videoStream.getVideoTracks()[0];
+    this.localStream.addTrack(videoTrack);
+    this.peerConnection.addTrack(videoTrack, this.localStream);
+    this.currentCall.mediaType = 'video';
+    this.onLocalStream?.(this.localStream);
+    this.notifyCallStateChange();
+
+    const offer = await this.peerConnection.createOffer();
+    await this.peerConnection.setLocalDescription(offer);
+
+    const otherUser =
+      this.currentCall.direction === 'outgoing' ? this.currentCall.to : this.currentCall.from;
+    const fromUser =
+      this.currentCall.direction === 'outgoing' ? this.currentCall.from : this.currentCall.to;
+
+    this.sendSignaling({
+      type: 'call-renegotiate-offer',
+      callId: this.currentCall.callId,
+      from: fromUser,
+      to: otherUser,
+      offer,
+    });
   }
 
   isVideoEnabled(): boolean {
@@ -539,6 +636,10 @@ export class WebRTCCallManager {
 
   hasVideo(): boolean {
     return (this.localStream?.getVideoTracks().length ?? 0) > 0;
+  }
+
+  hasRemoteVideo(): boolean {
+    return (this.remoteStream?.getVideoTracks().length ?? 0) > 0;
   }
 
   getCurrentCall(): CallData | null {

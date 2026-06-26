@@ -23,15 +23,18 @@ interface CallNotificationProps {
   call: CallData
   localStream: MediaStream | null
   remoteStream: MediaStream | null
-  onAccept: () => void | Promise<void>
+  onAccept: (withVideo?: boolean) => void | Promise<void>
   onReject: () => void
   onEnd: () => void
   onMuteToggle: () => void
-  onVideoToggle: () => void
+  onVideoToggle: () => void | Promise<void>
   isMuted: boolean
   isVideoEnabled: boolean
+  hasLocalVideo: boolean
+  hasRemoteVideo: boolean
   callDuration?: number
   acceptingCall?: boolean
+  enablingVideo?: boolean
 }
 
 export function CallNotification({
@@ -45,13 +48,30 @@ export function CallNotification({
   onVideoToggle,
   isMuted,
   isVideoEnabled,
+  hasLocalVideo,
+  hasRemoteVideo,
   callDuration = 0,
   acceptingCall = false,
+  enablingVideo = false,
 }: CallNotificationProps) {
   const localVideoRef = useRef<HTMLVideoElement>(null)
   const remoteVideoRef = useRef<HTMLVideoElement>(null)
   const displayDuration = call.state === "connected" ? callDuration : 0
+  const caller = call.direction === "incoming" ? call.from : call.to
+  const isIncoming = call.direction === "incoming"
+  const isConnected = call.state === "connected"
+  const isRinging = call.state === "ringing"
+  const isCalling = call.state === "calling"
   const isVideoCall = call.mediaType === "video"
+  const hasActiveVideo =
+    hasLocalVideo ||
+    hasRemoteVideo ||
+    (localStream?.getVideoTracks().length ?? 0) > 0 ||
+    (remoteStream?.getVideoTracks().length ?? 0) > 0
+  const showVideoStage =
+    (isConnected && hasActiveVideo) ||
+    (isVideoCall && (isCalling || localStream)) ||
+    (isIncoming && isRinging && isVideoCall)
 
   useEffect(() => {
     const el = localVideoRef.current
@@ -103,13 +123,6 @@ export function CallNotification({
     }
   }, [call.state, call.direction])
 
-  const caller = call.direction === "incoming" ? call.from : call.to
-  const isIncoming = call.direction === "incoming"
-  const isConnected = call.state === "connected"
-  const isRinging = call.state === "ringing"
-  const isCalling = call.state === "calling"
-  const showVideoStage = isVideoCall && (isConnected || localStream)
-
   return (
     <div
       data-testid="call-notification"
@@ -121,7 +134,7 @@ export function CallNotification({
       <div
         className={cn(
           "bg-card rounded-lg shadow-xl p-6 sm:p-8 w-full mx-4 animate-in zoom-in-95 duration-200",
-          isVideoCall && isConnected ? "max-w-4xl" : "max-w-lg"
+          showVideoStage && isConnected ? "max-w-4xl" : "max-w-lg"
         )}
       >
         {showVideoStage && (
@@ -187,7 +200,7 @@ export function CallNotification({
             {isConnected && (
               <div className="space-y-1">
                 <p className="text-sm text-green-500" data-testid="call-status-connected">
-                  {isVideoCall ? "Video connected" : "Connected"}
+                  {hasActiveVideo ? "Video connected" : "Connected"}
                 </p>
                 <p className="text-lg font-mono font-semibold text-green-600" data-testid="call-duration">
                   {formatDuration(displayDuration)}
@@ -215,8 +228,8 @@ export function CallNotification({
                 size="icon"
                 className="h-14 w-14 rounded-full bg-green-500 hover:bg-green-600"
                 disabled={acceptingCall}
-                onClick={() => void onAccept()}
-                title="Accept"
+                onClick={() => void onAccept(false)}
+                title={isVideoCall ? "Accept with audio" : "Accept"}
                 data-testid="call-accept-btn"
               >
                 {acceptingCall ? (
@@ -225,6 +238,23 @@ export function CallNotification({
                   <Phone className="h-6 w-6" />
                 )}
               </Button>
+              {isVideoCall && (
+                <Button
+                  variant="default"
+                  size="icon"
+                  className="h-14 w-14 rounded-full bg-blue-500 hover:bg-blue-600"
+                  disabled={acceptingCall}
+                  onClick={() => void onAccept(true)}
+                  title="Accept with video"
+                  data-testid="call-accept-video-btn"
+                >
+                  {acceptingCall ? (
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                  ) : (
+                    <Video className="h-6 w-6" />
+                  )}
+                </Button>
+              )}
             </>
           )}
 
@@ -257,22 +287,29 @@ export function CallNotification({
                   <Mic className="h-5 w-5" />
                 )}
               </Button>
-              {isVideoCall && (
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-12 w-12 rounded-full"
-                  onClick={onVideoToggle}
-                  title={isVideoEnabled ? "Turn off camera" : "Turn on camera"}
-                  data-testid="call-video-toggle-btn"
-                >
-                  {isVideoEnabled ? (
-                    <Video className="h-5 w-5" />
-                  ) : (
-                    <VideoOff className="h-5 w-5 text-destructive" />
-                  )}
-                </Button>
-              )}
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-12 w-12 rounded-full"
+                disabled={enablingVideo}
+                onClick={() => void onVideoToggle()}
+                title={
+                  hasLocalVideo
+                    ? isVideoEnabled
+                      ? "Turn off camera"
+                      : "Turn on camera"
+                    : "Enable camera"
+                }
+                data-testid="call-video-toggle-btn"
+              >
+                {enablingVideo ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : hasLocalVideo && isVideoEnabled ? (
+                  <Video className="h-5 w-5" />
+                ) : (
+                  <VideoOff className="h-5 w-5 text-destructive" />
+                )}
+              </Button>
               <Button
                 variant="destructive"
                 size="icon"

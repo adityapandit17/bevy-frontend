@@ -46,16 +46,17 @@ interface CallContextValue {
   callMuted: boolean
   callVideoEnabled: boolean
   acceptingCall: boolean
+  enablingVideo: boolean
   setCallEventSink: (sink: CallEventSink | null) => void
   startCall: (
     to: { id: number; name: string; email: string },
     options?: StartCallOptions
   ) => Promise<void>
-  acceptCall: () => Promise<void>
+  acceptCall: (withVideo?: boolean) => Promise<void>
   rejectCall: () => void
   endCall: () => void
   toggleCallMute: () => void
-  toggleCallVideo: () => void
+  toggleCallVideo: () => Promise<void>
   formatDuration: (seconds: number) => string
 }
 
@@ -78,6 +79,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const [callVideoEnabled, setCallVideoEnabled] = useState(false)
   const [callDuration, setCallDuration] = useState(0)
   const [acceptingCall, setAcceptingCall] = useState(false)
+  const [enablingVideo, setEnablingVideo] = useState(false)
   const callEventSinkRef = useRef<CallEventSink | null>(null)
   const callSubscriptionRef = useRef<{ send: (data: unknown) => void } | null>(null)
   const signalingReadyRef = useRef(false)
@@ -162,12 +164,12 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     [currentUser, callManager]
   )
 
-  const acceptCall = useCallback(async () => {
+  const acceptCall = useCallback(async (withVideo = false) => {
     const call = callManager.getCurrentCall()
     if (!call || call.state !== "ringing") return
     setAcceptingCall(true)
     try {
-      await callManager.acceptCall()
+      await callManager.acceptCall(withVideo)
       setCallMuted(callManager.isMuted())
       setCallVideoEnabled(callManager.isVideoEnabled())
       const sink = callEventSinkRef.current
@@ -235,9 +237,27 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     setCallMuted(callManager.isMuted())
   }, [callManager, callMuted])
 
-  const toggleCallVideo = useCallback(() => {
-    const enabled = callManager.toggleVideo()
-    setCallVideoEnabled(enabled)
+  const toggleCallVideo = useCallback(async () => {
+    try {
+      if (callManager.hasVideo()) {
+        const enabled = callManager.toggleVideo()
+        setCallVideoEnabled(enabled)
+        return
+      }
+
+      setEnablingVideo(true)
+      await callManager.enableVideo()
+      setCallVideoEnabled(callManager.isVideoEnabled())
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to enable camera"
+      toast({
+        title: "Camera Error",
+        description: message,
+        variant: "destructive",
+      })
+    } finally {
+      setEnablingVideo(false)
+    }
   }, [callManager])
 
   useEffect(() => {
@@ -317,7 +337,9 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
               if (
                 data.type === "call-answer" ||
                 data.type === "ice-candidate" ||
-                data.type === "call-end"
+                data.type === "call-end" ||
+                data.type === "call-renegotiate-offer" ||
+                data.type === "call-renegotiate-answer"
               ) {
                 await callManager.handleSignalingMessage(data)
                 return
@@ -405,6 +427,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     callMuted,
     callVideoEnabled,
     acceptingCall,
+    enablingVideo,
     setCallEventSink,
     startCall,
     acceptCall,
@@ -428,13 +451,18 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
             onReject={rejectCall}
             onEnd={endCall}
             onMuteToggle={toggleCallMute}
-            onVideoToggle={toggleCallVideo}
+            onVideoToggle={() => void toggleCallVideo()}
             isMuted={callMuted}
             isVideoEnabled={callVideoEnabled}
+            hasLocalVideo={callManager.hasVideo()}
+            hasRemoteVideo={(remoteStream?.getVideoTracks().length ?? 0) > 0}
             callDuration={callDuration}
             acceptingCall={acceptingCall}
+            enablingVideo={enablingVideo}
           />
-          {remoteStream && currentCall.mediaType === "audio" && (
+          {remoteStream &&
+            !localStream?.getVideoTracks().some((t) => t.enabled) &&
+            !remoteStream.getVideoTracks().some((t) => t.enabled) && (
             <CallAudio stream={remoteStream} />
           )}
         </>
