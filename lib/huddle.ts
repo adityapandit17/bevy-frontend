@@ -5,8 +5,7 @@
 
 import { apiRequest, getApiUrl } from './api';
 import { AUTH_CONFIG } from '@/config/auth.config';
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000';
+import { getActionCableUrl } from '@/lib/action-cable-url';
 
 export interface Huddle {
   id: number;
@@ -146,9 +145,7 @@ export class HuddleWebRTC {
         throw new Error('No authentication token');
       }
 
-      const protocol = API_BASE_URL.startsWith('https') ? 'wss' : 'ws';
-      const baseUrl = API_BASE_URL.replace(/^https?/, protocol);
-      const cableUrl = `${baseUrl}/cable?token=${encodeURIComponent(token)}`;
+      const cableUrl = getActionCableUrl(token);
       
       const consumer = ActionCable.createConsumer(cableUrl);
 

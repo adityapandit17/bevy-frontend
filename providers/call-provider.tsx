@@ -11,14 +11,16 @@ import React, {
 import { useAuthContext } from "@/lib/auth"
 import { toast } from "@/hooks/use-toast"
 import { AUTH_CONFIG } from "@/config/auth.config"
+import { getActionCableUrl } from "@/lib/action-cable-url"
 import {
   WebRTCCallManager,
   CallData,
+  CallMediaType,
+  StartCallOptions,
+  waitForSignalingReady,
 } from "@/lib/webrtc-call"
 import { CallNotification } from "@/components/call/call-notification"
 import { CallAudio } from "@/components/call/call-audio"
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000"
 
 export type CallEventType = "accepted" | "rejected" | "ended"
 
@@ -26,7 +28,6 @@ export interface CallEventPayload {
   call: CallData
   duration?: number
   otherUser: { id: number; name: string; email: string }
-  /** True when we are the caller and the other party declined */
   rejectedByThem?: boolean
 }
 
@@ -39,16 +40,22 @@ export interface CallEventSink {
 interface CallContextValue {
   callManager: WebRTCCallManager
   currentCall: CallData | null
+  localStream: MediaStream | null
   remoteStream: MediaStream | null
   callDuration: number
   callMuted: boolean
+  callVideoEnabled: boolean
   acceptingCall: boolean
   setCallEventSink: (sink: CallEventSink | null) => void
-  startCall: (to: { id: number; name: string; email: string }) => Promise<void>
+  startCall: (
+    to: { id: number; name: string; email: string },
+    options?: StartCallOptions
+  ) => Promise<void>
   acceptCall: () => Promise<void>
   rejectCall: () => void
   endCall: () => void
   toggleCallMute: () => void
+  toggleCallVideo: () => void
   formatDuration: (seconds: number) => string
 }
 
@@ -65,11 +72,15 @@ export function useCallContext(): CallContextValue {
 export function CallProvider({ children }: { children: React.ReactNode }) {
   const { user: currentUser } = useAuthContext()
   const [currentCall, setCurrentCall] = useState<CallData | null>(null)
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null)
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null)
   const [callMuted, setCallMuted] = useState(false)
+  const [callVideoEnabled, setCallVideoEnabled] = useState(false)
   const [callDuration, setCallDuration] = useState(0)
   const [acceptingCall, setAcceptingCall] = useState(false)
   const callEventSinkRef = useRef<CallEventSink | null>(null)
+  const callSubscriptionRef = useRef<{ send: (data: unknown) => void } | null>(null)
+  const signalingReadyRef = useRef(false)
 
   const setCallEventSink = useCallback((sink: CallEventSink | null) => {
     callEventSinkRef.current = sink
@@ -82,8 +93,15 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         (stream) => setRemoteStream(stream),
         () => {
           setCurrentCall(null)
+          setLocalStream(null)
           setRemoteStream(null)
           setCallDuration(0)
+          setCallMuted(false)
+          setCallVideoEnabled(false)
+        },
+        (stream) => {
+          setLocalStream(stream)
+          setCallVideoEnabled(stream?.getVideoTracks().some((t) => t.enabled) ?? false)
         }
       )
   )
@@ -99,7 +117,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const handleIncomingCall = useCallback(
-    async (data: any) => {
+    async (data: Record<string, unknown>) => {
       if (!currentUser) return
       if (!data.offer) {
         toast({
@@ -111,25 +129,32 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       }
       if (callManager.getCurrentCall()) return
 
+      const mediaType = (data.mediaType as CallMediaType) || "audio"
       const callData: CallData = {
-        callId: data.callId,
-        from: data.from,
+        callId: String(data.callId),
+        from: data.from as CallData["from"],
         to:
-          data.to || {
-            id: currentUser.id,
+          (data.to as CallData["to"]) || {
+            id: Number(currentUser.id),
             name: currentUser.name ?? "",
             email: currentUser.email ?? "",
           },
         state: "ringing",
         direction: "incoming",
+        mediaType,
       }
 
       try {
-        await callManager.handleIncomingCall(callData, data.offer)
-      } catch (error: any) {
+        await callManager.handleIncomingCall(
+          callData,
+          data.offer as RTCSessionDescriptionInit,
+          mediaType
+        )
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : "Failed to handle incoming call"
         toast({
           title: "Call Error",
-          description: error?.message ?? "Failed to handle incoming call",
+          description: message,
           variant: "destructive",
         })
       }
@@ -143,6 +168,8 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     setAcceptingCall(true)
     try {
       await callManager.acceptCall()
+      setCallMuted(callManager.isMuted())
+      setCallVideoEnabled(callManager.isVideoEnabled())
       const sink = callEventSinkRef.current
       if (sink?.onCallAccepted) {
         await Promise.resolve(
@@ -152,10 +179,11 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
           })
         )
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to accept call. Please try again."
       toast({
         title: "Call Error",
-        description: error?.message ?? "Failed to accept call. Please try again.",
+        description: message,
         variant: "destructive",
       })
     } finally {
@@ -182,8 +210,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const endCall = useCallback(() => {
     const call = callManager.getCurrentCall()
     if (call) {
-      const otherUser =
-        call.direction === "outgoing" ? call.to : call.from
+      const otherUser = call.direction === "outgoing" ? call.to : call.from
       const duration = callManager.getCallDuration()
       const sink = callEventSinkRef.current
       if (sink?.onCallEnded) {
@@ -208,22 +235,42 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     setCallMuted(callManager.isMuted())
   }, [callManager, callMuted])
 
+  const toggleCallVideo = useCallback(() => {
+    const enabled = callManager.toggleVideo()
+    setCallVideoEnabled(enabled)
+  }, [callManager])
+
   useEffect(() => {
     if (currentCall?.state === "connected") {
       const interval = setInterval(() => {
         setCallDuration(callManager.getCallDuration())
       }, 1000)
       return () => clearInterval(interval)
-    } else {
-      setCallDuration(0)
     }
+    setCallDuration(0)
   }, [currentCall?.state, callManager])
+
+  useEffect(() => {
+    callManager.bindSignaling({
+      send: (data) => {
+        if (!callSubscriptionRef.current) {
+          throw new Error("Call signaling is not connected.")
+        }
+        callSubscriptionRef.current.send(data)
+      },
+      waitUntilReady: () => waitForSignalingReady(() => signalingReadyRef.current),
+    })
+
+    return () => {
+      callManager.bindSignaling(null)
+    }
+  }, [callManager])
 
   useEffect(() => {
     if (!currentUser?.id) return
 
-    let callSubscription: any = null
-    let consumer: any = null
+    let callSubscription: { unsubscribe: () => void; send: (data: unknown) => void } | null = null
+    let consumer: { disconnect: () => void } | null = null
 
     const setup = async () => {
       try {
@@ -232,37 +279,51 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         const token = localStorage.getItem(AUTH_CONFIG.tokenKey)
         if (!token) return
 
-        const protocol = API_BASE_URL.startsWith("https") ? "wss" : "ws"
-        const baseUrl = API_BASE_URL.replace(/^https?/, protocol)
-        const cableUrl = `${baseUrl}/cable?token=${encodeURIComponent(token)}`
+        const cableUrl = getActionCableUrl(token)
         consumer = ActionCable.createConsumer(cableUrl)
-        await new Promise((r) => setTimeout(r, 100))
 
+        signalingReadyRef.current = false
         callSubscription = consumer.subscriptions.create(
           {
             channel: "CallChannel",
             user_id: Number(currentUser.id),
           },
           {
-            connected: () => {},
-            disconnected: () => {},
+            connected: () => {
+              signalingReadyRef.current = true
+            },
+            disconnected: () => {
+              signalingReadyRef.current = false
+            },
             rejected: () => {
+              signalingReadyRef.current = false
               toast({
                 title: "Call Channel Error",
-                description:
-                  "Failed to connect to call channel. Please refresh the page.",
+                description: "Failed to connect to call channel. Please refresh the page.",
                 variant: "destructive",
               })
             },
-            received: async (data: any) => {
+            received: async (data: Record<string, unknown>) => {
               if (data.type === "call-offer") {
-                const recipientId = data.to?.id ?? data.to_id
-                if (recipientId !== currentUser.id) return
+                const recipientId = Number(
+                  (data.to as { id?: number })?.id ?? data.to_id
+                )
+                if (recipientId !== Number(currentUser.id)) return
                 if (callManager.getCurrentCall()) return
                 await handleIncomingCall(data)
-              } else if (data.type === "call-answer") {
-                callManager.handleSignalingMessage(data)
-              } else if (data.type === "call-reject") {
+                return
+              }
+
+              if (
+                data.type === "call-answer" ||
+                data.type === "ice-candidate" ||
+                data.type === "call-end"
+              ) {
+                await callManager.handleSignalingMessage(data)
+                return
+              }
+
+              if (data.type === "call-reject") {
                 const cur = callManager.getCurrentCall()
                 if (cur?.direction === "outgoing") {
                   toast({
@@ -281,19 +342,18 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
                     ).catch(() => {})
                   }
                 }
-                callManager.endCall()
-              } else if (data.type === "call-end") {
-                callManager.endCall()
-              } else if (data.type === "ice-candidate") {
-                callManager.handleSignalingMessage(data)
+                await callManager.handleSignalingMessage(data)
               }
             },
           }
         )
-      } catch (error: any) {
+
+        callSubscriptionRef.current = callSubscription
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : "Failed to setup call listener"
         toast({
           title: "Call Setup Error",
-          description: error?.message ?? "Failed to setup call listener",
+          description: message,
           variant: "destructive",
         })
       }
@@ -301,20 +361,37 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
     setup()
     return () => {
+      signalingReadyRef.current = false
+      callSubscriptionRef.current = null
       if (callSubscription) callSubscription.unsubscribe()
       if (consumer) consumer.disconnect()
     }
   }, [currentUser?.id, handleIncomingCall, callManager])
 
   const startCall = useCallback(
-    async (to: { id: number; name: string; email: string }) => {
+    async (
+      to: { id: number; name: string; email: string },
+      options?: StartCallOptions
+    ) => {
       if (!currentUser) return
       const from = {
-        id: currentUser.id,
+        id: Number(currentUser.id),
         name: currentUser.name ?? "",
         email: currentUser.email ?? "",
       }
-      await callManager.startCall(from, to)
+      try {
+        await callManager.startCall(from, { ...to, id: Number(to.id) }, options)
+        setCallMuted(callManager.isMuted())
+        setCallVideoEnabled(callManager.isVideoEnabled())
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : "Failed to start call"
+        toast({
+          title: "Call Error",
+          description: message,
+          variant: "destructive",
+        })
+        throw error
+      }
     },
     [currentUser, callManager]
   )
@@ -322,9 +399,11 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const value: CallContextValue = {
     callManager,
     currentCall,
+    localStream,
     remoteStream,
     callDuration,
     callMuted,
+    callVideoEnabled,
     acceptingCall,
     setCallEventSink,
     startCall,
@@ -332,6 +411,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     rejectCall,
     endCall,
     toggleCallMute,
+    toggleCallVideo,
     formatDuration,
   }
 
@@ -342,14 +422,21 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         <>
           <CallNotification
             call={currentCall}
+            localStream={localStream}
+            remoteStream={remoteStream}
             onAccept={acceptCall}
             onReject={rejectCall}
             onEnd={endCall}
             onMuteToggle={toggleCallMute}
+            onVideoToggle={toggleCallVideo}
             isMuted={callMuted}
+            isVideoEnabled={callVideoEnabled}
             callDuration={callDuration}
+            acceptingCall={acceptingCall}
           />
-          {remoteStream && <CallAudio stream={remoteStream} />}
+          {remoteStream && currentCall.mediaType === "audio" && (
+            <CallAudio stream={remoteStream} />
+          )}
         </>
       )}
     </CallContext.Provider>

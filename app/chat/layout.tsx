@@ -1,7 +1,3 @@
-"use client"
-
-import { CallProvider } from "@/providers/call-provider"
-
 export default function ChatLayout({ children }: { children: React.ReactNode }) {
-  return <CallProvider>{children}</CallProvider>
+  return children
 }

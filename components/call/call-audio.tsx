@@ -1,30 +1,26 @@
 "use client"
 
 import { useEffect, useRef } from "react"
-import { MediaStream } from "mediastream"
+import { attachMediaStream } from "@/lib/safe-media-play"
 
 interface CallAudioProps {
   stream: MediaStream | null
-  autoPlay?: boolean
 }
 
-export function CallAudio({ stream, autoPlay = true }: CallAudioProps) {
+export function CallAudio({ stream }: CallAudioProps) {
   const audioRef = useRef<HTMLAudioElement>(null)
 
   useEffect(() => {
-    if (audioRef.current && stream) {
-      audioRef.current.srcObject = stream
-      if (autoPlay) {
-        audioRef.current.play().catch(console.error)
-      }
-    }
+    const el = audioRef.current
+    void attachMediaStream(el, stream)
 
     return () => {
-      if (audioRef.current) {
-        audioRef.current.srcObject = null
+      if (el) {
+        el.pause()
+        el.srcObject = null
       }
     }
-  }, [stream, autoPlay])
+  }, [stream])
 
-  return <audio ref={audioRef} autoPlay={autoPlay} />
+  return <audio ref={audioRef} playsInline />
 }

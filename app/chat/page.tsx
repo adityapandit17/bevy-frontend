@@ -714,20 +714,25 @@ export default function ChatPage() {
   }
 
   // WebRTC Call functions (startCall from context; post "Calling X..." when on chat)
-  const startCall = async (toUser: { id: number; name: string; email: string }) => {
+  const startCall = async (
+    toUser: { id: number; name: string; email: string },
+    options?: { video?: boolean }
+  ) => {
     if (!selectedChannel) return
     try {
       if (selectedChannel) {
         try {
           await chatApi.sendMessage(
             selectedChannel.id,
-            `📞 Calling ${toUser.name}...`
+            options?.video
+              ? `📹 Video calling ${toUser.name}...`
+              : `📞 Calling ${toUser.name}...`
           )
         } catch (e) {
           console.error('Failed to create call history message:', e)
         }
       }
-      await startCallFromContext(toUser)
+      await startCallFromContext(toUser, options)
     } catch (error: any) {
       console.error("Failed to start call:", error)
       toast({
@@ -1003,6 +1008,7 @@ export default function ChatPage() {
                     }}
                     disabled={!!currentCall || huddleLoading}
                     title="Start Voice Call"
+                    data-testid="start-voice-call-btn"
                   >
                     {huddleLoading ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -1032,7 +1038,20 @@ export default function ChatPage() {
                   )
                 )}
                 {selectedChannel.channel_type === "direct" && (
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => {
+                      const otherMember = selectedChannel.members.find((m) => m.id !== currentUser?.id)
+                      if (otherMember && currentUser) {
+                        startCall(otherMember, { video: true })
+                      }
+                    }}
+                    disabled={!!currentCall || huddleLoading}
+                    title="Start Video Call"
+                    data-testid="start-video-call-btn"
+                  >
                     <Video className="h-4 w-4" />
                   </Button>
                 )}
