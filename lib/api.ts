@@ -314,6 +314,8 @@ export const API_ENDPOINTS = {
 
   // Departments
   DEPARTMENTS: '/departments',
+  DEPARTMENTS_DEFAULTS: '/departments/defaults',
+  DEPARTMENTS_SEED_DEFAULTS: '/departments/seed_defaults',
 
   // Job Openings
   JOB_OPENINGS: '/job_openings',

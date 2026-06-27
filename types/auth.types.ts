@@ -11,6 +11,14 @@ export interface TenantCompany {
   code: string;
   plan?: string;
   status?: string;
+  trial_ends_at?: string;
+  trial_active?: boolean;
+  trial_expired?: boolean;
+  trial_days_remaining?: number;
+  subscription_locked?: boolean;
+  billing_cycle?: string;
+  renews_at?: string;
+  feature_flags?: Record<string, boolean>;
   dashboard_layout?: DashboardLayout;
   timezone?: string;
   currency?: string;

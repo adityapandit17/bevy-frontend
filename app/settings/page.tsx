@@ -16,6 +16,8 @@ import { TimePicker } from "@/components/ui/time-picker"
 import { useEffect, useState, Suspense } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { IntegrationsTab } from "@/components/settings/integrations-tab"
+import { DepartmentsTab } from "@/components/settings/departments-tab"
+import { BillingTab } from "@/components/settings/billing-tab"
 import { apiRequest, apiFormRequest, getEndpointUrl } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { ResourceGuard } from "@/lib/auth/auth.guards"
@@ -468,13 +470,15 @@ function SettingsPageContent() {
 
       {/* Settings Tabs */}
       <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3 lg:grid-cols-7">
+        <TabsList className="grid w-full grid-cols-3 sm:grid-cols-5 lg:grid-cols-9">
           <TabsTrigger value="company">Company</TabsTrigger>
+          <TabsTrigger value="departments">Departments</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
           <TabsTrigger value="leave-policies">Leave Policies</TabsTrigger>
           <TabsTrigger value="security">Security</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
           <TabsTrigger value="integrations">Integrations</TabsTrigger>
+          <TabsTrigger value="billing">Billing</TabsTrigger>
           <TabsTrigger value="system">System</TabsTrigger>
         </TabsList>
 
@@ -801,6 +805,11 @@ function SettingsPageContent() {
           </Card>
         </TabsContent>
 
+        {/* Departments */}
+        <TabsContent value="departments" className="space-y-6">
+          <DepartmentsTab />
+        </TabsContent>
+
         {/* Leave Policies */}
         <TabsContent value="leave-policies" className="space-y-6">
           <LeavePoliciesTab />
@@ -982,6 +991,11 @@ function SettingsPageContent() {
         {/* Integrations */}
         <TabsContent value="integrations" className="space-y-6">
           <IntegrationsTab />
+        </TabsContent>
+
+        {/* Billing & subscription */}
+        <TabsContent value="billing" className="space-y-6">
+          <BillingTab />
         </TabsContent>
 
         {/* System Settings */}

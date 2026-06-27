@@ -38,6 +38,7 @@ import {
 } from "lucide-react"
 import { getApiUrl, getEndpointUrl } from "@/lib/api"
 import { apiRequest } from "@/lib/api"
+import { TrialUpgradeCard } from "@/components/dashboard/trial-upgrade-card"
 
 interface TodayAttendance {
   id?: number
@@ -908,6 +909,8 @@ export default function Dashboard() {
           <p className="text-gray-600 text-sm">Welcome back! Here's what's happening at your company.</p>
         </div>
       </div>
+
+      <TrialUpgradeCard />
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">

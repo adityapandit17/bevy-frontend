@@ -4,7 +4,8 @@ import { usePathname } from "next/navigation"
 import { useAuthContext } from "@/lib/auth"
 import { TopNav } from "@/components/top-nav"
 import { SidebarLayout } from "@/components/sidebar-layout"
-import { AuthGuard } from "@/lib/auth"
+import { AuthGuard, SubscriptionGuard } from "@/lib/auth"
+import { TrialBanner } from "@/components/trial-banner"
 
 interface LoginLayoutProps {
   children: React.ReactNode
@@ -23,6 +24,7 @@ export function LoginLayout({ children }: LoginLayoutProps) {
   const isSignupPage = pathname === "/signup"
   const isTermsPage = pathname === "/terms"
   const isPrivacyPage = pathname === "/privacy"
+  const isBillingPage = pathname === "/billing"
   const isRootPage = pathname === "/"
   const isCareersPage = pathname?.startsWith("/careers")
 
@@ -41,18 +43,33 @@ export function LoginLayout({ children }: LoginLayoutProps) {
     return <>{children}</>
   }
 
+  if (isBillingPage) {
+    return (
+      <AuthGuard>
+        {children}
+      </AuthGuard>
+    )
+  }
+
   if (dashboardLayout === "sidebar") {
     return (
       <AuthGuard>
-        <SidebarLayout>{children}</SidebarLayout>
+        <SubscriptionGuard>
+          <SidebarLayout>{children}</SidebarLayout>
+        </SubscriptionGuard>
       </AuthGuard>
     )
   }
 
   return (
     <AuthGuard>
-      <TopNav />
-      <main className="pt-16 bg-gray-50 min-h-screen">{children}</main>
+      <SubscriptionGuard>
+        <TopNav />
+        <div className="pt-16 min-h-screen flex flex-col bg-gray-50">
+          <TrialBanner className="sticky top-16 z-40" />
+          <main className="flex-1">{children}</main>
+        </div>
+      </SubscriptionGuard>
     </AuthGuard>
   )
 }
