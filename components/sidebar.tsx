@@ -176,6 +176,13 @@ const navItems: NavItem[] = [
     requiredRolesOr: ["Super Admin"],
   },
   {
+    title: "Data Exports",
+    href: "/data-exports",
+    icon: FileText,
+    segment: "data-exports",
+    resourceKeys: ["reports"],
+  },
+  {
     title: "Reports",
     href: "/reports",
     icon: BarChart,

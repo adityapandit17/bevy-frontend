@@ -43,6 +43,8 @@ interface Employee {
   badge_level?: string
   badge_level_label?: string
   badge_level_color?: string
+  display_id?: string
+  employee_number?: number
   created_at: string
   updated_at: string
   date_of_birth?: string
@@ -88,7 +90,6 @@ export default function EmployeesPage() {
   const canIndex = checkPermission("employees.index")
   const canCreate = checkPermission("employees.create")
   const canUpdate = checkPermission("employees.update")
-  const canDestroy = checkPermission("employees.destroy")
   const canShow = checkPermission("employees.show")
   const canViewPayroll = checkPermission("payrolls.show") || checkPermission("payrolls.index")
 
@@ -97,8 +98,7 @@ export default function EmployeesPage() {
 
   // If user has no actions at all, hide the Actions menu button
   // Note: canViewPayroll alone doesn't show any option (requires canShow too)
-  const hasAnyEmployeeActions =
-    canUpdate || canShow || canDestroy
+  const hasAnyEmployeeActions = canUpdate || canShow
 
   const selectedCount = selectedIds.size
   const allOnPageSelected =
@@ -339,7 +339,7 @@ export default function EmployeesPage() {
                   <Network className="w-4 h-4 mr-2" />
                   Org Chart
                 </Button>
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" onClick={() => router.push("/data-exports")}>
                   <Download className="w-4 h-4 mr-2" />
                   Export
                 </Button>
@@ -520,7 +520,9 @@ export default function EmployeesPage() {
                               )}
                               <EmployeeBadge badgeLevel={employee.badge_level} />
                             </div>
-                            <p className="text-sm text-gray-500">{employee.id}</p>
+                            {employee.display_id && (
+                              <p className="text-sm text-gray-500">{employee.display_id}</p>
+                            )}
                           </div>
                         </div>
                       </TableCell>
@@ -598,17 +600,6 @@ export default function EmployeesPage() {
                                     className={employee.status === "active" ? "text-red-600" : "text-green-600"}
                                   >
                                     {employee.status === "active" ? "Deactivate" : "Activate"}
-                                  </DropdownMenuItem>
-                                </>
-                              )}
-                              {canDestroy && (
-                                <>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem
-                                    onClick={() => handleToggleEmployeeStatus(employee)}
-                                    className="text-red-600"
-                                  >
-                                    Delete Employee
                                   </DropdownMenuItem>
                                 </>
                               )}

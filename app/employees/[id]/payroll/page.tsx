@@ -28,6 +28,7 @@ interface Employee {
   designation: string
   date_of_joining: string
   status: string
+  display_id?: string
 }
 
 interface Department {
@@ -611,7 +612,7 @@ export default function EmployeePayrollPage() {
                 </div>
                 <div class="detail-row">
                     <span class="detail-label">Employee ID:</span>
-                    <span class="detail-value">${employee.id}</span>
+                    <span class="detail-value">${employee.display_id || employee.id}</span>
                 </div>
                 <div class="detail-row">
                     <span class="detail-label">Designation:</span>
@@ -984,7 +985,7 @@ export default function EmployeePayrollPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-gray-600">Employee ID</p>
-                  <p className="font-medium">{employee.id}</p>
+                  <p className="font-medium">{employee.display_id || employee.id}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Department</p>
@@ -1301,7 +1302,7 @@ export default function EmployeePayrollPage() {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Employee ID:</span>
-                      <span className="font-medium">{employee.id}</span>
+                      <span className="font-medium">{employee.display_id || employee.id}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Designation:</span>

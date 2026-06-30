@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useCallback } from "react"
 import { getApiUrl, apiRequest } from "@/lib/api"
 import { useParams, useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -11,6 +11,24 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
+import { EmployeeForm } from "@/components/forms/employee-form"
+import { ResourceGuard } from "@/lib/auth/auth.guards"
+import { useAuth } from "@/lib/auth/auth.hooks"
+import { toast } from "@/hooks/use-toast"
+import {
+  mapEmployeeHeader,
+  mapJobDetails,
+  mapTimeOff,
+  mapPayInfo,
+  mapDocuments,
+  mapPerformance,
+  mapTimesheets,
+  mapBenefits,
+  mapTraining,
+  mapAssets,
+  PROFILE_TAB_ENDPOINTS,
+  type EmployeeHeader,
+} from "@/lib/employee-profile"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -79,26 +97,7 @@ import {
   Printer,
 } from "lucide-react"
 
-interface Employee {
-  id: string
-  name: string
-  email: string
-  phone: string
-  position: string
-  department: string
-  hireDate: string
-  status: string
-  avatar?: string
-  manager?: string
-  location: string
-  salary: number
-  employeeId: string
-  emergencyContact: {
-    name: string
-    phone: string
-    relationship: string
-  }
-}
+interface Employee extends EmployeeHeader {}
 
 interface JobDetails {
   position: string
@@ -243,6 +242,8 @@ export default function EmployeeProfilePage() {
   const params = useParams()
   const router = useRouter()
   const employeeId = params.id as string
+  const { checkPermission } = useAuth()
+  const canUpdate = checkPermission("employees.update")
 
   const [employee, setEmployee] = useState<Employee | null>(null)
   const [jobDetails, setJobDetails] = useState<JobDetails | null>(null)
@@ -254,66 +255,133 @@ export default function EmployeeProfilePage() {
   const [benefits, setBenefits] = useState<Benefit[]>([])
   const [training, setTraining] = useState<Training[]>([])
   const [assets, setAssets] = useState<Asset[]>([])
+  const [activeTab, setActiveTab] = useState("job-details")
+  const [headerLoading, setHeaderLoading] = useState(true)
+  const [tabLoading, setTabLoading] = useState<Record<string, boolean>>({})
+  const [loadedTabs, setLoadedTabs] = useState<Set<string>>(new Set())
+  const [showEditForm, setShowEditForm] = useState(false)
+  const [editEmployee, setEditEmployee] = useState<Record<string, unknown> | null>(null)
+
+  const applyTabData = useCallback((tab: string, data: Record<string, unknown>) => {
+    switch (tab) {
+      case "job-details":
+        setJobDetails(mapJobDetails({ ...data, manager: employee?.manager }))
+        break
+      case "time-off":
+        setTimeOff(mapTimeOff(data))
+        break
+      case "pay-info":
+        setPayInfo(mapPayInfo(data))
+        break
+      case "documents":
+        setDocuments(mapDocuments(data))
+        break
+      case "performance":
+        setPerformance(mapPerformance(data))
+        break
+      case "timesheets":
+        setTimesheets(mapTimesheets(data))
+        break
+      case "benefits":
+        setBenefits(mapBenefits(data))
+        break
+      case "training":
+        setTraining(mapTraining(data))
+        break
+      case "assets":
+        setAssets(mapAssets(data))
+        break
+    }
+  }, [employee?.manager])
+
+  const loadTab = useCallback(async (tab: string, managerName?: string) => {
+    const endpoint = PROFILE_TAB_ENDPOINTS[tab]
+    if (!endpoint) return
+
+    setTabLoading((prev) => ({ ...prev, [tab]: true }))
+    try {
+      const data = await apiRequest<Record<string, unknown>>(
+        getApiUrl(`employee_profiles/${employeeId}/${endpoint}`)
+      )
+      if (tab === "job-details") {
+        applyTabData(tab, { ...data, manager: managerName })
+      } else {
+        applyTabData(tab, data)
+      }
+      setLoadedTabs((prev) => new Set(prev).add(tab))
+    } catch (error) {
+      console.error(`Error loading ${tab}:`, error)
+      toast({
+        title: "Could not load tab",
+        description: "Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setTabLoading((prev) => ({ ...prev, [tab]: false }))
+    }
+  }, [employeeId, applyTabData])
 
   useEffect(() => {
-    const fetchEmployeeData = async () => {
+    const fetchHeader = async () => {
+      setHeaderLoading(true)
       try {
-        const data = await apiRequest<any>(getApiUrl(`employee_profiles/${employeeId}`))
-
-        setEmployee({
-          id: data.employee.id,
-          name: data.employee.name,
-          email: data.employee.email,
-          phone: data.employee.phone,
-          position: data.employee.position,
-          department: data.employee.department,
-          hireDate: data.employee.hire_date,
-          status: data.employee.status,
-          avatar: data.employee.avatar,
-          manager: data.employee.manager,
-          location: data.employee.location,
-          salary: data.employee.salary,
-          employeeId: data.employee.employee_id,
-          emergencyContact: data.employee.emergency_contact
-        })
-
-        setJobDetails(data.job_details || null)
-        setTimeOff(Array.isArray(data.time_off) ? data.time_off : [])
-        setPayInfo(data.pay_info || null)
-        setDocuments(Array.isArray(data.documents) ? data.documents : [])
-        setPerformance(data.performance || null)
-        setTimesheets(Array.isArray(data.timesheets) ? data.timesheets : [])
-        setBenefits(Array.isArray(data.benefits) ? data.benefits : [])
-        setTraining(Array.isArray(data.training) ? data.training : [])
-        const assetsData = Array.isArray(data.assets?.assets) ? data.assets.assets : []
-        setAssets(
-          assetsData.map((asset: any) => ({
-            id: asset.id,
-            name: asset.name,
-            assetType: asset.asset_type,
-            serialNumber: asset.serial_number,
-            brand: asset.brand,
-            model: asset.model,
-            status: asset.status,
-            statusColor: asset.status_color,
-            condition: asset.condition,
-            location: asset.location,
-            purchaseDate: asset.purchase_date,
-            currentValue: asset.current_value
-          }))
-        )
+        const data = await apiRequest<Record<string, unknown>>(getApiUrl(`employee_profiles/${employeeId}`))
+        const header = mapEmployeeHeader(data)
+        setEmployee(header)
+        if (data.job_details) {
+          setJobDetails(mapJobDetails({ ...(data.job_details as Record<string, unknown>), manager: header.manager }))
+          setLoadedTabs(new Set(["job-details"]))
+        }
       } catch (error) {
-        console.error('Error fetching employee data:', error)
+        console.error("Error fetching employee:", error)
         setEmployee(null)
+      } finally {
+        setHeaderLoading(false)
       }
     }
 
-    fetchEmployeeData()
+    fetchHeader()
+    setLoadedTabs(new Set())
   }, [employeeId])
 
-  if (!employee) {
+  useEffect(() => {
+    if (!employee || loadedTabs.has(activeTab)) return
+    loadTab(activeTab, employee.manager)
+  }, [activeTab, employee, loadedTabs, loadTab])
+
+  const handleUpdateEmployee = async (formData: Record<string, unknown>) => {
+    await apiRequest(getApiUrl(`employees/${employeeId}`), {
+      method: "PATCH",
+      body: JSON.stringify({ employee: formData }),
+    })
+    toast({ title: "Profile updated", description: "Employee details saved." })
+    setShowEditForm(false)
+    setLoadedTabs(new Set())
+    const data = await apiRequest<Record<string, unknown>>(getApiUrl(`employee_profiles/${employeeId}`))
+    const header = mapEmployeeHeader(data)
+    setEmployee(header)
+    await loadTab(activeTab, header.manager)
+  }
+
+  const openEditForm = async () => {
+    try {
+      const data = await apiRequest<Record<string, unknown>>(getApiUrl(`employees/${employeeId}`))
+      setEditEmployee(data)
+      setShowEditForm(true)
+    } catch {
+      toast({ title: "Could not open editor", variant: "destructive" })
+    }
+  }
+
+  if (headerLoading) {
     return <div className="max-w-4xl mx-auto p-6 text-gray-600">Loading employee...</div>
   }
+
+  if (!employee) {
+    return <div className="max-w-4xl mx-auto p-6 text-gray-600">Employee not found.</div>
+  }
+
+  const tabBusy = tabLoading[activeTab]
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -350,6 +418,7 @@ export default function EmployeeProfilePage() {
   }
 
   return (
+    <ResourceGuard resource="employees" action="show">
     <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
@@ -362,11 +431,13 @@ export default function EmployeeProfilePage() {
           <p className="text-gray-600">Detailed information about {employee.name}</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm">
-            <Edit className="w-4 h-4 mr-2" />
-            Edit Profile
-          </Button>
-          <Button size="sm">
+          {canUpdate && (
+            <Button variant="outline" size="sm" onClick={openEditForm}>
+              <Edit className="w-4 h-4 mr-2" />
+              Edit Profile
+            </Button>
+          )}
+          <Button size="sm" onClick={() => router.push("/data-exports")}>
             <Download className="w-4 h-4 mr-2" />
             Export
           </Button>
@@ -386,7 +457,7 @@ export default function EmployeeProfilePage() {
                 <div>
                   <h2 className="text-2xl font-bold text-gray-900">{employee.name}</h2>
                   <p className="text-lg text-gray-600">{employee.position}</p>
-                  <p className="text-gray-500">{employee.department} • {employee.location}</p>
+                  <p className="text-gray-500">{employee.department}{employee.manager ? ` • Reports to ${employee.manager}` : ""}</p>
                 </div>
                 <Badge className={getStatusColor(employee.status)}>
                   {employee.status.charAt(0).toUpperCase() + employee.status.slice(1)}
@@ -408,7 +479,7 @@ export default function EmployeeProfilePage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <CalendarDays className="w-4 h-4 text-gray-400" />
-                  <span className="text-sm text-gray-600">Hired: {new Date(employee.hireDate).toLocaleDateString()}</span>
+                  <span className="text-sm text-gray-600">Hired: {employee.hireDate || "—"}</span>
                 </div>
               </div>
             </div>
@@ -417,7 +488,7 @@ export default function EmployeeProfilePage() {
       </Card>
 
       {/* Tabs */}
-      <Tabs defaultValue="job-details" className="space-y-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="grid w-full grid-cols-9">
           <TabsTrigger value="job-details">Job Details</TabsTrigger>
           <TabsTrigger value="time-off">Time Off</TabsTrigger>
@@ -432,7 +503,9 @@ export default function EmployeeProfilePage() {
 
         {/* Job Details Tab */}
         <TabsContent value="job-details" className="space-y-6">
-          {jobDetails && (
+          {tabBusy && !jobDetails ? (
+            <p className="text-sm text-gray-500">Loading job details...</p>
+          ) : jobDetails ? (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <Card>
                 <CardHeader>
@@ -444,62 +517,54 @@ export default function EmployeeProfilePage() {
                 <CardContent className="space-y-4">
                   <div>
                     <p className="text-sm font-medium text-gray-600">Position</p>
-                    <p className="text-gray-900">{jobDetails.position}</p>
+                    <p className="text-gray-900">{jobDetails.position || "—"}</p>
                   </div>
                   <div>
                     <p className="text-sm font-medium text-gray-600">Department</p>
-                    <p className="text-gray-900">{jobDetails.department}</p>
+                    <p className="text-gray-900">{jobDetails.department || "—"}</p>
                   </div>
                   <div>
                     <p className="text-sm font-medium text-gray-600">Manager</p>
-                    <p className="text-gray-900">{jobDetails.manager}</p>
+                    <p className="text-gray-900">{jobDetails.manager || jobDetails.reportingTo || "—"}</p>
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-600">Employment Type</p>
-                    <p className="text-gray-900">{jobDetails.employmentType}</p>
+                    <p className="text-sm font-medium text-gray-600">Status</p>
+                    <p className="text-gray-900">{jobDetails.employmentType || "—"}</p>
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-600">Work Location</p>
-                    <p className="text-gray-900">{jobDetails.workLocation}</p>
+                    <p className="text-sm font-medium text-gray-600">Hire Date</p>
+                    <p className="text-gray-900">{jobDetails.hireDate || "—"}</p>
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Work Schedule</p>
-                    <p className="text-gray-900">{jobDetails.workSchedule}</p>
-                  </div>
+                  {"tenure" in jobDetails && (jobDetails as JobDetails & { tenure?: string }).tenure && (
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Tenure</p>
+                      <p className="text-gray-900">{(jobDetails as JobDetails & { tenure?: string }).tenure}</p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <Target className="w-5 h-5" />
-                    Skills & Certifications
+                    <Mail className="w-5 h-5" />
+                    Contact
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div>
-                    <p className="text-sm font-medium text-gray-600 mb-2">Skills</p>
-                    <div className="flex flex-wrap gap-2">
-                      {(jobDetails.skills || []).map((skill, index) => (
-                        <Badge key={index} variant="outline">
-                          {skill}
-                        </Badge>
-                      ))}
-                    </div>
+                    <p className="text-sm font-medium text-gray-600">Email</p>
+                    <p className="text-gray-900">{(jobDetails as JobDetails & { email?: string }).email || employee.email}</p>
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-600 mb-2">Certifications</p>
-                    <div className="flex flex-wrap gap-2">
-                      {(jobDetails.certifications || []).map((cert, index) => (
-                        <Badge key={index} variant="outline">
-                          {cert}
-                        </Badge>
-                      ))}
-                    </div>
+                    <p className="text-sm font-medium text-gray-600">Phone</p>
+                    <p className="text-gray-900">{(jobDetails as JobDetails & { phone?: string }).phone || employee.phone}</p>
                   </div>
                 </CardContent>
               </Card>
             </div>
+          ) : (
+            <p className="text-sm text-gray-500">No job details available.</p>
           )}
         </TabsContent>
 
@@ -514,6 +579,11 @@ export default function EmployeeProfilePage() {
               <CardDescription>All approved and pending leave requests</CardDescription>
             </CardHeader>
             <CardContent>
+              {tabBusy ? (
+                <p className="text-sm text-gray-500 py-4">Loading leave history...</p>
+              ) : timeOff.length === 0 ? (
+                <p className="text-sm text-gray-500 py-4">No leave requests found.</p>
+              ) : (
               <div className="rounded-md border">
                 <Table>
                   <TableHeader>
@@ -544,13 +614,16 @@ export default function EmployeeProfilePage() {
                   </TableBody>
                 </Table>
               </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
 
         {/* Pay Info Tab */}
         <TabsContent value="pay-info" className="space-y-6">
-          {payInfo && (
+          {tabBusy && !payInfo ? (
+            <p className="text-sm text-gray-500">Loading pay information...</p>
+          ) : payInfo ? (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <Card>
                 <CardHeader>
@@ -650,6 +723,8 @@ export default function EmployeeProfilePage() {
                 </CardContent>
               </Card>
             </div>
+          ) : (
+            <p className="text-sm text-gray-500">No pay information available.</p>
           )}
         </TabsContent>
 
@@ -960,6 +1035,13 @@ export default function EmployeeProfilePage() {
           </Card>
         </TabsContent>
       </Tabs>
+      <EmployeeForm
+        open={showEditForm}
+        onClose={() => { setShowEditForm(false); setEditEmployee(null) }}
+        onSubmit={handleUpdateEmployee}
+        initialData={editEmployee}
+      />
     </div>
+    </ResourceGuard>
   )
-} 
+}
