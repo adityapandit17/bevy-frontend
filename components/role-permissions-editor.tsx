@@ -19,18 +19,13 @@ import {
   X, 
   Plus, 
   Search, 
-  Filter,
   CheckCircle,
   XCircle,
-  AlertCircle,
   Settings,
   UserCheck,
-  Lock,
-  Unlock
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { API_ENDPOINTS, apiRequest, getApiUrl } from "@/lib/api"
-import { useAuthContext } from "@/lib/auth"
 
 // Backend-driven; UI will fetch roles and permissions
 
@@ -53,6 +48,10 @@ const permissionModules: PermissionModule[] = [
   { name: "performance_reviews", label: "Performance", icon: "📊" },
   { name: "assets", label: "Asset Management", icon: "🏢" },
   { name: "helpdesk_tickets", label: "IT Helpdesk Tickets", icon: "🎫" },
+  { name: "channels", label: "Chat", icon: "💬" },
+  { name: "messages", label: "Chat Messages", icon: "✉️" },
+  { name: "events", label: "Events & Calendar", icon: "📅" },
+  { name: "recognitions", label: "Recognitions", icon: "🏆" },
   { name: "reports", label: "Reports", icon: "📈" },
   { name: "users", label: "User Management", icon: "👤" },
   { name: "roles", label: "Role Management", icon: "🔐" },
@@ -79,7 +78,6 @@ interface Role {
 }
 
 export default function RolePermissionsEditor() {
-  const { token } = useAuthContext()
   const [roles, setRoles] = useState<Role[]>([])
   const [selectedRole, setSelectedRole] = useState<Role | null>(null)
   const [isEditing, setIsEditing] = useState(false)
@@ -112,18 +110,17 @@ export default function RolePermissionsEditor() {
           setTotalPermissions(0)
         }
 
-        const res = await fetch(getApiUrl(API_ENDPOINTS.ROLES), { headers: token ? { Authorization: `Bearer ${token}` } : undefined })
-        const json = await res.json()
-        const list: Role[] = (json.roles || []).map((r: any) => ({
+        const list = await apiRequest<{ roles?: any[] }>(getApiUrl(API_ENDPOINTS.ROLES), { suppressToast: true })
+        const mapped: Role[] = (list.roles || []).map((r: any) => ({
           id: r.id,
           name: r.name,
           description: r.description,
           userCount: r.user_count,
           permissionCount: r.permission_count,
         }))
-        setRoles(list)
-        if (list.length > 0) {
-          await handleRoleSelect(list[0])
+        setRoles(mapped)
+        if (mapped.length > 0) {
+          await handleRoleSelect(mapped[0])
         }
       } catch (e) {
         toast({ title: "Error", description: "Failed to load roles", variant: "destructive" })
@@ -219,8 +216,11 @@ export default function RolePermissionsEditor() {
     try {
       setLoading(true)
       const url = getApiUrl(API_ENDPOINTS.ROLE_ADD_DEFAULTS.replace('{id}', String(selectedRole.id)))
-      const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ resource: module }) })
-      if (!res.ok) throw new Error('add defaults failed')
+      await apiRequest(url, {
+        method: "POST",
+        body: JSON.stringify({ resource: module }),
+        suppressToast: true,
+      })
       await handleRoleSelect(selectedRole)
     } catch (e) {
       toast({ title: "Error", description: "Failed to add default permissions", variant: "destructive" })
@@ -234,8 +234,15 @@ export default function RolePermissionsEditor() {
     try {
       setLoading(true)
       const url = getApiUrl(API_ENDPOINTS.ROLE_ADD_PERMISSION.replace('{id}', String(selectedRole.id)))
-      const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ resource: addPermissionForModule, action_name: newPermissionAction, description: newPermissionDescription }) })
-      if (!res.ok) throw new Error('add permission failed')
+      await apiRequest(url, {
+        method: "POST",
+        body: JSON.stringify({
+          resource: addPermissionForModule,
+          action_name: newPermissionAction,
+          description: newPermissionDescription,
+        }),
+        suppressToast: true,
+      })
       await handleRoleSelect(selectedRole)
       setAddPermissionForModule(null)
       setNewPermissionAction('index')
@@ -247,16 +254,17 @@ export default function RolePermissionsEditor() {
     }
   }
 
-  // Handle permission toggle by name (adds missing permission entries if needed)
   const handlePermissionToggle = async (roleId: number, permissionName: string, permissionId?: number) => {
     if (!selectedRole) return
     try {
       setLoading(true)
       const url = getApiUrl(API_ENDPOINTS.ROLE_TOGGLE_PERMISSION.replace('{id}', String(roleId)))
       const body = permissionId ? { permission_id: permissionId } : { resource: permissionName.split('.')[0], action_name: permissionName.split('.')[1] }
-      const res = await fetch(url, { method: 'PATCH', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body) })
-      if (!res.ok) throw new Error('toggle failed')
-      const json = await res.json()
+      const json = await apiRequest<{ permission_id: number; granted: boolean }>(url, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+        suppressToast: true,
+      })
       const toggledId = json.permission_id
       const granted = json.granted
       setRolePermissions(prev => prev.map(p => p.id === toggledId ? { ...p, granted } : p))
@@ -267,32 +275,34 @@ export default function RolePermissionsEditor() {
     }
   }
 
+  const loadRolePermissions = async (role: Role) => {
+    const url = getApiUrl(API_ENDPOINTS.ROLE_PERMISSIONS_MATRIX.replace("{id}", String(role.id)))
+    const json = await apiRequest<{ permissions?: any[] }>(url, { suppressToast: true })
+    const perms: Permission[] = (json.permissions || []).map((p: any) => ({
+      id: p.id,
+      name: p.name,
+      resource: p.resource,
+      action: p.action,
+      description: p.description,
+      granted: !!p.granted,
+    }))
+    setRolePermissions(perms)
+
+    try {
+      const roleDetails = await apiRequest<{ users?: any[] }>(getApiUrl(`/roles/${role.id}`), { suppressToast: true })
+      setRoleUsers(Array.isArray(roleDetails.users) ? roleDetails.users : [])
+    } catch {
+      setRoleUsers([])
+    }
+  }
+
   // Handle role selection
   const handleRoleSelect = async (role: Role) => {
     setSelectedRole(role)
     setIsEditing(false)
     try {
       setLoading(true)
-      const url = getApiUrl(API_ENDPOINTS.ROLE_PERMISSIONS_MATRIX.replace('{id}', String(role.id)))
-      const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : undefined })
-      const json = await res.json()
-      const perms: Permission[] = (json.permissions || []).map((p: any) => ({ id: p.id, name: p.name, resource: p.resource, action: p.action, description: p.description, granted: !!p.granted }))
-      // Debug: Check if job_openings permissions are in the response
-      const jobOpeningsPerms = perms.filter(p => p.resource === 'job_openings')
-      if (jobOpeningsPerms.length > 0) {
-        console.log('✅ Job openings permissions found:', jobOpeningsPerms.length, jobOpeningsPerms.map(p => p.name))
-      } else {
-        console.warn('⚠️ No job_openings permissions in API response. Total permissions:', perms.length, 'Resources:', [...new Set(perms.map(p => p.resource))])
-      }
-      setRolePermissions(perms)
-
-      // Load users assigned to this role
-      try {
-        const roleDetails = await apiRequest<{ users?: any[] }>(getApiUrl(`/roles/${role.id}`), { suppressToast: true })
-        setRoleUsers(Array.isArray(roleDetails.users) ? roleDetails.users : [])
-      } catch {
-        setRoleUsers([])
-      }
+      await loadRolePermissions(role)
     } catch (e) {
       toast({ title: "Error", description: "Failed to load permissions", variant: "destructive" })
     } finally {
@@ -386,8 +396,7 @@ export default function RolePermissionsEditor() {
 
   const refreshRoleListCounts = async () => {
     try {
-      const res = await fetch(getApiUrl(API_ENDPOINTS.ROLES), { headers: token ? { Authorization: `Bearer ${token}` } : undefined })
-      const json = await res.json()
+      const json = await apiRequest<{ roles?: any[] }>(getApiUrl(API_ENDPOINTS.ROLES), { suppressToast: true })
       const list: Role[] = (json.roles || []).map((r: any) => ({
         id: r.id,
         name: r.name,

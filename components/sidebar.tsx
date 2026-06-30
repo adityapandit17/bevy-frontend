@@ -64,6 +64,7 @@ const navItems: NavItem[] = [
     href: "/chat",
     icon: MessageSquare,
     segment: "chat",
+    resourceKeys: ["channels", "messages"],
   },
   {
     title: "Employees",
@@ -126,6 +127,7 @@ const navItems: NavItem[] = [
     href: "/calendar",
     icon: CalendarDays,
     segment: "calendar",
+    resourceKeys: ["events"],
   },
   {
     title: "Workspace Seating",
@@ -139,6 +141,7 @@ const navItems: NavItem[] = [
     href: "/recognitions",
     icon: Award,
     segment: "recognitions",
+    resourceKeys: ["recognitions"],
   },
   {
     title: "Leave Management",
