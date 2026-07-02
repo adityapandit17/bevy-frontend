@@ -256,21 +256,17 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   return (
     <Sidebar className="bg-white border-r border-gray-200" collapsible="offcanvas" {...props}>
-      <SidebarHeader className="p-6 border-b border-gray-200">
-        <div className="flex items-center gap-3">
+      <SidebarHeader className="px-6 py-3.5 border-b border-gray-200">
+        <div className="flex items-center">
           <Image 
             src="/bevyhr-logo.png" 
             alt="BevyHR Logo" 
-            width={80} 
-            height={80} 
-            className="h-16 w-16 object-contain"
+            width={1024} 
+            height={455} 
+            className="h-32 w-auto object-contain"
             style={{ imageRendering: 'auto' }}
             priority
           />
-          <div>
-            <h1 className="text-xl font-bold text-green-600">BevyHR</h1>
-            <p className="text-gray-500 text-sm">HR Management</p>
-          </div>
         </div>
       </SidebarHeader>
       <SidebarContent className="flex-1 overflow-y-auto">

@@ -72,7 +72,7 @@ export function AcceptInvitationForm() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center mb-4">
-            <Image src="/bevyhr-logo.png" alt="BevyHR" width={64} height={64} className="h-16 w-16 object-contain" />
+            <Image src="/bevyhr-logo.png" alt="BevyHR" width={1024} height={455} className="h-64 w-auto max-w-full object-contain" />
           </div>
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Complete your account</h1>
           <p className="text-gray-600">Set a password to finish joining BevyHR</p>

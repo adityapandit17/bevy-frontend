@@ -102,9 +102,9 @@ export default function LoginPage() {
             <Image 
               src="/bevyhr-logo.png" 
               alt="BevyHR Logo" 
-              width={64} 
-              height={64} 
-              className="h-16 w-16 object-contain"
+              width={1024} 
+              height={455} 
+              className="h-36 w-auto max-w-full object-contain"
             />
           </div>
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Welcome back</h1>

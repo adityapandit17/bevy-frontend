@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Mail, ArrowLeft, AlertCircle, CheckCircle2, KeyRound } from "lucide-react"
+import { Mail, ArrowLeft, AlertCircle, CheckCircle2 } from "lucide-react"
 import { AuthService, AuthServiceError } from "@/lib/auth"
 
 export default function ForgotPasswordPage() {
@@ -56,9 +56,13 @@ export default function ForgotPasswordPage() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center mb-4">
-            <div className="h-16 w-16 rounded-2xl bg-white shadow-sm border border-emerald-100 flex items-center justify-center">
-              <KeyRound className="h-8 w-8 text-emerald-600" />
-            </div>
+            <Image
+              src="/bevyhr-logo.png"
+              alt="BevyHR Logo"
+              width={1024}
+              height={455}
+              className="h-36 w-auto max-w-full object-contain"
+            />
           </div>
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Reset your password</h1>
           <p className="text-gray-600">
@@ -155,9 +159,8 @@ export default function ForgotPasswordPage() {
         </Card>
 
         <div className="text-center mt-8">
-          <Link href="/login" className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700">
-            <Image src="/bevyhr-logo.png" alt="" width={20} height={20} className="opacity-70" />
-            BevyHR
+          <Link href="/login" className="inline-flex items-center justify-center">
+            <Image src="/bevyhr-logo.png" alt="BevyHR" width={1024} height={455} className="h-20 w-auto opacity-80 object-contain" />
           </Link>
         </div>
       </div>

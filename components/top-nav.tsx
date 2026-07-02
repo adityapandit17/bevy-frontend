@@ -187,21 +187,18 @@ export function TopNav() {
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200 shadow-sm" role="navigation" aria-label="Top Navigation">
       <div className="w-full px-3 sm:px-4 lg:px-6">
-        <div className="flex justify-between items-center min-h-16 py-2 gap-3">
+        <div className="flex justify-between items-center min-h-14 py-0 gap-3">
           {/* Logo */}
-          <div className="flex items-center gap-3 min-w-0">
+          <div className="flex items-center min-w-0">
             <Image 
               src="/bevyhr-logo.png" 
               alt="BevyHR Logo" 
-              width={72} 
-              height={72} 
-              className="h-14 w-14 object-contain"
+              width={1024} 
+              height={455} 
+              className="h-28 w-auto object-contain"
               style={{ imageRendering: 'auto' }}
               priority
             />
-            <div className="hidden sm:block min-w-0">
-              <h1 className="text-lg font-bold text-green-600 truncate">BevyHR</h1>
-            </div>
           </div>
 
           {/* Desktop Navigation */}

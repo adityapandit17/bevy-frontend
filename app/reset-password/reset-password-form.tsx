@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Eye, EyeOff, Lock, AlertCircle, KeyRound } from "lucide-react"
+import { Eye, EyeOff, Lock, AlertCircle } from "lucide-react"
 import { useAuthContext } from "@/lib/auth"
 
 export function ResetPasswordForm() {
@@ -73,9 +73,13 @@ export function ResetPasswordForm() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center mb-4">
-            <div className="h-16 w-16 rounded-2xl bg-white shadow-sm border border-emerald-100 flex items-center justify-center">
-              <KeyRound className="h-8 w-8 text-emerald-600" />
-            </div>
+            <Image
+              src="/bevyhr-logo.png"
+              alt="BevyHR Logo"
+              width={1024}
+              height={455}
+              className="h-36 w-auto max-w-full object-contain"
+            />
           </div>
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Choose a new password</h1>
           <p className="text-gray-600">Set a strong password for your BevyHR account</p>
@@ -190,7 +194,7 @@ export function ResetPasswordForm() {
         </Card>
 
         <div className="text-center mt-8">
-          <Image src="/bevyhr-logo.png" alt="BevyHR" width={32} height={32} className="mx-auto opacity-70" />
+          <Image src="/bevyhr-logo.png" alt="BevyHR" width={1024} height={455} className="mx-auto h-20 w-auto opacity-80 object-contain" />
         </div>
       </div>
     </div>

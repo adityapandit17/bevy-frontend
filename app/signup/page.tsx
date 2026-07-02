@@ -113,9 +113,8 @@ function SignupPageContent() {
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-emerald-50">
       <div className="max-w-6xl mx-auto px-4 py-8 lg:py-12">
         <div className="flex items-center justify-between mb-8">
-          <Link href="/home" className="flex items-center gap-3">
-            <Image src="/bevyhr-logo.png" alt="BevyHR" width={48} height={48} className="h-12 w-12" />
-            <span className="text-xl font-bold text-green-700">BevyHR</span>
+          <Link href="/home" className="flex items-center">
+            <Image src="/bevyhr-logo.png" alt="BevyHR" width={1024} height={455} className="h-20 w-auto max-w-[min(100%,28rem)] object-contain" />
           </Link>
           <p className="text-sm text-gray-600">
             Already have an account?{" "}

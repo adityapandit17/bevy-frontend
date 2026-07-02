@@ -25,18 +25,16 @@ export function MarketingShell({ children }: MarketingShellProps) {
     <div className="min-h-screen bg-white flex flex-col">
       <nav className="bg-white border-b border-gray-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center min-h-[100px] md:min-h-[120px] py-3">
-            <Link href="/home" className="flex items-center gap-3">
+          <div className="flex justify-between items-center py-0">
+            <Link href="/home" className="flex items-center shrink-0">
               <Image
                 src="/bevyhr-logo.png"
-                alt="BevyHR Logo"
-                width={120}
-                height={120}
-                className="h-16 w-16 md:h-20 md:w-20 object-contain"
-                style={{ imageRendering: "auto" }}
+                alt="BevyHR"
+                width={1024}
+                height={455}
+                className="h-20 w-auto md:h-20 object-contain"
                 priority
               />
-              <span className="text-xl md:text-2xl font-bold text-green-600">BevyHR</span>
             </Link>
             <div className="hidden md:block">
               <div className="ml-10 flex items-baseline space-x-4">
@@ -78,16 +76,15 @@ export function MarketingShell({ children }: MarketingShellProps) {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             <div>
-              <div className="flex items-center mb-4">
+              <div className="mb-4">
                 <Image
                   src="/bevyhr-logo.png"
-                  alt="BevyHR Logo"
-                  width={32}
-                  height={32}
-                  className="h-8 w-8 object-contain"
+                  alt="BevyHR"
+                  width={1024}
+                  height={455}
+                  className="h-8 w-auto object-contain"
                   priority
                 />
-                <span className="ml-3 text-xl font-bold text-green-500">BevyHR</span>
               </div>
               <p className="text-gray-400">The complete HR management solution for modern businesses.</p>
             </div>

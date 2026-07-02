@@ -22,7 +22,9 @@ import {
   Network,
 } from "lucide-react"
 import { useRouter } from "next/navigation"
+import Image from "next/image"
 import { MarketingShell } from "@/components/marketing/marketing-shell"
+import { TypewriterHeadline } from "@/components/marketing/typewriter-headline"
 
 export default function HomePage() {
   const router = useRouter()
@@ -104,22 +106,29 @@ export default function HomePage() {
 
   return (
     <MarketingShell>
-      <section className="relative bg-gradient-to-br from-green-50 via-white to-emerald-50 py-20">
+      <section className="relative bg-gradient-to-br from-green-50 via-white to-emerald-50 pt-6 pb-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center">
-            <Badge className="mb-4 bg-green-100 text-green-800 border-green-200">
+            <div className="flex justify-center mb-6">
+              <Image
+                src="/bevyhr-logo.png"
+                alt="BevyHR"
+                width={1024}
+                height={455}
+                className="h-28 md:h-40 w-auto object-contain"
+                priority
+              />
+            </div>
+            <Badge className="mb-6 bg-green-100 text-green-800 border-green-200">
               <Zap className="w-3 h-3 mr-1" />
               Trusted by 100+ Companies
             </Badge>
-            <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6">
-              The Complete
-              <span className="text-green-600"> HR Management</span>
-              <br />
-              Solution
-            </h1>
+            <TypewriterHeadline className="mb-6" />
+            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+              Streamline your HR operations with our comprehensive platform.
+            </p>
             <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
-              Streamline your HR operations with our comprehensive platform. From recruitment to retirement,
-              manage your entire workforce with powerful tools and insights.
+              From recruitment to retirement, manage your entire workforce with powerful tools and insights.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button
