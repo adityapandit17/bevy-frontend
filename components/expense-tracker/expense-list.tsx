@@ -135,9 +135,9 @@ export function ExpenseList({ expenses, onEdit, onDelete, onView }: ExpenseListP
                       </span>
                     )}
                   </div>
-                  {expense.tags.length > 0 && (
+                  {(expense.tags || []).length > 0 && (
                     <div className="flex gap-1 mt-2">
-                      {expense.tags.map((tag, index) => (
+                      {(expense.tags || []).map((tag, index) => (
                         <Badge key={index} variant="secondary" className="text-xs">
                           {tag}
                         </Badge>

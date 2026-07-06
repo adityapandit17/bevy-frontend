@@ -6,12 +6,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { ArrowLeft, ExternalLink, Play } from "lucide-react"
 import RolePermissionsEditor from "@/components/role-permissions-editor"
+import { DemoRouteGuard } from "@/components/demo-route-guard"
 
 export default function RolePermissionsDemo() {
   const [showDemo, setShowDemo] = useState(false)
 
-  if (!showDemo) {
-    return (
+  return (
+    <DemoRouteGuard>
+      {!showDemo ? (
       <div className="min-h-screen bg-gray-50">
         {/* Navigation Header */}
         <div className="bg-white border-b">
@@ -157,10 +159,7 @@ export default function RolePermissionsDemo() {
           </Card>
         </div>
       </div>
-    )
-  }
-
-  return (
+      ) : (
     <div className="min-h-screen bg-gray-50">
       {/* Demo Header */}
       <div className="bg-white border-b">
@@ -195,5 +194,7 @@ export default function RolePermissionsDemo() {
         <RolePermissionsEditor />
       </div>
     </div>
+      )}
+    </DemoRouteGuard>
   )
 }

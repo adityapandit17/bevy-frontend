@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useMemo } from "react"
+import { apiRequest, getEndpointUrl } from "@/lib/api"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -45,228 +46,146 @@ import {
   Award as Certificate,
   UserCheck,
   CalendarDays,
-  BarChart3
+  BarChart3,
+  Loader2,
 } from "lucide-react"
+
+interface TrainingStats {
+  total: number
+  completed: number
+  in_progress: number
+  upcoming: number
+  total_hours: number
+}
+
+interface EmployeeTraining {
+  id: number
+  employee_id: number
+  employee_name: string
+  employee_department: string | null
+  name: string
+  training_type: string
+  training_type_label?: string
+  provider: string
+  start_date: string
+  end_date: string
+  formatted_start_date?: string
+  formatted_end_date?: string
+  status: string
+  status_label?: string
+  progress: number
+  certificate: string | null
+  hours: number
+  cost?: number
+  cost_formatted?: string
+  skills?: string
+  skills_list?: string[]
+  completion_status?: string
+}
 
 export default function LearningPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [categoryFilter, setCategoryFilter] = useState("all")
   const [statusFilter, setStatusFilter] = useState("all")
+  const [trainings, setTrainings] = useState<EmployeeTraining[]>([])
+  const [currentTrainings, setCurrentTrainings] = useState<EmployeeTraining[]>([])
+  const [upcomingTrainings, setUpcomingTrainings] = useState<EmployeeTraining[]>([])
+  const [stats, setStats] = useState<TrainingStats | null>(null)
+  const [loading, setLoading] = useState(false)
 
-  // Sample data for courses
-  const courses = [
-    {
-      id: 1,
-      title: "Leadership Fundamentals",
-      category: "Leadership",
-      instructor: "Dr. Sarah Johnson",
-      duration: "8 weeks",
-      difficulty: "Intermediate",
-      completionRate: 78,
-      enrolledStudents: 45,
-      status: "active",
-      type: "online",
-      lastUpdated: "2024-01-15",
-      certificate: true
-    },
-    {
-      id: 2,
-      title: "Data Analysis for HR",
-      category: "Technical Skills",
-      instructor: "Michael Chen",
-      duration: "6 weeks",
-      difficulty: "Advanced",
-      completionRate: 65,
-      enrolledStudents: 32,
-      status: "active",
-      type: "online",
-      lastUpdated: "2024-01-10",
-      certificate: true
-    },
-    {
-      id: 3,
-      title: "Employee Engagement Strategies",
-      category: "HR Management",
-      instructor: "Emily Rodriguez",
-      duration: "4 weeks",
-      difficulty: "Beginner",
-      completionRate: 92,
-      enrolledStudents: 67,
-      status: "active",
-      type: "hybrid",
-      lastUpdated: "2024-01-20",
-      certificate: false
-    },
-    {
-      id: 4,
-      title: "Conflict Resolution",
-      category: "Soft Skills",
-      instructor: "David Wilson",
-      duration: "3 weeks",
-      difficulty: "Beginner",
-      completionRate: 88,
-      enrolledStudents: 89,
-      status: "upcoming",
-      type: "in-person",
-      lastUpdated: "2024-01-25",
-      certificate: true
-    }
-  ]
+  useEffect(() => {
+    fetchTrainingData()
+  }, [])
 
-  // Sample data for course assignments
-  const courseAssignments = [
-    {
-      id: 1,
-      courseTitle: "Leadership Fundamentals",
-      employeeName: "Sarah Johnson",
-      assignedDate: "2024-01-15",
-      dueDate: "2024-03-15",
-      progress: 75,
-      status: "in-progress",
-      lastActivity: "2024-01-28",
-      grade: null
-    },
-    {
-      id: 2,
-      courseTitle: "Data Analysis for HR",
-      employeeName: "Michael Chen",
-      assignedDate: "2024-01-10",
-      dueDate: "2024-02-25",
-      progress: 100,
-      status: "completed",
-      lastActivity: "2024-01-25",
-      grade: "A+"
-    },
-    {
-      id: 3,
-      courseTitle: "Employee Engagement Strategies",
-      employeeName: "Emily Rodriguez",
-      assignedDate: "2024-01-20",
-      dueDate: "2024-02-20",
-      progress: 45,
-      status: "in-progress",
-      lastActivity: "2024-01-27",
-      grade: null
-    },
-    {
-      id: 4,
-      courseTitle: "Conflict Resolution",
-      employeeName: "David Wilson",
-      assignedDate: "2024-01-25",
-      dueDate: "2024-02-15",
-      progress: 0,
-      status: "not-started",
-      lastActivity: null,
-      grade: null
+  const fetchTrainingData = async () => {
+    setLoading(true)
+    try {
+      const [statsData, allTrainings, current, upcoming] = await Promise.all([
+        apiRequest<TrainingStats>(getEndpointUrl("EMPLOYEE_TRAININGS_STATS"), { suppressToast: true }),
+        apiRequest<EmployeeTraining[]>(getEndpointUrl("EMPLOYEE_TRAININGS"), { suppressToast: true }),
+        apiRequest<EmployeeTraining[]>(getEndpointUrl("EMPLOYEE_TRAININGS_CURRENT"), { suppressToast: true }),
+        apiRequest<EmployeeTraining[]>(getEndpointUrl("EMPLOYEE_TRAININGS_UPCOMING"), { suppressToast: true }),
+      ])
+      setStats(statsData)
+      setTrainings(Array.isArray(allTrainings) ? allTrainings : [])
+      setCurrentTrainings(Array.isArray(current) ? current : [])
+      setUpcomingTrainings(Array.isArray(upcoming) ? upcoming : [])
+    } catch (error) {
+      console.error("Error fetching training data:", error)
+      setStats(null)
+      setTrainings([])
+      setCurrentTrainings([])
+      setUpcomingTrainings([])
+    } finally {
+      setLoading(false)
     }
-  ]
+  }
 
-  // Sample data for training sessions
-  const trainingSessions = [
-    {
-      id: 1,
-      title: "New Employee Orientation",
-      type: "In-Person",
-      instructor: "HR Team",
-      date: "2024-02-05",
-      time: "10:00 AM - 2:00 PM",
-      location: "Conference Room A",
-      capacity: 25,
-      enrolled: 18,
-      status: "upcoming"
-    },
-    {
-      id: 2,
-      title: "Safety Training Workshop",
-      type: "Hybrid",
-      instructor: "Safety Officer",
-      date: "2024-02-10",
-      time: "9:00 AM - 12:00 PM",
-      location: "Training Center + Virtual",
-      capacity: 40,
-      enrolled: 35,
-      status: "upcoming"
-    },
-    {
-      id: 3,
-      title: "Software Training - HRIS",
-      type: "Virtual",
-      instructor: "IT Team",
-      date: "2024-02-15",
-      time: "2:00 PM - 4:00 PM",
-      location: "Zoom Meeting",
-      capacity: 50,
-      enrolled: 42,
-      status: "upcoming"
-    },
-    {
-      id: 4,
-      title: "Team Building Workshop",
-      type: "In-Person",
-      instructor: "External Consultant",
-      date: "2024-01-30",
-      time: "1:00 PM - 5:00 PM",
-      location: "Outdoor Venue",
-      capacity: 30,
-      enrolled: 28,
-      status: "completed"
-    }
-  ]
+  const avgCompletionRate = useMemo(() => {
+    if (trainings.length === 0) return 0
+    const total = trainings.reduce((sum, t) => sum + (t.progress || 0), 0)
+    return Math.round(total / trainings.length)
+  }, [trainings])
 
-  // Sample data for certifications
-  const certifications = [
-    {
-      id: 1,
-      employeeName: "Sarah Johnson",
-      certificationName: "PHR (Professional in Human Resources)",
-      issuingOrganization: "HRCI",
-      issueDate: "2023-06-15",
-      expiryDate: "2026-06-15",
-      status: "active",
-      documentUrl: "/certificates/sarah-phr.pdf",
-      verifiedBy: "HR Manager",
-      verificationDate: "2023-06-20"
-    },
-    {
-      id: 2,
-      employeeName: "Michael Chen",
-      certificationName: "SHRM-CP (Society for HR Management)",
-      issuingOrganization: "SHRM",
-      issueDate: "2023-08-20",
-      expiryDate: "2026-08-20",
-      status: "active",
-      documentUrl: "/certificates/michael-shrm.pdf",
-      verifiedBy: "HR Manager",
-      verificationDate: "2023-08-25"
-    },
-    {
-      id: 3,
-      employeeName: "Emily Rodriguez",
-      certificationName: "Data Analytics Certification",
-      issuingOrganization: "Google",
-      issueDate: "2023-12-10",
-      expiryDate: "2025-12-10",
-      status: "active",
-      documentUrl: "/certificates/emily-google.pdf",
-      verifiedBy: "HR Team",
-      verificationDate: "2023-12-15"
-    },
-    {
-      id: 4,
-      employeeName: "David Wilson",
-      certificationName: "Project Management Professional",
-      issuingOrganization: "PMI",
-      issueDate: "2022-03-15",
-      expiryDate: "2025-03-15",
-      status: "expiring",
-      documentUrl: "/certificates/david-pmp.pdf",
-      verifiedBy: "HR Manager",
-      verificationDate: "2022-03-20"
-    }
-  ]
+  const certificationCount = useMemo(
+    () => trainings.filter((t) => t.status === "completed" && t.certificate).length,
+    [trainings]
+  )
+
+  const inProgressAssignments = useMemo(
+    () => trainings.filter((t) => t.status === "in_progress"),
+    [trainings]
+  )
+
+  const sessionTrainings = useMemo(
+    () => [...currentTrainings, ...upcomingTrainings],
+    [currentTrainings, upcomingTrainings]
+  )
+
+  const certifications = useMemo(
+    () => trainings.filter((t) => t.status === "completed" && t.certificate),
+    [trainings]
+  )
+
+  const trainingCategories = useMemo(() => {
+    const types = new Set(trainings.map((t) => t.training_type_label || t.training_type))
+    return Array.from(types).filter(Boolean)
+  }, [trainings])
+
+  const filteredCourses = useMemo(() => {
+    return trainings.filter((training) => {
+      const term = searchTerm.toLowerCase()
+      const matchesSearch =
+        !term ||
+        training.name?.toLowerCase().includes(term) ||
+        training.provider?.toLowerCase().includes(term) ||
+        training.employee_name?.toLowerCase().includes(term)
+
+      const category = training.training_type_label || training.training_type
+      const matchesCategory = categoryFilter === "all" || category === categoryFilter
+      const matchesStatus = statusFilter === "all" || training.status === statusFilter
+
+      return matchesSearch && matchesCategory && matchesStatus
+    })
+  }, [trainings, searchTerm, categoryFilter, statusFilter])
+
+  const getDurationLabel = (training: EmployeeTraining) => {
+    if (!training.start_date || !training.end_date) return "—"
+    const start = new Date(training.start_date)
+    const end = new Date(training.end_date)
+    const days = Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
+    return days === 1 ? "1 day" : `${days} days`
+  }
+
+  const getSessionStatus = (training: EmployeeTraining) => {
+    if (currentTrainings.some((t) => t.id === training.id)) return "active"
+    if (upcomingTrainings.some((t) => t.id === training.id)) return "upcoming"
+    return training.status
+  }
 
   const getStatusBadge = (status: string) => {
-    switch (status) {
+    const normalized = status.replace("_", "-")
+    switch (normalized) {
       case 'active':
         return <Badge className="bg-green-100 text-green-800">Active</Badge>
       case 'upcoming':
@@ -277,23 +196,27 @@ export default function LearningPage() {
         return <Badge className="bg-orange-100 text-orange-800">In Progress</Badge>
       case 'not-started':
         return <Badge className="bg-gray-100 text-gray-800">Not Started</Badge>
+      case 'cancelled':
+        return <Badge className="bg-gray-100 text-gray-800">Cancelled</Badge>
+      case 'failed':
+        return <Badge className="bg-red-100 text-red-800">Failed</Badge>
       case 'expiring':
         return <Badge className="bg-red-100 text-red-800">Expiring Soon</Badge>
       default:
-        return <Badge className="bg-gray-100 text-gray-800">{status}</Badge>
+        return <Badge className="bg-gray-100 text-gray-800">{status.replace("_", " ")}</Badge>
     }
   }
 
-  const getDifficultyBadge = (difficulty: string) => {
-    switch (difficulty) {
-      case 'beginner':
-        return <Badge className="bg-green-100 text-green-800">Beginner</Badge>
-      case 'intermediate':
-        return <Badge className="bg-orange-100 text-orange-800">Intermediate</Badge>
-      case 'advanced':
+  const getDifficultyBadge = (trainingType: string) => {
+    switch (trainingType?.toLowerCase()) {
+      case 'technical':
+      case 'certification':
         return <Badge className="bg-red-100 text-red-800">Advanced</Badge>
+      case 'leadership':
+      case 'compliance':
+        return <Badge className="bg-orange-100 text-orange-800">Intermediate</Badge>
       default:
-        return <Badge className="bg-gray-100 text-gray-800">{difficulty}</Badge>
+        return <Badge className="bg-green-100 text-green-800">Beginner</Badge>
     }
   }
 
@@ -319,58 +242,66 @@ export default function LearningPage() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Active Courses</p>
-                <p className="text-2xl font-bold text-gray-900">24</p>
-              </div>
-              <div className="p-3 bg-blue-50 rounded-lg">
-                <BookOpen className="w-6 h-6 text-blue-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Enrolled Students</p>
-                <p className="text-2xl font-bold text-gray-900">156</p>
-              </div>
-              <div className="p-3 bg-green-50 rounded-lg">
-                <Users className="w-6 h-6 text-green-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Avg. Completion Rate</p>
-                <p className="text-2xl font-bold text-gray-900">78%</p>
-              </div>
-              <div className="p-3 bg-orange-50 rounded-lg">
-                <TrendingUp className="w-6 h-6 text-orange-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Active Certifications</p>
-                <p className="text-2xl font-bold text-gray-900">89</p>
-              </div>
-              <div className="p-3 bg-purple-50 rounded-lg">
-                <Award className="w-6 h-6 text-purple-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {loading && !stats ? (
+          <div className="col-span-full flex justify-center py-8">
+            <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+          </div>
+        ) : (
+          <>
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Total Trainings</p>
+                    <p className="text-2xl font-bold text-gray-900">{stats?.total ?? 0}</p>
+                  </div>
+                  <div className="p-3 bg-blue-50 rounded-lg">
+                    <BookOpen className="w-6 h-6 text-blue-600" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">In Progress</p>
+                    <p className="text-2xl font-bold text-gray-900">{stats?.in_progress ?? 0}</p>
+                  </div>
+                  <div className="p-3 bg-green-50 rounded-lg">
+                    <Users className="w-6 h-6 text-green-600" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Avg. Completion Rate</p>
+                    <p className="text-2xl font-bold text-gray-900">{avgCompletionRate}%</p>
+                  </div>
+                  <div className="p-3 bg-orange-50 rounded-lg">
+                    <TrendingUp className="w-6 h-6 text-orange-600" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Certifications</p>
+                    <p className="text-2xl font-bold text-gray-900">{certificationCount}</p>
+                  </div>
+                  <div className="p-3 bg-purple-50 rounded-lg">
+                    <Award className="w-6 h-6 text-purple-600" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </>
+        )}
       </div>
 
       {/* Main Content */}
@@ -413,100 +344,108 @@ export default function LearningPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Categories</SelectItem>
-                      <SelectItem value="Leadership">Leadership</SelectItem>
-                      <SelectItem value="Technical Skills">Technical Skills</SelectItem>
-                      <SelectItem value="HR Management">HR Management</SelectItem>
-                      <SelectItem value="Soft Skills">Soft Skills</SelectItem>
+                      {trainingCategories.map((category) => (
+                        <SelectItem key={category} value={category}>{category}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
               </div>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {courses.map((course) => (
-                  <Card key={course.id} className="hover:shadow-md transition-shadow">
-                    <CardHeader className="pb-3">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <CardTitle className="text-lg">{course.title}</CardTitle>
-                          <CardDescription className="mt-1">
-                            {course.instructor} • {course.duration}
-                          </CardDescription>
+              {loading ? (
+                <div className="flex justify-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+                </div>
+              ) : filteredCourses.length === 0 ? (
+                <p className="text-sm text-gray-500 text-center py-12">No trainings found.</p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {filteredCourses.map((training) => (
+                    <Card key={training.id} className="hover:shadow-md transition-shadow">
+                      <CardHeader className="pb-3">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <CardTitle className="text-lg">{training.name}</CardTitle>
+                            <CardDescription className="mt-1">
+                              {training.provider} • {getDurationLabel(training)}
+                            </CardDescription>
+                          </div>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm">
+                                <MoreHorizontal className="w-4 h-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                              <DropdownMenuItem>
+                                <Eye className="mr-2 h-4 w-4" />
+                                View Details
+                              </DropdownMenuItem>
+                              <DropdownMenuItem>
+                                <Edit className="mr-2 h-4 w-4" />
+                                Edit Training
+                              </DropdownMenuItem>
+                              <DropdownMenuItem>
+                                <Users className="mr-2 h-4 w-4" />
+                                View Employee
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem className="text-red-600">
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm">
-                              <MoreHorizontal className="w-4 h-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                            <DropdownMenuItem>
-                              <Eye className="mr-2 h-4 w-4" />
-                              View Details
-                            </DropdownMenuItem>
-                            <DropdownMenuItem>
-                              <Edit className="mr-2 h-4 w-4" />
-                              Edit Course
-                            </DropdownMenuItem>
-                            <DropdownMenuItem>
-                              <Users className="mr-2 h-4 w-4" />
-                              Manage Enrollments
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem className="text-red-600">
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="flex items-center gap-2">
-                        {getStatusBadge(course.status)}
-                        {getDifficultyBadge(course.difficulty)}
-                        {course.certificate && (
-                          <Badge className="bg-purple-100 text-purple-800">
-                            <Certificate className="w-3 h-3 mr-1" />
-                            Certificate
-                          </Badge>
-                        )}
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-600">Completion Rate</span>
-                          <span className="font-medium">{course.completionRate}%</span>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {getStatusBadge(training.status)}
+                          {getDifficultyBadge(training.training_type)}
+                          {training.certificate && (
+                            <Badge className="bg-purple-100 text-purple-800">
+                              <Certificate className="w-3 h-3 mr-1" />
+                              Certificate
+                            </Badge>
+                          )}
                         </div>
-                        <Progress value={course.completionRate} className="h-2" />
-                      </div>
 
-                      <div className="flex items-center justify-between text-sm">
-                        <div className="flex items-center gap-1 text-gray-600">
-                          <Users className="w-4 h-4" />
-                          {course.enrolledStudents} enrolled
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-600">Progress</span>
+                            <span className="font-medium">{training.progress}%</span>
+                          </div>
+                          <Progress value={training.progress} className="h-2" />
                         </div>
-                        <div className="flex items-center gap-1 text-gray-600">
-                          <Calendar className="w-4 h-4" />
-                          {new Date(course.lastUpdated).toLocaleDateString()}
-                        </div>
-                      </div>
 
-                      <div className="flex gap-2">
-                        <Button size="sm" className="flex-1">
-                          <Play className="w-4 h-4 mr-2" />
-                          Enroll
-                        </Button>
-                        <Button size="sm" variant="outline">
-                          <Eye className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <div className="flex items-center gap-1 text-gray-600">
+                            <Users className="w-4 h-4" />
+                            {training.employee_name}
+                          </div>
+                          <div className="flex items-center gap-1 text-gray-600">
+                            <Calendar className="w-4 h-4" />
+                            {training.formatted_start_date ||
+                              (training.start_date ? new Date(training.start_date).toLocaleDateString() : "—")}
+                          </div>
+                        </div>
+
+                        <div className="flex gap-2">
+                          <Button size="sm" className="flex-1">
+                            <Play className="w-4 h-4 mr-2" />
+                            View
+                          </Button>
+                          <Button size="sm" variant="outline">
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -538,80 +477,90 @@ export default function LearningPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Employee</TableHead>
-                    <TableHead>Course</TableHead>
-                    <TableHead>Assigned Date</TableHead>
-                    <TableHead>Due Date</TableHead>
-                    <TableHead>Progress</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Grade</TableHead>
-                    <TableHead className="w-12"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {courseAssignments.map((assignment) => (
-                    <TableRow key={assignment.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-medium text-sm">
-                            {assignment.employeeName.split(' ').map(n => n[0]).join('')}
-                          </div>
-                          <span className="font-medium text-gray-900">{assignment.employeeName}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>{assignment.courseTitle}</TableCell>
-                      <TableCell>{new Date(assignment.assignedDate).toLocaleDateString()}</TableCell>
-                      <TableCell>{new Date(assignment.dueDate).toLocaleDateString()}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Progress value={assignment.progress} className="w-20 h-2" />
-                          <span className="text-sm font-medium">{assignment.progress}%</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>{getStatusBadge(assignment.status)}</TableCell>
-                      <TableCell>
-                        {assignment.grade ? (
-                          <Badge className="bg-green-100 text-green-800">{assignment.grade}</Badge>
-                        ) : (
-                          <span className="text-sm text-gray-500">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm">
-                              <MoreHorizontal className="w-4 h-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                            <DropdownMenuItem>
-                              <Eye className="mr-2 h-4 w-4" />
-                              View Progress
-                            </DropdownMenuItem>
-                            <DropdownMenuItem>
-                              <Edit className="mr-2 h-4 w-4" />
-                              Update Grade
-                            </DropdownMenuItem>
-                            <DropdownMenuItem>
-                              <Clock className="mr-2 h-4 w-4" />
-                              Extend Deadline
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem className="text-red-600">
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Remove Assignment
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
+              {loading ? (
+                <div className="flex justify-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+                </div>
+              ) : inProgressAssignments.length === 0 ? (
+                <p className="text-sm text-gray-500 text-center py-12">No in-progress assignments.</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Employee</TableHead>
+                      <TableHead>Course</TableHead>
+                      <TableHead>Start Date</TableHead>
+                      <TableHead>End Date</TableHead>
+                      <TableHead>Progress</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Hours</TableHead>
+                      <TableHead className="w-12"></TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {inProgressAssignments.map((assignment) => (
+                      <TableRow key={assignment.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-medium text-sm">
+                              {assignment.employee_name?.split(" ").map((n) => n[0]).join("") || "?"}
+                            </div>
+                            <span className="font-medium text-gray-900">{assignment.employee_name}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>{assignment.name}</TableCell>
+                        <TableCell>
+                          {assignment.formatted_start_date ||
+                            (assignment.start_date ? new Date(assignment.start_date).toLocaleDateString() : "—")}
+                        </TableCell>
+                        <TableCell>
+                          {assignment.formatted_end_date ||
+                            (assignment.end_date ? new Date(assignment.end_date).toLocaleDateString() : "—")}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Progress value={assignment.progress} className="w-20 h-2" />
+                            <span className="text-sm font-medium">{assignment.progress}%</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>{getStatusBadge(assignment.status)}</TableCell>
+                        <TableCell>
+                          <span className="text-sm text-gray-600">{assignment.hours ?? 0}h</span>
+                        </TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm">
+                                <MoreHorizontal className="w-4 h-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                              <DropdownMenuItem>
+                                <Eye className="mr-2 h-4 w-4" />
+                                View Progress
+                              </DropdownMenuItem>
+                              <DropdownMenuItem>
+                                <Edit className="mr-2 h-4 w-4" />
+                                Update Progress
+                              </DropdownMenuItem>
+                              <DropdownMenuItem>
+                                <Clock className="mr-2 h-4 w-4" />
+                                Extend Deadline
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem className="text-red-600">
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Remove Assignment
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -643,87 +592,97 @@ export default function LearningPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Session</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Instructor</TableHead>
-                    <TableHead>Date & Time</TableHead>
-                    <TableHead>Location</TableHead>
-                    <TableHead>Capacity</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="w-12"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {trainingSessions.map((session) => (
-                    <TableRow key={session.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-blue-600 rounded-full flex items-center justify-center text-white">
-                            <Calendar className="w-4 h-4" />
-                          </div>
-                          <span className="font-medium text-gray-900">{session.title}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={
-                          session.type === 'In-Person' ? 'bg-blue-100 text-blue-800' :
-                          session.type === 'Virtual' ? 'bg-green-100 text-green-800' :
-                          'bg-orange-100 text-orange-800'
-                        }>
-                          {session.type}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{session.instructor}</TableCell>
-                      <TableCell>
-                        <div>
-                          <p className="font-medium">{new Date(session.date).toLocaleDateString()}</p>
-                          <p className="text-sm text-gray-500">{session.time}</p>
-                        </div>
-                      </TableCell>
-                      <TableCell>{session.location}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm">{session.enrolled}/{session.capacity}</span>
-                          <Progress value={(session.enrolled / session.capacity) * 100} className="w-16 h-2" />
-                        </div>
-                      </TableCell>
-                      <TableCell>{getStatusBadge(session.status)}</TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm">
-                              <MoreHorizontal className="w-4 h-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                            <DropdownMenuItem>
-                              <Eye className="mr-2 h-4 w-4" />
-                              View Details
-                            </DropdownMenuItem>
-                            <DropdownMenuItem>
-                              <Users className="mr-2 h-4 w-4" />
-                              Manage Attendees
-                            </DropdownMenuItem>
-                            <DropdownMenuItem>
-                              <Edit className="mr-2 h-4 w-4" />
-                              Edit Session
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem className="text-red-600">
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Cancel Session
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
+              {loading ? (
+                <div className="flex justify-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+                </div>
+              ) : sessionTrainings.length === 0 ? (
+                <p className="text-sm text-gray-500 text-center py-12">No current or upcoming sessions.</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Session</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Provider</TableHead>
+                      <TableHead>Date Range</TableHead>
+                      <TableHead>Employee</TableHead>
+                      <TableHead>Progress</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="w-12"></TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {sessionTrainings.map((session) => (
+                      <TableRow key={session.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-blue-600 rounded-full flex items-center justify-center text-white">
+                              <Calendar className="w-4 h-4" />
+                            </div>
+                            <span className="font-medium text-gray-900">{session.name}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge className="bg-blue-100 text-blue-800">
+                            {session.training_type_label || session.training_type}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{session.provider}</TableCell>
+                        <TableCell>
+                          <div>
+                            <p className="font-medium">
+                              {session.formatted_start_date ||
+                                (session.start_date ? new Date(session.start_date).toLocaleDateString() : "—")}
+                            </p>
+                            <p className="text-sm text-gray-500">
+                              to {session.formatted_end_date ||
+                                (session.end_date ? new Date(session.end_date).toLocaleDateString() : "—")}
+                            </p>
+                          </div>
+                        </TableCell>
+                        <TableCell>{session.employee_name}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Progress value={session.progress} className="w-16 h-2" />
+                            <span className="text-sm">{session.progress}%</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>{getStatusBadge(getSessionStatus(session))}</TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm">
+                                <MoreHorizontal className="w-4 h-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                              <DropdownMenuItem>
+                                <Eye className="mr-2 h-4 w-4" />
+                                View Details
+                              </DropdownMenuItem>
+                              <DropdownMenuItem>
+                                <Users className="mr-2 h-4 w-4" />
+                                View Employee
+                              </DropdownMenuItem>
+                              <DropdownMenuItem>
+                                <Edit className="mr-2 h-4 w-4" />
+                                Edit Session
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem className="text-red-600">
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Cancel Session
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -755,89 +714,95 @@ export default function LearningPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Employee</TableHead>
-                    <TableHead>Certification</TableHead>
-                    <TableHead>Issuing Organization</TableHead>
-                    <TableHead>Issue Date</TableHead>
-                    <TableHead>Expiry Date</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Verified By</TableHead>
-                    <TableHead className="w-12"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {certifications.map((cert) => (
-                    <TableRow key={cert.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-600 rounded-full flex items-center justify-center text-white font-medium text-sm">
-                            {cert.employeeName.split(' ').map(n => n[0]).join('')}
-                          </div>
-                          <span className="font-medium text-gray-900">{cert.employeeName}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Certificate className="w-4 h-4 text-purple-500" />
-                          <span className="font-medium">{cert.certificationName}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>{cert.issuingOrganization}</TableCell>
-                      <TableCell>{new Date(cert.issueDate).toLocaleDateString()}</TableCell>
-                      <TableCell>{new Date(cert.expiryDate).toLocaleDateString()}</TableCell>
-                      <TableCell>{getStatusBadge(cert.status)}</TableCell>
-                      <TableCell>
-                        {cert.verifiedBy ? (
-                          <div>
-                            <p className="text-sm font-medium">{cert.verifiedBy}</p>
-                            <p className="text-xs text-gray-500">
-                              {cert.verificationDate && new Date(cert.verificationDate).toLocaleDateString()}
-                            </p>
-                          </div>
-                        ) : (
-                          <span className="text-sm text-gray-500">Not verified</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm">
-                              <MoreHorizontal className="w-4 h-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                            <DropdownMenuItem>
-                              <Eye className="mr-2 h-4 w-4" />
-                              View Certificate
-                            </DropdownMenuItem>
-                            <DropdownMenuItem>
-                              <Download className="mr-2 h-4 w-4" />
-                              Download
-                            </DropdownMenuItem>
-                            <DropdownMenuItem>
-                              <UserCheck className="mr-2 h-4 w-4" />
-                              Verify
-                            </DropdownMenuItem>
-                            <DropdownMenuItem>
-                              <Edit className="mr-2 h-4 w-4" />
-                              Edit Details
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem className="text-red-600">
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
+              {loading ? (
+                <div className="flex justify-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+                </div>
+              ) : certifications.length === 0 ? (
+                <p className="text-sm text-gray-500 text-center py-12">No certifications found.</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Employee</TableHead>
+                      <TableHead>Certification</TableHead>
+                      <TableHead>Provider</TableHead>
+                      <TableHead>Completed</TableHead>
+                      <TableHead>Training Type</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Certificate</TableHead>
+                      <TableHead className="w-12"></TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {certifications.map((cert) => (
+                      <TableRow key={cert.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-600 rounded-full flex items-center justify-center text-white font-medium text-sm">
+                              {cert.employee_name?.split(" ").map((n) => n[0]).join("") || "?"}
+                            </div>
+                            <span className="font-medium text-gray-900">{cert.employee_name}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Certificate className="w-4 h-4 text-purple-500" />
+                            <span className="font-medium">{cert.name}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>{cert.provider}</TableCell>
+                        <TableCell>
+                          {cert.formatted_end_date ||
+                            (cert.end_date ? new Date(cert.end_date).toLocaleDateString() : "—")}
+                        </TableCell>
+                        <TableCell>{cert.training_type_label || cert.training_type}</TableCell>
+                        <TableCell>{getStatusBadge(cert.status)}</TableCell>
+                        <TableCell>
+                          {cert.certificate ? (
+                            <Badge className="bg-green-100 text-green-800">Verified</Badge>
+                          ) : (
+                            <span className="text-sm text-gray-500">Not available</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm">
+                                <MoreHorizontal className="w-4 h-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                              <DropdownMenuItem>
+                                <Eye className="mr-2 h-4 w-4" />
+                                View Certificate
+                              </DropdownMenuItem>
+                              <DropdownMenuItem>
+                                <Download className="mr-2 h-4 w-4" />
+                                Download
+                              </DropdownMenuItem>
+                              <DropdownMenuItem>
+                                <UserCheck className="mr-2 h-4 w-4" />
+                                Verify
+                              </DropdownMenuItem>
+                              <DropdownMenuItem>
+                                <Edit className="mr-2 h-4 w-4" />
+                                Edit Details
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem className="text-red-600">
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

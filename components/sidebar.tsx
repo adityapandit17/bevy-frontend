@@ -26,8 +26,6 @@ import {
   Award,
 } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
-import Image from "next/image"
-
 import {
   Sidebar,
   SidebarContent,
@@ -42,6 +40,7 @@ import {
 } from "@/components/ui/sidebar"
 import { cn } from "@/lib/utils"
 import { useAuthContext } from "@/lib/auth"
+import { BrandLogoLink } from "@/components/brand-logo-link"
 
 type NavItem = {
   title: string
@@ -257,17 +256,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar className="bg-white border-r border-gray-200" collapsible="offcanvas" {...props}>
       <SidebarHeader className="px-6 py-3.5 border-b border-gray-200">
-        <div className="flex items-center">
-          <Image 
-            src="/bevyhr-logo.png" 
-            alt="BevyHR Logo" 
-            width={1024} 
-            height={455} 
-            className="h-32 w-auto object-contain"
-            style={{ imageRendering: 'auto' }}
-            priority
-          />
-        </div>
+        <BrandLogoLink
+          className="flex items-center"
+          imageClassName="h-32 w-auto object-contain"
+          priority
+        />
       </SidebarHeader>
       <SidebarContent className="flex-1 overflow-y-auto">
         <SidebarGroup>

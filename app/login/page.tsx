@@ -17,7 +17,7 @@ import {
   Chrome,
   AlertCircle
 } from "lucide-react"
-import Image from "next/image"
+import { BrandLogoLink } from "@/components/brand-logo-link"
 import Link from "next/link"
 import { useAuthContext } from "@/lib/auth"
 
@@ -99,12 +99,9 @@ export default function LoginPage() {
         {/* Logo and Header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center mb-4">
-            <Image 
-              src="/bevyhr-logo.png" 
-              alt="BevyHR Logo" 
-              width={1024} 
-              height={455} 
-              className="h-36 w-auto max-w-full object-contain"
+            <BrandLogoLink
+              className="inline-flex items-center justify-center"
+              imageClassName="h-36 w-auto max-w-full object-contain"
             />
           </div>
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Welcome back</h1>

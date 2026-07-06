@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { getApiUrl, getEndpointUrl, apiRequest } from "@/lib/api"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -801,41 +801,6 @@ export default function PayrollPage() {
     setShowForm(true)
   }
 
-  const payrollStats = [
-    {
-      title: "Total Payroll",
-      value: "₹45.2L",
-      change: "+8.2% from last month",
-      icon: IndianRupee,
-      color: "text-green-600",
-      bgColor: "bg-green-50",
-    },
-    {
-      title: "Employees Paid",
-      value: "248",
-      change: "100% completion",
-      icon: CheckCircle,
-      color: "text-blue-600",
-      bgColor: "bg-blue-50",
-    },
-    {
-      title: "Pending Approvals",
-      value: "5",
-      change: "Overtime claims",
-      icon: Clock,
-      color: "text-orange-600",
-      bgColor: "bg-orange-50",
-    },
-    {
-      title: "Tax Deducted",
-      value: "₹8.4L",
-      change: "TDS + PF + ESI",
-      icon: Calculator,
-      color: "text-purple-600",
-      bgColor: "bg-purple-50",
-    },
-  ]
-
   const getStatusColor = (status: string) => {
     switch (status) {
       case "Paid":
@@ -867,6 +832,135 @@ export default function PayrollPage() {
     const num = Number(value)
     return Number.isFinite(num) ? num : 0
   }
+
+  const sumNetPayroll = (records: any[]) =>
+    records.reduce((sum, record) => sum + safeNumber(record.net_salary), 0)
+
+  const sumStatutoryDeductions = (records: any[]) =>
+    records.reduce((sum, record) => {
+      const breakdown = record.deductions_breakdown || {}
+      return (
+        sum +
+        safeNumber(breakdown.pf) +
+        safeNumber(breakdown.esi) +
+        safeNumber(breakdown.professional_tax) +
+        safeNumber(breakdown.income_tax)
+      )
+    }, 0)
+
+  const formatCompactInr = (amount: number) => {
+    const abs = Math.abs(amount)
+    if (abs >= 10_000_000) return `₹${(amount / 10_000_000).toFixed(1)}Cr`
+    if (abs >= 100_000) return `₹${(amount / 100_000).toFixed(1)}L`
+    if (abs >= 1_000) return `₹${(amount / 1_000).toFixed(1)}K`
+    return formatCurrency(amount)
+  }
+
+  const getPreviousMonthFilter = (filter: string) => {
+    const monthInfo = parseMonthFilter(filter)
+    if (!monthInfo) return null
+    let month = monthInfo.month - 1
+    let year = monthInfo.year
+    if (month < 1) {
+      month = 12
+      year -= 1
+    }
+    const monthNames = [
+      "january", "february", "march", "april", "may", "june",
+      "july", "august", "september", "october", "november", "december",
+    ]
+    return `${monthNames[month - 1]}-${year}`
+  }
+
+  const activeEmployeeCount = useMemo(() => {
+    if (!Array.isArray(employees)) return 0
+    return employees.filter((employee: any) => employee.status === "active" || !employee.status).length
+  }, [employees])
+
+  const payrollStats = useMemo(() => {
+    const monthRecords = normalizedPayrollRecords.filter(isRecordInSelectedMonth)
+    const totalNet = sumNetPayroll(monthRecords)
+    const processedCount = monthRecords.filter(
+      (record) => String(record.status || "processed").toLowerCase() === "processed"
+    ).length
+    const pendingInRecords = monthRecords.filter((record) => {
+      const status = String(record.status || "").toLowerCase()
+      return status === "pending" || status === "processing"
+    }).length
+    const missingPayroll = Math.max(0, activeEmployeeCount - monthRecords.length)
+    const pendingApprovals = pendingInRecords > 0 ? pendingInRecords : missingPayroll
+    const totalTax = sumStatutoryDeductions(monthRecords)
+
+    const previousFilter = getPreviousMonthFilter(monthFilter)
+    const previousLabel = previousFilter ? formatMonthDisplay(previousFilter) : null
+    const previousRecords = previousLabel
+      ? normalizedPayrollRecords.filter(
+          (record) =>
+            String(record?.month || "").trim().toLowerCase() === previousLabel.trim().toLowerCase()
+        )
+      : []
+    const previousTotal = sumNetPayroll(previousRecords)
+    const percentChange =
+      previousTotal > 0 ? ((totalNet - previousTotal) / previousTotal) * 100 : null
+
+    const completionPct =
+      activeEmployeeCount > 0
+        ? Math.round((processedCount / activeEmployeeCount) * 100)
+        : monthRecords.length > 0
+          ? 100
+          : 0
+
+    let payrollChange = "No payroll for this month"
+    if (monthRecords.length > 0) {
+      payrollChange =
+        percentChange !== null
+          ? `${percentChange >= 0 ? "+" : ""}${percentChange.toFixed(1)}% from last month`
+          : "No prior month data"
+    }
+
+    return [
+      {
+        title: "Total Payroll",
+        value: formatCompactInr(totalNet),
+        change: payrollChange,
+        icon: IndianRupee,
+        color: "text-green-600",
+        bgColor: "bg-green-50",
+      },
+      {
+        title: "Employees Paid",
+        value: String(processedCount),
+        change:
+          activeEmployeeCount > 0
+            ? `${completionPct}% of ${activeEmployeeCount} active`
+            : `${monthRecords.length} record${monthRecords.length === 1 ? "" : "s"}`,
+        icon: CheckCircle,
+        color: "text-blue-600",
+        bgColor: "bg-blue-50",
+      },
+      {
+        title: "Pending Approvals",
+        value: String(pendingApprovals),
+        change: pendingApprovals === 0 ? "All employees processed" : "Awaiting payroll run",
+        icon: Clock,
+        color: "text-orange-600",
+        bgColor: "bg-orange-50",
+      },
+      {
+        title: "Tax Deducted",
+        value: formatCompactInr(totalTax),
+        change: "TDS + PF + ESI",
+        icon: Calculator,
+        color: "text-purple-600",
+        bgColor: "bg-purple-50",
+      },
+    ]
+  }, [
+    normalizedPayrollRecords,
+    selectedMonthLabel,
+    monthFilter,
+    activeEmployeeCount,
+  ])
 
   // Build shared HTML for payslip (used for both view and PDF download)
   const buildPayslipHtml = ({

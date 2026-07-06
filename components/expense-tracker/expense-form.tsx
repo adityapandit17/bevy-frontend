@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -27,25 +27,56 @@ const categories = [
 
 const paymentMethods = ["Credit Card", "Debit Card", "Cash", "Bank Transfer", "Digital Wallet"]
 
+interface ExpenseFormData {
+  title: string
+  amount: number
+  category: string
+  date: string
+  description: string
+  paymentMethod: string
+  tags: string[]
+}
+
 interface ExpenseFormProps {
   isOpen: boolean
   onClose: () => void
-  onSubmit: (expense: any) => void
-  initialData?: any
+  onSubmit: (expense: ExpenseFormData) => void | Promise<void>
+  initialData?: ExpenseFormData | null
   title: string
   description: string
 }
 
+const emptyForm = () => ({
+  title: "",
+  amount: "",
+  category: "",
+  date: new Date().toISOString().split("T")[0],
+  description: "",
+  paymentMethod: "",
+  tags: "",
+})
+
 export function ExpenseForm({ isOpen, onClose, onSubmit, initialData, title, description }: ExpenseFormProps) {
-  const [formData, setFormData] = useState({
-    title: initialData?.title || "",
-    amount: initialData?.amount?.toString() || "",
-    category: initialData?.category || "",
-    date: initialData?.date || new Date().toISOString().split('T')[0],
-    description: initialData?.description || "",
-    paymentMethod: initialData?.paymentMethod || "",
-    tags: initialData?.tags?.join(', ') || ""
-  })
+  const [formData, setFormData] = useState(emptyForm())
+  const [submitting, setSubmitting] = useState(false)
+
+  useEffect(() => {
+    if (!isOpen) return
+
+    if (initialData) {
+      setFormData({
+        title: initialData.title || "",
+        amount: initialData.amount?.toString() || "",
+        category: initialData.category || "",
+        date: initialData.date || new Date().toISOString().split("T")[0],
+        description: initialData.description || "",
+        paymentMethod: initialData.paymentMethod || "",
+        tags: initialData.tags?.join(", ") || "",
+      })
+    } else {
+      setFormData(emptyForm())
+    }
+  }, [isOpen, initialData])
 
   const getCategoryIcon = (category: string) => {
     switch (category) {
@@ -62,47 +93,34 @@ export function ExpenseForm({ isOpen, onClose, onSubmit, initialData, title, des
     }
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (!formData.title || !formData.amount || !formData.category) {
       return
     }
 
-    const expense = {
+    const expense: ExpenseFormData = {
       title: formData.title,
       amount: parseFloat(formData.amount),
       category: formData.category,
       date: formData.date,
       description: formData.description,
       paymentMethod: formData.paymentMethod,
-      tags: formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag)
+      tags: formData.tags.split(",").map((tag) => tag.trim()).filter(Boolean),
     }
 
-    onSubmit(expense)
-    
-    // Reset form
-    setFormData({
-      title: "",
-      amount: "",
-      category: "",
-      date: new Date().toISOString().split('T')[0],
-      description: "",
-      paymentMethod: "",
-      tags: ""
-    })
+    setSubmitting(true)
+    try {
+      await onSubmit(expense)
+      setFormData(emptyForm())
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const handleClose = () => {
-    setFormData({
-      title: "",
-      amount: "",
-      category: "",
-      date: new Date().toISOString().split('T')[0],
-      description: "",
-      paymentMethod: "",
-      tags: ""
-    })
+    setFormData(emptyForm())
     onClose()
   }
 
@@ -198,8 +216,8 @@ export function ExpenseForm({ isOpen, onClose, onSubmit, initialData, title, des
             <Button type="button" variant="outline" onClick={handleClose}>
               Cancel
             </Button>
-            <Button type="submit">
-              {initialData ? 'Update Expense' : 'Add Expense'}
+            <Button type="submit" disabled={submitting}>
+              {submitting ? "Saving…" : initialData ? "Update Expense" : "Add Expense"}
             </Button>
           </div>
         </form>

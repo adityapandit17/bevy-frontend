@@ -1,6 +1,7 @@
 "use client"
 
-import React, { useState } from "react"
+import React, { useState, useEffect, useMemo } from "react"
+import { apiRequest, getEndpointUrl } from "@/lib/api"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -46,7 +47,53 @@ import {
   ArrowDownRight,
   Minus,
   Calendar,
+  Loader2,
 } from "lucide-react"
+
+interface PerformanceStats {
+  active_reviews: number
+  average_rating: number
+  goals_completed: number
+  overdue_reviews: number
+  total_reviews: number
+}
+
+interface PerformanceReview {
+  id: number
+  employee_id: number
+  employee_name: string
+  employee_department: string | null
+  period: string
+  rating: number | null
+  reviewer: string
+  review_date: string
+  rating_description?: string
+  formatted_review_date?: string
+}
+
+interface PerformanceGoal {
+  id: number
+  employee_id: number
+  employee_name: string
+  employee_department: string | null
+  title: string
+  description: string
+  target: string
+  progress: number
+  status: string
+  status_label?: string
+  due_date: string
+  formatted_due_date?: string
+  completion_status?: string
+}
+
+interface Employee {
+  id: number
+  first_name: string
+  last_name: string
+  name?: string
+  designation?: string
+}
 
 export default function PerformancePage() {
   const [activeTab, setActiveTab] = useState("overview")
@@ -54,69 +101,192 @@ export default function PerformancePage() {
   const [filterStatus, setFilterStatus] = useState("all")
   const [showScheduleDialog, setShowScheduleDialog] = useState(false)
   const [showAddGoalDialog, setShowAddGoalDialog] = useState(false)
+  const [reviews, setReviews] = useState<PerformanceReview[]>([])
+  const [goals, setGoals] = useState<PerformanceGoal[]>([])
+  const [stats, setStats] = useState<PerformanceStats | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [employees, setEmployees] = useState<Employee[]>([])
+  const [loadingEmployees, setLoadingEmployees] = useState(false)
 
-  const performanceStats = [
+  useEffect(() => {
+    fetchPerformanceData()
+  }, [])
+
+  useEffect(() => {
+    if (showScheduleDialog || showAddGoalDialog) {
+      fetchEmployees()
+    }
+  }, [showScheduleDialog, showAddGoalDialog])
+
+  const fetchPerformanceData = async () => {
+    setLoading(true)
+    try {
+      const [statsData, reviewsData, goalsData] = await Promise.all([
+        apiRequest<PerformanceStats>(getEndpointUrl("PERFORMANCE_REVIEWS_STATS"), { suppressToast: true }),
+        apiRequest<PerformanceReview[]>(getEndpointUrl("PERFORMANCE_REVIEWS"), { suppressToast: true }),
+        apiRequest<PerformanceGoal[]>(getEndpointUrl("PERFORMANCE_GOALS"), { suppressToast: true }),
+      ])
+      setStats(statsData)
+      setReviews(Array.isArray(reviewsData) ? reviewsData : [])
+      setGoals(Array.isArray(goalsData) ? goalsData : [])
+    } catch (error) {
+      console.error("Error fetching performance data:", error)
+      setStats(null)
+      setReviews([])
+      setGoals([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fetchEmployees = async () => {
+    setLoadingEmployees(true)
+    try {
+      const response = await apiRequest<any>(`${getEndpointUrl("EMPLOYEES")}?per_page=1000`, { suppressToast: true })
+      const list = Array.isArray(response) ? response : response?.data ?? response?.employees ?? []
+      setEmployees(Array.isArray(list) ? list : [])
+    } catch (error) {
+      console.error("Error fetching employees:", error)
+      setEmployees([])
+    } finally {
+      setLoadingEmployees(false)
+    }
+  }
+
+  const performanceStats = useMemo(() => [
     {
       title: "Active Reviews",
-      value: "24",
-      change: "+3 this week",
+      value: stats ? String(stats.active_reviews) : "—",
+      change: stats ? `${stats.total_reviews} total` : "Loading...",
       icon: FileText,
       color: "text-blue-600",
       bgColor: "bg-blue-50",
-      trend: "up",
+      trend: "neutral" as const,
     },
     {
       title: "Average Rating",
-      value: "4.2",
-      change: "+0.3 this quarter",
+      value: stats ? String(stats.average_rating) : "—",
+      change: "Across all reviews",
       icon: Star,
       color: "text-yellow-600",
       bgColor: "bg-yellow-50",
-      trend: "up",
+      trend: "up" as const,
     },
     {
       title: "Goals Completed",
-      value: "156",
-      change: "This quarter",
+      value: stats ? String(stats.goals_completed) : "—",
+      change: "All time",
       icon: Target,
       color: "text-green-600",
       bgColor: "bg-green-50",
-      trend: "up",
+      trend: "up" as const,
     },
     {
       title: "Overdue Reviews",
-      value: "3",
-      change: "-2 this week",
+      value: stats ? String(stats.overdue_reviews) : "—",
+      change: "Needs attention",
       icon: AlertCircle,
       color: "text-red-600",
       bgColor: "bg-red-50",
-      trend: "down",
+      trend: stats && stats.overdue_reviews > 0 ? ("down" as const) : ("neutral" as const),
     },
-  ]
+  ], [stats])
 
-  const recentReviews = [
-    {
-      id: "1",
-      employeeName: "Sarah Johnson",
-      employeePosition: "Senior Developer",
-      employeeDepartment: "Engineering",
-      reviewType: "quarterly",
-      dueDate: "2024-01-20",
-      status: "completed",
-      reviewer: "Mike Chen",
-      rating: 4.5,
-    },
-    {
-      id: "2",
-      employeeName: "David Kim",
-      employeePosition: "Product Manager",
-      employeeDepartment: "Product",
-      reviewType: "annual",
-      dueDate: "2024-01-25",
-      status: "in_progress",
-      reviewer: "Lisa Wang",
-    },
-  ]
+  const filteredReviews = useMemo(() => {
+    return reviews.filter((review) => {
+      const term = searchTerm.toLowerCase()
+      const matchesSearch =
+        !term ||
+        review.employee_name?.toLowerCase().includes(term) ||
+        review.reviewer?.toLowerCase().includes(term) ||
+        review.period?.toLowerCase().includes(term) ||
+        review.employee_department?.toLowerCase().includes(term)
+
+      const reviewStatus = review.rating != null ? "completed" : "pending"
+      const matchesStatus = filterStatus === "all" || reviewStatus === filterStatus
+
+      return matchesSearch && matchesStatus
+    })
+  }, [reviews, searchTerm, filterStatus])
+
+  const activeGoals = useMemo(
+    () => goals.filter((g) => ["in_progress", "not_started", "overdue"].includes(g.status)),
+    [goals]
+  )
+
+  const goalsOverview = useMemo(() => ({
+    total: goals.length,
+    completed: goals.filter((g) => g.status === "completed").length,
+    inProgress: goals.filter((g) => g.status === "in_progress").length,
+    overdue: goals.filter((g) => g.status === "overdue").length,
+  }), [goals])
+
+  const departmentRatings = useMemo(() => {
+    const map = new Map<string, { total: number; count: number }>()
+    reviews.forEach((review) => {
+      if (review.rating == null) return
+      const dept = review.employee_department || "Unassigned"
+      const entry = map.get(dept) || { total: 0, count: 0 }
+      entry.total += Number(review.rating)
+      entry.count += 1
+      map.set(dept, entry)
+    })
+    return Array.from(map.entries())
+      .map(([department, { total, count }]) => ({
+        department,
+        averageRating: (total / count).toFixed(1),
+        count,
+      }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5)
+  }, [reviews])
+
+  const goalStatusRates = useMemo(() => {
+    if (goals.length === 0) return []
+    const statuses = ["completed", "in_progress", "not_started", "overdue"] as const
+    return statuses.map((status) => {
+      const count = goals.filter((g) => g.status === status).length
+      return {
+        label: status.replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+        rate: Math.round((count / goals.length) * 100),
+      }
+    })
+  }, [goals])
+
+  const recentActivity = useMemo(() => {
+    const items: { type: string; title: string; subtitle: string; color: string; icon: typeof CheckCircle }[] = []
+    reviews.slice(0, 2).forEach((review) => {
+      items.push({
+        type: "review",
+        title: "Review Completed",
+        subtitle: `${review.employee_name}'s ${review.period} review`,
+        color: "bg-green-50",
+        icon: CheckCircle,
+      })
+    })
+    goals.slice(0, 2).forEach((goal) => {
+      items.push({
+        type: "goal",
+        title: goal.status === "completed" ? "Goal Completed" : "Goal Updated",
+        subtitle: `${goal.employee_name}: ${goal.title}`,
+        color: goal.status === "overdue" ? "bg-yellow-50" : "bg-blue-50",
+        icon: goal.status === "overdue" ? Clock3 : Target,
+      })
+    })
+    if (stats && stats.overdue_reviews > 0) {
+      items.push({
+        type: "overdue",
+        title: "Reviews Overdue",
+        subtitle: `${stats.overdue_reviews} review${stats.overdue_reviews > 1 ? "s" : ""} need attention`,
+        color: "bg-yellow-50",
+        icon: Clock3,
+      })
+    }
+    return items.slice(0, 5)
+  }, [reviews, goals, stats])
+
+  const getEmployeeName = (employee: Employee) =>
+    employee.name || `${employee.first_name} ${employee.last_name}`.trim()
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -185,10 +355,17 @@ export default function PerformancePage() {
                       <SelectValue placeholder="Select employee" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="sarah">Sarah Johnson</SelectItem>
-                      <SelectItem value="david">David Kim</SelectItem>
-                      <SelectItem value="mike">Mike Chen</SelectItem>
-                      <SelectItem value="lisa">Lisa Wang</SelectItem>
+                      {loadingEmployees ? (
+                        <SelectItem value="loading" disabled>Loading...</SelectItem>
+                      ) : employees.length === 0 ? (
+                        <SelectItem value="none" disabled>No employees found</SelectItem>
+                      ) : (
+                        employees.map((employee) => (
+                          <SelectItem key={employee.id} value={String(employee.id)}>
+                            {getEmployeeName(employee)}
+                          </SelectItem>
+                        ))
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
@@ -297,9 +474,17 @@ export default function PerformancePage() {
                       <SelectValue placeholder="Select employee" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="sarah">Sarah Johnson</SelectItem>
-                      <SelectItem value="david">David Kim</SelectItem>
-                      <SelectItem value="mike">Mike Chen</SelectItem>
+                      {loadingEmployees ? (
+                        <SelectItem value="loading" disabled>Loading...</SelectItem>
+                      ) : employees.length === 0 ? (
+                        <SelectItem value="none" disabled>No employees found</SelectItem>
+                      ) : (
+                        employees.map((employee) => (
+                          <SelectItem key={employee.id} value={String(employee.id)}>
+                            {getEmployeeName(employee)}
+                          </SelectItem>
+                        ))
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
@@ -335,9 +520,17 @@ export default function PerformancePage() {
                       <SelectValue placeholder="Select reviewer" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="mike">Mike Chen</SelectItem>
-                      <SelectItem value="lisa">Lisa Wang</SelectItem>
-                      <SelectItem value="john">John Smith</SelectItem>
+                      {loadingEmployees ? (
+                        <SelectItem value="loading" disabled>Loading...</SelectItem>
+                      ) : employees.length === 0 ? (
+                        <SelectItem value="none" disabled>No employees found</SelectItem>
+                      ) : (
+                        employees.map((employee) => (
+                          <SelectItem key={employee.id} value={String(employee.id)}>
+                            {getEmployeeName(employee)}
+                          </SelectItem>
+                        ))
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
@@ -357,25 +550,31 @@ export default function PerformancePage() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {performanceStats.map((stat) => (
-          <Card key={stat.title} className="hover:shadow-md transition-shadow">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">{stat.title}</p>
-                  <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
-                  <p className="text-sm text-gray-500 flex items-center gap-1 mt-1">
-                    {getTrendIcon(stat.trend)}
-                    {stat.change}
-                  </p>
+        {loading && !stats ? (
+          <div className="col-span-full flex justify-center py-8">
+            <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+          </div>
+        ) : (
+          performanceStats.map((stat) => (
+            <Card key={stat.title} className="hover:shadow-md transition-shadow">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">{stat.title}</p>
+                    <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
+                    <p className="text-sm text-gray-500 flex items-center gap-1 mt-1">
+                      {getTrendIcon(stat.trend)}
+                      {stat.change}
+                    </p>
+                  </div>
+                  <div className={`p-3 rounded-lg ${stat.bgColor}`}>
+                    <stat.icon className={`w-6 h-6 ${stat.color}`} />
+                  </div>
                 </div>
-                <div className={`p-3 rounded-lg ${stat.bgColor}`}>
-                  <stat.icon className={`w-6 h-6 ${stat.color}`} />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            </Card>
+          ))
+        )}
       </div>
 
       {/* Main Content */}
@@ -401,44 +600,36 @@ export default function PerformancePage() {
                 <CardDescription>Key performance indicators and trends</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between p-4 border rounded-lg">
-                    <div className="flex items-center gap-4">
-                      <div className="p-2 bg-blue-100 rounded-lg">
-                        <Activity className="w-5 h-5 text-blue-600" />
-                      </div>
-                      <div>
-                        <h4 className="font-medium text-gray-900">Code Quality Score</h4>
-                        <p className="text-sm text-gray-600">Engineering</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="flex items-center gap-2">
-                        <span className="text-2xl font-bold text-gray-900">92%</span>
-                        <ArrowUpRight className="w-4 h-4 text-green-600" />
-                      </div>
-                      <p className="text-sm text-gray-500">Target: 90%</p>
-                    </div>
+                {loading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
                   </div>
-                  <div className="flex items-center justify-between p-4 border rounded-lg">
-                    <div className="flex items-center gap-4">
-                      <div className="p-2 bg-green-100 rounded-lg">
-                        <Users className="w-5 h-5 text-green-600" />
+                ) : departmentRatings.length === 0 ? (
+                  <p className="text-sm text-gray-500 text-center py-8">No review data available yet.</p>
+                ) : (
+                  <div className="space-y-4">
+                    {departmentRatings.map((dept) => (
+                      <div key={dept.department} className="flex items-center justify-between p-4 border rounded-lg">
+                        <div className="flex items-center gap-4">
+                          <div className="p-2 bg-blue-100 rounded-lg">
+                            <Activity className="w-5 h-5 text-blue-600" />
+                          </div>
+                          <div>
+                            <h4 className="font-medium text-gray-900">{dept.department}</h4>
+                            <p className="text-sm text-gray-600">{dept.count} review{dept.count !== 1 ? "s" : ""}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="flex items-center gap-2">
+                            <span className="text-2xl font-bold text-gray-900">{dept.averageRating}/5</span>
+                            <Star className="w-4 h-4 text-yellow-400 fill-current" />
+                          </div>
+                          <p className="text-sm text-gray-500">Avg. rating</p>
+                        </div>
                       </div>
-                      <div>
-                        <h4 className="font-medium text-gray-900">Customer Satisfaction</h4>
-                        <p className="text-sm text-gray-600">Support</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="flex items-center gap-2">
-                        <span className="text-2xl font-bold text-gray-900">4.6/5</span>
-                        <ArrowUpRight className="w-4 h-4 text-green-600" />
-                      </div>
-                      <p className="text-sm text-gray-500">Target: 4.5/5</p>
-                    </div>
+                    ))}
                   </div>
-                </div>
+                )}
               </CardContent>
             </Card>
 
@@ -451,29 +642,25 @@ export default function PerformancePage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg">
-                    <CheckCircle className="w-5 h-5 text-green-600" />
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">Review Completed</p>
-                      <p className="text-xs text-gray-600">Sarah Johnson's quarterly review</p>
-                    </div>
+                {loading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
                   </div>
-                  <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
-                    <Target className="w-5 h-5 text-blue-600" />
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">Goal Updated</p>
-                      <p className="text-xs text-gray-600">David Kim's mobile app goal</p>
-                    </div>
+                ) : recentActivity.length === 0 ? (
+                  <p className="text-sm text-gray-500 text-center py-8">No recent activity.</p>
+                ) : (
+                  <div className="space-y-4">
+                    {recentActivity.map((item, index) => (
+                      <div key={index} className={`flex items-center gap-3 p-3 ${item.color} rounded-lg`}>
+                        <item.icon className="w-5 h-5 text-gray-700" />
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">{item.title}</p>
+                          <p className="text-xs text-gray-600">{item.subtitle}</p>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <div className="flex items-center gap-3 p-3 bg-yellow-50 rounded-lg">
-                    <Clock3 className="w-5 h-5 text-yellow-600" />
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">Review Due</p>
-                      <p className="text-xs text-gray-600">3 reviews due this week</p>
-                    </div>
-                  </div>
-                </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -522,85 +709,96 @@ export default function PerformancePage() {
               <CardDescription>All scheduled and completed performance reviews</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Employee</TableHead>
-                      <TableHead>Review Type</TableHead>
-                      <TableHead>Due Date</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Rating</TableHead>
-                      <TableHead>Reviewer</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {recentReviews.map((review) => (
-                      <TableRow key={review.id}>
-                        <TableCell>
-                          <div className="flex items-center gap-3">
-                            <Avatar className="w-8 h-8">
-                              <AvatarFallback>
-                                {review.employeeName.split(" ").map(n => n[0]).join("")}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div>
-                              <p className="font-medium text-gray-900">{review.employeeName}</p>
-                              <p className="text-sm text-gray-600">{review.employeePosition}</p>
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="capitalize">
-                            {review.reviewType.replace("_", " ")}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{new Date(review.dueDate).toLocaleDateString()}</TableCell>
-                        <TableCell>
-                          <Badge className={getStatusColor(review.status)}>
-                            {review.status.replace("_", " ")}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {review.rating ? (
-                            <div className="flex items-center gap-1">
-                              <span className="font-medium">{review.rating}</span>
-                              <Star className="w-4 h-4 text-yellow-400 fill-current" />
-                            </div>
-                          ) : (
-                            <span className="text-gray-500">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell>{review.reviewer}</TableCell>
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm">
-                                <MoreHorizontal className="w-4 h-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem>
-                                <Eye className="w-4 h-4 mr-2" />
-                                View Details
-                              </DropdownMenuItem>
-                              <DropdownMenuItem>
-                                <Edit className="w-4 h-4 mr-2" />
-                                Edit Review
-                              </DropdownMenuItem>
-                              <DropdownMenuItem>
-                                <Download className="w-4 h-4 mr-2" />
-                                Export PDF
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
+              {loading ? (
+                <div className="flex justify-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+                </div>
+              ) : filteredReviews.length === 0 ? (
+                <p className="text-sm text-gray-500 text-center py-12">No performance reviews found.</p>
+              ) : (
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Employee</TableHead>
+                        <TableHead>Review Type</TableHead>
+                        <TableHead>Review Date</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Rating</TableHead>
+                        <TableHead>Reviewer</TableHead>
+                        <TableHead>Actions</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredReviews.map((review) => (
+                        <TableRow key={review.id}>
+                          <TableCell>
+                            <div className="flex items-center gap-3">
+                              <Avatar className="w-8 h-8">
+                                <AvatarFallback>
+                                  {review.employee_name?.split(" ").map((n) => n[0]).join("") || "?"}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div>
+                                <p className="font-medium text-gray-900">{review.employee_name}</p>
+                                <p className="text-sm text-gray-600">{review.employee_department || "—"}</p>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="capitalize">
+                              {review.period?.replace("_", " ")}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {review.formatted_review_date ||
+                              (review.review_date ? new Date(review.review_date).toLocaleDateString() : "—")}
+                          </TableCell>
+                          <TableCell>
+                            <Badge className={getStatusColor(review.rating != null ? "completed" : "pending")}>
+                              {review.rating != null ? "completed" : "pending"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {review.rating != null ? (
+                              <div className="flex items-center gap-1">
+                                <span className="font-medium">{review.rating}</span>
+                                <Star className="w-4 h-4 text-yellow-400 fill-current" />
+                              </div>
+                            ) : (
+                              <span className="text-gray-500">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell>{review.reviewer}</TableCell>
+                          <TableCell>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm">
+                                  <MoreHorizontal className="w-4 h-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem>
+                                  <Eye className="w-4 h-4 mr-2" />
+                                  View Details
+                                </DropdownMenuItem>
+                                <DropdownMenuItem>
+                                  <Edit className="w-4 h-4 mr-2" />
+                                  Edit Review
+                                </DropdownMenuItem>
+                                <DropdownMenuItem>
+                                  <Download className="w-4 h-4 mr-2" />
+                                  Export PDF
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -617,24 +815,30 @@ export default function PerformancePage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Total Goals</span>
-                    <span className="text-2xl font-bold text-gray-900">24</span>
+                {loading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Completed</span>
-                    <span className="text-2xl font-bold text-green-600">18</span>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Total Goals</span>
+                      <span className="text-2xl font-bold text-gray-900">{goalsOverview.total}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Completed</span>
+                      <span className="text-2xl font-bold text-green-600">{goalsOverview.completed}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">In Progress</span>
+                      <span className="text-2xl font-bold text-blue-600">{goalsOverview.inProgress}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Overdue</span>
+                      <span className="text-2xl font-bold text-red-600">{goalsOverview.overdue}</span>
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">In Progress</span>
-                    <span className="text-2xl font-bold text-blue-600">4</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Overdue</span>
-                    <span className="text-2xl font-bold text-red-600">2</span>
-                  </div>
-                </div>
+                )}
               </CardContent>
             </Card>
 
@@ -648,44 +852,41 @@ export default function PerformancePage() {
                 <CardDescription>Current goals and their progress</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  <div className="p-4 border rounded-lg">
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className="font-medium text-gray-900">Complete API Documentation</h4>
-                      <Badge className="bg-blue-100 text-blue-800">In Progress</Badge>
-                    </div>
-                    <p className="text-sm text-gray-600 mb-3">Document all REST APIs for the new platform</p>
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">Progress</span>
-                        <span className="font-medium">85%</span>
-                      </div>
-                      <Progress value={85} className="h-2" />
-                    </div>
-                    <div className="flex items-center justify-between mt-3 text-sm text-gray-500">
-                      <span>Due: Jan 31, 2024</span>
-                      <span>Assigned by: Mike Chen</span>
-                    </div>
+                {loading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
                   </div>
-                  <div className="p-4 border rounded-lg">
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className="font-medium text-gray-900">Launch Mobile App</h4>
-                      <Badge className="bg-blue-100 text-blue-800">In Progress</Badge>
-                    </div>
-                    <p className="text-sm text-gray-600 mb-3">Successfully launch the new mobile application</p>
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">Progress</span>
-                        <span className="font-medium">60%</span>
+                ) : activeGoals.length === 0 ? (
+                  <p className="text-sm text-gray-500 text-center py-8">No active goals.</p>
+                ) : (
+                  <div className="space-y-4">
+                    {activeGoals.map((goal) => (
+                      <div key={goal.id} className="p-4 border rounded-lg">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="font-medium text-gray-900">{goal.title}</h4>
+                          <Badge className={getStatusColor(goal.status)}>
+                            {goal.status_label || goal.status.replace("_", " ")}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-gray-600 mb-3">{goal.description}</p>
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-600">Progress</span>
+                            <span className="font-medium">{goal.progress}%</span>
+                          </div>
+                          <Progress value={goal.progress} className="h-2" />
+                        </div>
+                        <div className="flex items-center justify-between mt-3 text-sm text-gray-500">
+                          <span>
+                            Due: {goal.formatted_due_date ||
+                              (goal.due_date ? new Date(goal.due_date).toLocaleDateString() : "—")}
+                          </span>
+                          <span>{goal.employee_name}</span>
+                        </div>
                       </div>
-                      <Progress value={60} className="h-2" />
-                    </div>
-                    <div className="flex items-center justify-between mt-3 text-sm text-gray-500">
-                      <span>Due: Feb 15, 2024</span>
-                      <span>Assigned by: Lisa Wang</span>
-                    </div>
+                    ))}
                   </div>
-                </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -704,28 +905,33 @@ export default function PerformancePage() {
                 <CardDescription>Quarterly performance trends across departments</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
-                    <div>
-                      <p className="font-medium text-gray-900">Engineering</p>
-                      <p className="text-sm text-gray-600">Average Rating: 4.3</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-2xl font-bold text-blue-600">+12%</p>
-                      <p className="text-sm text-gray-600">vs last quarter</p>
-                    </div>
+                {loading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
                   </div>
-                  <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
-                    <div>
-                      <p className="font-medium text-gray-900">Product</p>
-                      <p className="text-sm text-gray-600">Average Rating: 4.1</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-2xl font-bold text-green-600">+8%</p>
-                      <p className="text-sm text-gray-600">vs last quarter</p>
-                    </div>
+                ) : departmentRatings.length === 0 ? (
+                  <p className="text-sm text-gray-500 text-center py-8">No performance trends available.</p>
+                ) : (
+                  <div className="space-y-4">
+                    {departmentRatings.map((dept, index) => (
+                      <div
+                        key={dept.department}
+                        className={`flex items-center justify-between p-3 rounded-lg ${
+                          index % 2 === 0 ? "bg-blue-50" : "bg-green-50"
+                        }`}
+                      >
+                        <div>
+                          <p className="font-medium text-gray-900">{dept.department}</p>
+                          <p className="text-sm text-gray-600">Average Rating: {dept.averageRating}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-2xl font-bold text-blue-600">{dept.count}</p>
+                          <p className="text-sm text-gray-600">reviews</p>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                </div>
+                )}
               </CardContent>
             </Card>
 
@@ -739,29 +945,25 @@ export default function PerformancePage() {
                 <CardDescription>Goal completion rates by category</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Professional Goals</span>
-                    <div className="flex items-center gap-2">
-                      <Progress value={85} className="w-20 h-2" />
-                      <span className="text-sm font-medium">85%</span>
-                    </div>
+                {loading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Personal Goals</span>
-                    <div className="flex items-center gap-2">
-                      <Progress value={72} className="w-20 h-2" />
-                      <span className="text-sm font-medium">72%</span>
-                    </div>
+                ) : goalStatusRates.length === 0 ? (
+                  <p className="text-sm text-gray-500 text-center py-8">No goal data available.</p>
+                ) : (
+                  <div className="space-y-4">
+                    {goalStatusRates.map((item) => (
+                      <div key={item.label} className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">{item.label}</span>
+                        <div className="flex items-center gap-2">
+                          <Progress value={item.rate} className="w-20 h-2" />
+                          <span className="text-sm font-medium">{item.rate}%</span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Team Goals</span>
-                    <div className="flex items-center gap-2">
-                      <Progress value={91} className="w-20 h-2" />
-                      <span className="text-sm font-medium">91%</span>
-                    </div>
-                  </div>
-                </div>
+                )}
               </CardContent>
             </Card>
           </div>

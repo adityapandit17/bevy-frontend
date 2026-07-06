@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import Image from "next/image"
+import { BrandLogoLink } from "@/components/brand-logo-link"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -73,12 +73,9 @@ export function ResetPasswordForm() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center mb-4">
-            <Image
-              src="/bevyhr-logo.png"
-              alt="BevyHR Logo"
-              width={1024}
-              height={455}
-              className="h-36 w-auto max-w-full object-contain"
+            <BrandLogoLink
+              className="inline-flex items-center justify-center"
+              imageClassName="h-36 w-auto max-w-full object-contain"
             />
           </div>
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Choose a new password</h1>
@@ -194,7 +191,10 @@ export function ResetPasswordForm() {
         </Card>
 
         <div className="text-center mt-8">
-          <Image src="/bevyhr-logo.png" alt="BevyHR" width={1024} height={455} className="mx-auto h-20 w-auto opacity-80 object-contain" />
+          <BrandLogoLink
+            className="inline-flex items-center justify-center mx-auto opacity-80"
+            imageClassName="h-20 w-auto object-contain"
+          />
         </div>
       </div>
     </div>

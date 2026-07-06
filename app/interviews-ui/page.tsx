@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { InterviewFormUI } from "@/components/forms/interview-form-ui"
 import { InterviewManagementUI } from "@/components/interview-management-ui"
+import { DemoRouteGuard } from "@/components/demo-route-guard"
 import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
 
@@ -15,6 +16,7 @@ export default function InterviewsUIPage() {
   }
 
   return (
+    <DemoRouteGuard>
     <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
         <div>
@@ -37,5 +39,6 @@ export default function InterviewsUIPage() {
         onSuccess={handleScheduleSuccess}
       />
     </div>
+    </DemoRouteGuard>
   )
 } 

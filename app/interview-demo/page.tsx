@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { InterviewFormUI } from "@/components/forms/interview-form-ui"
 import { InterviewManagementUI } from "@/components/interview-management-ui"
+import { DemoRouteGuard } from "@/components/demo-route-guard"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -49,6 +50,7 @@ export default function InterviewDemoPage() {
   }
 
   return (
+    <DemoRouteGuard>
     <div className="space-y-6 p-6">
       <div className="text-center space-y-4">
         <h1 className="text-4xl font-bold tracking-tight">Interview System Demo</h1>
@@ -228,5 +230,6 @@ export default function InterviewDemoPage() {
         onSuccess={handleInterviewSuccess}
       />
     </div>
+    </DemoRouteGuard>
   )
 } 

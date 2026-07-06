@@ -1,10 +1,10 @@
 "use client"
 
-import Image from "next/image"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { BrandLogoLink } from "@/components/brand-logo-link"
 
 interface MarketingShellProps {
   children: React.ReactNode
@@ -26,16 +26,7 @@ export function MarketingShell({ children }: MarketingShellProps) {
       <nav className="bg-white border-b border-gray-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-0">
-            <Link href="/home" className="flex items-center shrink-0">
-              <Image
-                src="/bevyhr-logo.png"
-                alt="BevyHR"
-                width={1024}
-                height={455}
-                className="h-20 w-auto md:h-20 object-contain"
-                priority
-              />
-            </Link>
+            <BrandLogoLink imageClassName="h-20 w-auto md:h-20 object-contain" priority />
             <div className="hidden md:block">
               <div className="ml-10 flex items-baseline space-x-4">
                 {navLinks.map((link) => (
@@ -77,14 +68,7 @@ export function MarketingShell({ children }: MarketingShellProps) {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             <div>
               <div className="mb-4">
-                <Image
-                  src="/bevyhr-logo.png"
-                  alt="BevyHR"
-                  width={1024}
-                  height={455}
-                  className="h-8 w-auto object-contain"
-                  priority
-                />
+                <BrandLogoLink imageClassName="h-8 w-auto object-contain" />
               </div>
               <p className="text-gray-400">The complete HR management solution for modern businesses.</p>
             </div>

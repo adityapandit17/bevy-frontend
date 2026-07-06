@@ -34,7 +34,7 @@ import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { useAuthContext } from "@/lib/auth"
 import { NotificationsDropdown } from "@/components/notifications-dropdown"
-import Image from "next/image"
+import { BrandLogoLink } from "@/components/brand-logo-link"
 
 type NavItem = {
   title: string
@@ -189,17 +189,11 @@ export function TopNav() {
       <div className="w-full px-3 sm:px-4 lg:px-6">
         <div className="flex justify-between items-center min-h-14 py-0 gap-3">
           {/* Logo */}
-          <div className="flex items-center min-w-0">
-            <Image 
-              src="/bevyhr-logo.png" 
-              alt="BevyHR Logo" 
-              width={1024} 
-              height={455} 
-              className="h-28 w-auto object-contain"
-              style={{ imageRendering: 'auto' }}
-              priority
-            />
-          </div>
+          <BrandLogoLink
+            className="flex items-center min-w-0"
+            imageClassName="h-16 w-auto object-contain"
+            priority
+          />
 
           {/* Desktop Navigation */}
           <div className={cn(

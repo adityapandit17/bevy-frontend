@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -57,8 +57,9 @@ import {
   Loader2
 } from "lucide-react"
 import { useAuth } from "@/lib/auth/auth.hooks"
-import { apiRequest, getApiUrl, getDocumentUrl } from "@/lib/api"
+import { apiRequest, getApiUrl, getDocumentUrl, getEndpointUrl } from "@/lib/api"
 import { DocumentPreview } from "@/components/ui/document-preview"
+import { DocumentSignDialog } from "@/components/documents/document-sign-dialog"
 import { toast } from "@/hooks/use-toast"
 import { AUTH_CONFIG } from "@/config/auth.config"
 
@@ -76,6 +77,8 @@ interface PolicyDocument {
   requiresSignature: boolean
   filePath?: string
   signedBy?: number
+  signaturesPending?: number
+  signaturesTotal?: number
 }
 
 interface EmployeeDocument {
@@ -158,75 +161,62 @@ export default function DocumentsPage() {
     })
   const canEditPolicyDocuments = isSuperAdmin || isHRManager
 
-  // Sample data for policy documents (fallback) - defined before use
-  const samplePolicyDocuments: PolicyDocument[] = [
-    {
-      id: 1,
-      title: "Employee Handbook 2024",
-      category: "HR Policies",
-      version: "v2.1",
-      lastUpdated: "2024-01-15",
-      expiryDate: "2025-01-15",
-      status: "active",
-      downloads: 156,
-      size: "2.4 MB",
-      type: "pdf",
-      requiresSignature: true,
-      signedBy: 89,
-      filePath: "sample-handbook.pdf"
-    },
-    {
-      id: 2,
-      title: "Code of Conduct",
-      category: "Compliance",
-      version: "v1.5",
-      lastUpdated: "2024-01-10",
-      expiryDate: "2025-01-10",
-      status: "active",
-      downloads: 203,
-      size: "1.8 MB",
-      type: "pdf",
-      requiresSignature: true,
-      signedBy: 156,
-      filePath: "sample-conduct.pdf"
-    },
-    {
-      id: 3,
-      title: "Data Protection Policy",
-      category: "Security",
-      version: "v3.0",
-      lastUpdated: "2024-01-20",
-      expiryDate: "2025-01-20",
-      status: "active",
-      downloads: 98,
-      size: "3.1 MB",
-      type: "pdf",
-      requiresSignature: true,
-      signedBy: 67,
-      filePath: "sample-data-protection.pdf"
-    },
-    {
-      id: 4,
-      title: "Leave Policy",
-      category: "HR Policies",
-      version: "v1.2",
-      lastUpdated: "2023-12-01",
-      expiryDate: "2024-12-01",
-      status: "expiring",
-      downloads: 134,
-      size: "1.5 MB",
-      type: "pdf",
-      requiresSignature: false,
-      signedBy: 0,
-      filePath: "sample-leave.pdf"
-    }
-  ]
+  interface DigitalSignatureRow {
+    id: number
+    documentTitle: string
+    employeeName: string
+    employeeId?: number
+    policyDocumentId?: number
+    signedDate: string | null
+    status: string
+    signatureType: string
+    ipAddress: string | null
+    deviceInfo: string | null
+    hasSignatureImage?: boolean
+    signatureImage?: string | null
+  }
+
+  interface SignatureStats {
+    total: number
+    pending: number
+    signed: number
+    rejected: number
+  }
+
+  interface ExpiryAlertRow {
+    id: string
+    documentTitle: string
+    documentType: string
+    expiryDate: string | null
+    daysUntilExpiry: number | null
+    priority: string
+    assignedTo: string
+    status: string
+    employeeName?: string
+  }
+
+  const [digitalSignatures, setDigitalSignatures] = useState<DigitalSignatureRow[]>([])
+  const [pendingSignatures, setPendingSignatures] = useState<DigitalSignatureRow[]>([])
+  const [signatureStats, setSignatureStats] = useState<SignatureStats>({ total: 0, pending: 0, signed: 0, rejected: 0 })
+  const [expiryAlerts, setExpiryAlerts] = useState<ExpiryAlertRow[]>([])
+  const [isLoadingSignatures, setIsLoadingSignatures] = useState(false)
+  const [isLoadingExpiryAlerts, setIsLoadingExpiryAlerts] = useState(false)
+  const [signDialogOpen, setSignDialogOpen] = useState(false)
+  const [signatureToSign, setSignatureToSign] = useState<DigitalSignatureRow | null>(null)
+  const [viewSignatureOpen, setViewSignatureOpen] = useState(false)
+  const [selectedSignature, setSelectedSignature] = useState<DigitalSignatureRow | null>(null)
+  const [isSendingReminders, setIsSendingReminders] = useState(false)
+  const [isRequestingSignatures, setIsRequestingSignatures] = useState(false)
 
   // Fetch policy documents from API
   useEffect(() => {
     fetchPolicyDocuments()
     fetchEmployeeDocuments()
     fetchEmployees()
+    fetchDigitalSignatures()
+    fetchPendingSignatures()
+    fetchSignatureStats()
+    fetchExpiryAlerts()
   }, [])
 
   const fetchEmployees = async () => {
@@ -245,25 +235,147 @@ export default function DocumentsPage() {
   const fetchPolicyDocuments = async () => {
     try {
       setIsLoading(true)
-      const data = await apiRequest<PolicyDocument[]>(getApiUrl("policy_documents"))
-      // Use API data if available, otherwise use sample data as fallback
-      if (data && data.length > 0) {
-        setPolicyDocuments(data)
-      } else {
-        // Fallback to sample data if API returns empty
-        setPolicyDocuments(samplePolicyDocuments)
-      }
+      const data = await apiRequest<PolicyDocument[]>(getEndpointUrl("POLICY_DOCUMENTS"))
+      setPolicyDocuments(Array.isArray(data) ? data : [])
     } catch (error) {
       console.error("Error fetching policy documents:", error)
-      // On error, use sample data as fallback
-      setPolicyDocuments(samplePolicyDocuments)
-      toast({
-        title: "Warning",
-        description: "Using sample data. API connection failed.",
-        variant: "default",
-      })
+      setPolicyDocuments([])
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const fetchDigitalSignatures = async () => {
+    try {
+      setIsLoadingSignatures(true)
+      const data = await apiRequest<DigitalSignatureRow[]>(getEndpointUrl("DIGITAL_SIGNATURES"))
+      setDigitalSignatures(Array.isArray(data) ? data : [])
+    } catch (error) {
+      console.error("Error fetching digital signatures:", error)
+      setDigitalSignatures([])
+    } finally {
+      setIsLoadingSignatures(false)
+    }
+  }
+
+  const fetchPendingSignatures = async () => {
+    try {
+      const data = await apiRequest<DigitalSignatureRow[]>(
+        getEndpointUrl("DIGITAL_SIGNATURES_MY_PENDING"),
+        { suppressToast: true }
+      )
+      setPendingSignatures(Array.isArray(data) ? data : [])
+    } catch (error) {
+      console.error("Error fetching pending signatures:", error)
+      setPendingSignatures([])
+    }
+  }
+
+  const fetchSignatureStats = async () => {
+    try {
+      const data = await apiRequest<SignatureStats>(getEndpointUrl("DIGITAL_SIGNATURES_STATS"))
+      setSignatureStats(data)
+    } catch (error) {
+      console.error("Error fetching signature stats:", error)
+    }
+  }
+
+  const refreshSignatureData = () => {
+    fetchDigitalSignatures()
+    fetchPendingSignatures()
+    fetchSignatureStats()
+    fetchPolicyDocuments()
+  }
+
+  const handleOpenSignDialog = (sig: DigitalSignatureRow) => {
+    setSignatureToSign(sig)
+    setSignDialogOpen(true)
+  }
+
+  const handleViewSignature = (sig: DigitalSignatureRow) => {
+    setSelectedSignature(sig)
+    setViewSignatureOpen(true)
+  }
+
+  const handleSendReminders = async () => {
+    try {
+      setIsSendingReminders(true)
+      const result = await apiRequest<{ message: string; count: number }>(
+        getEndpointUrl("DIGITAL_SIGNATURES_SEND_REMINDERS"),
+        { method: "POST", body: JSON.stringify({}) }
+      )
+      toast({
+        title: "Reminders sent",
+        description: result.message || `Reminders queued for ${result.count} employee(s)`,
+      })
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to send reminders",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSendingReminders(false)
+    }
+  }
+
+  const handleRequestSignatures = async (doc: PolicyDocument) => {
+    try {
+      setIsRequestingSignatures(true)
+      const result = await apiRequest<{ message: string; created_count: number }>(
+        getApiUrl(`policy_documents/${doc.id}/request_signatures`),
+        { method: "POST", body: JSON.stringify({}) }
+      )
+      toast({
+        title: "Signature requests sent",
+        description: result.message || `Created ${result.created_count} new request(s)`,
+      })
+      refreshSignatureData()
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to request signatures",
+        variant: "destructive",
+      })
+    } finally {
+      setIsRequestingSignatures(false)
+    }
+  }
+
+  const handleDownloadSignature = (sig: DigitalSignatureRow) => {
+    if (!sig.signatureImage) {
+      toast({
+        title: "No signature",
+        description: "This record does not have a captured signature image",
+        variant: "destructive",
+      })
+      return
+    }
+
+    const link = document.createElement("a")
+    link.href = sig.signatureImage
+    link.download = `signature-${sig.documentTitle.replace(/\s+/g, "-")}-${sig.employeeName.replace(/\s+/g, "-")}.png`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
+  const documentStats = useMemo(() => {
+    const totalDocs = policyDocuments.length + employeeDocuments.length
+    const expiringSoon = expiryAlerts.filter((a) => (a.daysUntilExpiry ?? 999) <= 30).length
+    return { totalDocs, expiringSoon }
+  }, [policyDocuments.length, employeeDocuments.length, expiryAlerts])
+
+  const fetchExpiryAlerts = async () => {
+    try {
+      setIsLoadingExpiryAlerts(true)
+      const data = await apiRequest<ExpiryAlertRow[]>(getEndpointUrl("EXPIRY_ALERTS"))
+      setExpiryAlerts(Array.isArray(data) ? data : [])
+    } catch (error) {
+      console.error("Error fetching expiry alerts:", error)
+      setExpiryAlerts([])
+    } finally {
+      setIsLoadingExpiryAlerts(false)
     }
   }
 
@@ -778,6 +890,7 @@ export default function DocumentsPage() {
         requiresSignature: false
       })
       fetchPolicyDocuments()
+      refreshSignatureData()
     } catch (error: any) {
       console.error("Error creating document:", error)
       const errorMessage = error?.message || error?.error || "Failed to create policy document"
@@ -980,74 +1093,6 @@ export default function DocumentsPage() {
     }
   }
 
-  // Sample data for digital signatures
-  const digitalSignatures = [
-    {
-      id: 1,
-      documentTitle: "Employee Handbook 2024",
-      employeeName: "Sarah Johnson",
-      signedDate: "2024-01-16",
-      status: "signed",
-      signatureType: "electronic",
-      ipAddress: "192.168.1.100",
-      deviceInfo: "Chrome on Windows"
-    },
-    {
-      id: 2,
-      documentTitle: "Code of Conduct",
-      employeeName: "Michael Chen",
-      signedDate: "2024-01-17",
-      status: "pending",
-      signatureType: "pending",
-      ipAddress: null,
-      deviceInfo: null
-    },
-    {
-      id: 3,
-      documentTitle: "Data Protection Policy",
-      employeeName: "Emily Rodriguez",
-      signedDate: "2024-01-18",
-      status: "signed",
-      signatureType: "electronic",
-      ipAddress: "192.168.1.105",
-      deviceInfo: "Safari on Mac"
-    }
-  ]
-
-  // Sample data for expiry alerts
-  const expiryAlerts = [
-    {
-      id: 1,
-      documentTitle: "Leave Policy",
-      documentType: "Policy Document",
-      expiryDate: "2024-12-01",
-      daysUntilExpiry: 45,
-      priority: "medium",
-      assignedTo: "HR Manager",
-      status: "pending"
-    },
-    {
-      id: 2,
-      documentTitle: "Fitness Certificate - David Wilson",
-      documentType: "Employee Document",
-      expiryDate: "2024-04-08",
-      daysUntilExpiry: 12,
-      priority: "high",
-      assignedTo: "HR Team",
-      status: "in-progress"
-    },
-    {
-      id: 3,
-      documentTitle: "Health Checkup Report - Michael Chen",
-      documentType: "Employee Document",
-      expiryDate: "2024-07-10",
-      daysUntilExpiry: 90,
-      priority: "low",
-      assignedTo: "HR Team",
-      status: "pending"
-    }
-  ]
-
   // Helper function to parse dates from backend (handles dd/mm/yyyy format)
   const parseDate = (dateString: string | null | undefined): Date | null => {
     if (!dateString || dateString === 'N/A' || dateString === 'No expiry') {
@@ -1147,6 +1192,44 @@ export default function DocumentsPage() {
         )}
       </div>
 
+      {/* Pending signature banner for current employee */}
+      {pendingSignatures.length > 0 && (
+        <Card className="border-orange-200 bg-orange-50">
+          <CardContent className="p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <div className="rounded-lg bg-orange-100 p-2">
+                  <Signature className="h-5 w-5 text-orange-600" />
+                </div>
+                <div>
+                  <p className="font-medium text-gray-900">
+                    You have {pendingSignatures.length} document{pendingSignatures.length > 1 ? "s" : ""} awaiting your signature
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    Review and sign required policy documents to stay compliant
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {pendingSignatures.slice(0, 3).map((sig) => (
+                  <Button key={sig.id} size="sm" onClick={() => handleOpenSignDialog(sig)}>
+                    Sign: {sig.documentTitle.length > 24 ? `${sig.documentTitle.slice(0, 24)}…` : sig.documentTitle}
+                  </Button>
+                ))}
+                {pendingSignatures.length > 3 && (
+                  <Button size="sm" variant="outline" onClick={() => {
+                    const tab = document.querySelector('[value="signatures"]') as HTMLButtonElement
+                    tab?.click()
+                  }}>
+                    View all ({pendingSignatures.length})
+                  </Button>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card>
@@ -1154,7 +1237,7 @@ export default function DocumentsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Total Documents</p>
-                <p className="text-2xl font-bold text-gray-900">1,247</p>
+                <p className="text-2xl font-bold text-gray-900">{documentStats.totalDocs}</p>
               </div>
               <div className="p-3 bg-blue-50 rounded-lg">
                 <FileText className="w-6 h-6 text-blue-600" />
@@ -1167,7 +1250,7 @@ export default function DocumentsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Pending Signatures</p>
-                <p className="text-2xl font-bold text-gray-900">23</p>
+                <p className="text-2xl font-bold text-gray-900">{signatureStats.pending}</p>
               </div>
               <div className="p-3 bg-orange-50 rounded-lg">
                 <Signature className="w-6 h-6 text-orange-600" />
@@ -1180,7 +1263,7 @@ export default function DocumentsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Expiring Soon</p>
-                <p className="text-2xl font-bold text-gray-900">8</p>
+                <p className="text-2xl font-bold text-gray-900">{documentStats.expiringSoon}</p>
               </div>
               <div className="p-3 bg-red-50 rounded-lg">
                 <AlertTriangle className="w-6 h-6 text-red-600" />
@@ -1192,11 +1275,11 @@ export default function DocumentsPage() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Storage Used</p>
-                <p className="text-2xl font-bold text-gray-900">2.4 GB</p>
+                <p className="text-sm font-medium text-gray-600">Signed</p>
+                <p className="text-2xl font-bold text-gray-900">{signatureStats.signed}</p>
               </div>
               <div className="p-3 bg-green-50 rounded-lg">
-                <Archive className="w-6 h-6 text-green-600" />
+                <CheckCircle className="w-6 h-6 text-green-600" />
               </div>
             </div>
           </CardContent>
@@ -1302,7 +1385,12 @@ export default function DocumentsPage() {
                           {doc.requiresSignature ? (
                             <div className="flex items-center gap-2">
                               <CheckCircle className="w-4 h-4 text-green-500" />
-                              <span className="text-sm">{doc.signedBy || 0}/156</span>
+                              <span className="text-sm">
+                                {doc.signedBy ?? 0}/{doc.signaturesTotal ?? 0}
+                                {(doc.signaturesPending ?? 0) > 0 && (
+                                  <span className="text-orange-600 ml-1">({doc.signaturesPending} pending)</span>
+                                )}
+                              </span>
                             </div>
                           ) : (
                             <span className="text-sm text-gray-500">Not required</span>
@@ -1321,6 +1409,19 @@ export default function DocumentsPage() {
                                 <Eye className="mr-2 h-4 w-4" />
                                 View
                               </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleDownload(doc)}>
+                                <Download className="mr-2 h-4 w-4" />
+                                Download
+                              </DropdownMenuItem>
+                              {canEditPolicyDocuments && doc.requiresSignature && (
+                                <DropdownMenuItem
+                                  onClick={() => handleRequestSignatures(doc)}
+                                  disabled={isRequestingSignatures}
+                                >
+                                  <Signature className="mr-2 h-4 w-4" />
+                                  Request Signatures
+                                </DropdownMenuItem>
+                              )}
                               {canEditPolicyDocuments && (
                                 <>
                                   <DropdownMenuItem onClick={() => handleEdit(doc)}>
@@ -1525,14 +1626,20 @@ export default function DocumentsPage() {
                   </CardDescription>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="outline">
-                    <Bell className="w-4 h-4 mr-2" />
-                    Send Reminders
-                  </Button>
-                  <Button>
-                    <FileText className="w-4 h-4 mr-2" />
-                    Generate Report
-                  </Button>
+                  {canEditPolicyDocuments && (
+                    <Button
+                      variant="outline"
+                      onClick={handleSendReminders}
+                      disabled={isSendingReminders || signatureStats.pending === 0}
+                    >
+                      {isSendingReminders ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <Bell className="w-4 h-4 mr-2" />
+                      )}
+                      Send Reminders
+                    </Button>
+                  )}
                 </div>
               </div>
             </CardHeader>
@@ -1550,7 +1657,21 @@ export default function DocumentsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {digitalSignatures.map((sig) => (
+                  {isLoadingSignatures ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-8">
+                        <Loader2 className="w-6 h-6 animate-spin mx-auto text-gray-400" />
+                        <p className="text-sm text-gray-500 mt-2">Loading signatures...</p>
+                      </TableCell>
+                    </TableRow>
+                  ) : digitalSignatures.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-8 text-gray-500">
+                        No digital signatures found
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                  digitalSignatures.map((sig) => (
                     <TableRow key={sig.id}>
                       <TableCell>
                         <div className="flex items-center gap-2">
@@ -1593,23 +1714,36 @@ export default function DocumentsPage() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                            <DropdownMenuItem>
-                              <Eye className="mr-2 h-4 w-4" />
-                              View Signature
-                            </DropdownMenuItem>
-                            <DropdownMenuItem>
-                              <Download className="mr-2 h-4 w-4" />
-                              Download
-                            </DropdownMenuItem>
-                            <DropdownMenuItem>
-                              <Bell className="mr-2 h-4 w-4" />
-                              Send Reminder
-                            </DropdownMenuItem>
+                            {sig.status === "pending" && user?.employee_id === sig.employeeId && (
+                              <DropdownMenuItem onClick={() => handleOpenSignDialog(sig)}>
+                                <Signature className="mr-2 h-4 w-4" />
+                                Sign Document
+                              </DropdownMenuItem>
+                            )}
+                            {sig.hasSignatureImage && (
+                              <>
+                                <DropdownMenuItem onClick={() => handleViewSignature(sig)}>
+                                  <Eye className="mr-2 h-4 w-4" />
+                                  View Signature
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleDownloadSignature(sig)}>
+                                  <Download className="mr-2 h-4 w-4" />
+                                  Download
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                            {canEditPolicyDocuments && sig.status === "pending" && (
+                              <DropdownMenuItem onClick={handleSendReminders} disabled={isSendingReminders}>
+                                <Bell className="mr-2 h-4 w-4" />
+                                Send Reminder
+                              </DropdownMenuItem>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ))
+                  )}
                 </TableBody>
               </Table>
             </CardContent>
@@ -2198,6 +2332,57 @@ export default function DocumentsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <DocumentSignDialog
+        open={signDialogOpen}
+        onOpenChange={setSignDialogOpen}
+        signature={signatureToSign}
+        onSigned={refreshSignatureData}
+      />
+
+      {/* View Signature Dialog */}
+      <Dialog open={viewSignatureOpen} onOpenChange={setViewSignatureOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Signature — {selectedSignature?.employeeName}</DialogTitle>
+            <DialogDescription>
+              {selectedSignature?.documentTitle}
+              {selectedSignature?.signedDate && (
+                <> · Signed {formatDate(selectedSignature.signedDate)}</>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          {selectedSignature?.signatureImage ? (
+            <div className="rounded-lg border bg-white p-4">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={selectedSignature.signatureImage}
+                alt={`Signature of ${selectedSignature.employeeName}`}
+                className="mx-auto max-h-40 w-full object-contain"
+              />
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500">No signature image available.</p>
+          )}
+          {selectedSignature?.deviceInfo && (
+            <p className="text-xs text-gray-500">
+              Signed from {selectedSignature.deviceInfo}
+              {selectedSignature.ipAddress && ` · IP ${selectedSignature.ipAddress}`}
+            </p>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setViewSignatureOpen(false)}>
+              Close
+            </Button>
+            {selectedSignature?.signatureImage && (
+              <Button onClick={() => handleDownloadSignature(selectedSignature)}>
+                <Download className="mr-2 h-4 w-4" />
+                Download
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 } 

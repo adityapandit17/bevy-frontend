@@ -30,62 +30,6 @@ interface NotificationsDropdownProps {
   children: React.ReactNode
 }
 
-// Mock notifications data - replace with API call later
-const mockNotifications: Notification[] = [
-  {
-    id: "1",
-    type: "leave",
-    title: "Leave Request Approved",
-    message: "Your leave request for Dec 15-20 has been approved by your manager.",
-    read: false,
-    createdAt: new Date(Date.now() - 5 * 60 * 1000).toISOString(), // 5 minutes ago
-    actionUrl: "/attendance",
-  },
-  {
-    id: "2",
-    type: "attendance",
-    title: "Attendance Reminder",
-    message: "Don't forget to mark your attendance for today.",
-    read: false,
-    createdAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(), // 30 minutes ago
-    actionUrl: "/attendance",
-  },
-  {
-    id: "3",
-    type: "payroll",
-    title: "Payroll Processed",
-    message: "Your salary for November has been processed and credited to your account.",
-    read: false,
-    createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours ago
-    actionUrl: "/payroll",
-  },
-  {
-    id: "4",
-    type: "system",
-    title: "System Maintenance",
-    message: "Scheduled maintenance will occur on Dec 10 from 2:00 AM to 4:00 AM.",
-    read: true,
-    createdAt: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(), // 5 hours ago
-  },
-  {
-    id: "5",
-    type: "announcement",
-    title: "Company Holiday",
-    message: "The office will be closed on Dec 25 for Christmas holiday.",
-    read: true,
-    createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(), // 1 day ago
-  },
-  {
-    id: "6",
-    type: "reminder",
-    title: "Performance Review Due",
-    message: "Your quarterly performance review is due next week. Please complete it.",
-    read: false,
-    createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), // 2 days ago
-    actionUrl: "/performance",
-  },
-]
-
 const getNotificationIcon = (type: Notification["type"]) => {
   switch (type) {
     case "leave":

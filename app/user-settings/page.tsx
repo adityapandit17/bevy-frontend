@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useAuthContext } from "@/lib/auth"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -23,7 +23,7 @@ import {
   EyeOff
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import { apiRequest, getApiUrl } from "@/lib/api"
+import { apiRequest, getApiUrl, getEndpointUrl } from "@/lib/api"
 
 export default function UserSettingsPage() {
   const { user, token } = useAuthContext()
@@ -56,13 +56,60 @@ export default function UserSettingsPage() {
   const [timezone, setTimezone] = useState("UTC")
   const [dateFormat, setDateFormat] = useState("MM/DD/YYYY")
   const [theme, setTheme] = useState("light")
+  const [prefsLoading, setPrefsLoading] = useState(true)
+  const [savingAccount, setSavingAccount] = useState(false)
+  const [savingNotifications, setSavingNotifications] = useState(false)
+  const [savingPreferences, setSavingPreferences] = useState(false)
 
-  const handleSaveAccount = () => {
-    // TODO: Implement API call to update account
-    toast({
-      title: "Account updated",
-      description: "Your account information has been saved successfully.",
-    })
+  useEffect(() => {
+    const loadPreferences = async () => {
+      if (!user?.id) return
+      setPrefsLoading(true)
+      try {
+        const url = getEndpointUrl("USER_PREFERENCES").replace("{id}", String(user.id))
+        const prefs = await apiRequest<Record<string, unknown>>(url, { suppressToast: true })
+        if (prefs) {
+          setEmailNotifications(Boolean(prefs.email_notifications))
+          setPushNotifications(Boolean(prefs.push_notifications))
+          setLeaveNotifications(Boolean(prefs.leave_notifications))
+          setAttendanceNotifications(Boolean(prefs.attendance_notifications))
+          setPayrollNotifications(Boolean(prefs.payroll_notifications))
+          setSystemNotifications(Boolean(prefs.system_notifications))
+          if (typeof prefs.language === "string") setLanguage(prefs.language)
+          if (typeof prefs.timezone === "string") setTimezone(prefs.timezone)
+          if (typeof prefs.date_format === "string") setDateFormat(prefs.date_format)
+          if (typeof prefs.theme === "string") setTheme(prefs.theme)
+        }
+      } catch (error) {
+        console.error("Failed to load preferences", error)
+      } finally {
+        setPrefsLoading(false)
+      }
+    }
+    loadPreferences()
+  }, [user?.id])
+
+  const handleSaveAccount = async () => {
+    if (!user?.id) return
+    setSavingAccount(true)
+    try {
+      const parts = name.trim().split(/\s+/)
+      const first_name = parts[0] || ""
+      const last_name = parts.slice(1).join(" ") || ""
+      const url = getEndpointUrl("USER_UPDATE_PROFILE").replace("{id}", String(user.id))
+      await apiRequest(url, {
+        method: "PATCH",
+        body: JSON.stringify({ user: { first_name, last_name } }),
+      })
+      toast({
+        title: "Account updated",
+        description: "Your account information has been saved successfully.",
+      })
+    } catch {
+      // apiRequest shows toast
+    } finally {
+      setSavingAccount(false)
+    }
   }
 
   const handleChangePassword = async () => {
@@ -188,20 +235,60 @@ export default function UserSettingsPage() {
     }
   }
 
-  const handleSaveNotifications = () => {
-    // TODO: Implement API call to save notification preferences
-    toast({
-      title: "Preferences saved",
-      description: "Your notification preferences have been saved.",
-    })
+  const handleSaveNotifications = async () => {
+    if (!user?.id) return
+    setSavingNotifications(true)
+    try {
+      const url = getEndpointUrl("USER_UPDATE_PREFERENCES").replace("{id}", String(user.id))
+      await apiRequest(url, {
+        method: "PATCH",
+        body: JSON.stringify({
+          preferences: {
+            email_notifications: emailNotifications,
+            push_notifications: pushNotifications,
+            leave_notifications: leaveNotifications,
+            attendance_notifications: attendanceNotifications,
+            payroll_notifications: payrollNotifications,
+            system_notifications: systemNotifications,
+          },
+        }),
+      })
+      toast({
+        title: "Preferences saved",
+        description: "Your notification preferences have been saved.",
+      })
+    } catch {
+      // apiRequest shows toast
+    } finally {
+      setSavingNotifications(false)
+    }
   }
 
-  const handleSavePreferences = () => {
-    // TODO: Implement API call to save preferences
-    toast({
-      title: "Preferences saved",
-      description: "Your preferences have been saved.",
-    })
+  const handleSavePreferences = async () => {
+    if (!user?.id) return
+    setSavingPreferences(true)
+    try {
+      const url = getEndpointUrl("USER_UPDATE_PREFERENCES").replace("{id}", String(user.id))
+      await apiRequest(url, {
+        method: "PATCH",
+        body: JSON.stringify({
+          preferences: {
+            language,
+            timezone,
+            date_format: dateFormat,
+            theme,
+          },
+        }),
+      })
+      toast({
+        title: "Preferences saved",
+        description: "Your preferences have been saved.",
+      })
+    } catch {
+      // apiRequest shows toast
+    } finally {
+      setSavingPreferences(false)
+    }
   }
 
   return (

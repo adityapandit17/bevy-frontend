@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, Suspense } from "react"
-import Image from "next/image"
+import { BrandLogoLink } from "@/components/brand-logo-link"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -113,9 +113,7 @@ function SignupPageContent() {
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-emerald-50">
       <div className="max-w-6xl mx-auto px-4 py-8 lg:py-12">
         <div className="flex items-center justify-between mb-8">
-          <Link href="/home" className="flex items-center">
-            <Image src="/bevyhr-logo.png" alt="BevyHR" width={1024} height={455} className="h-20 w-auto max-w-[min(100%,28rem)] object-contain" />
-          </Link>
+          <BrandLogoLink imageClassName="h-20 w-auto max-w-[min(100%,28rem)] object-contain" />
           <p className="text-sm text-gray-600">
             Already have an account?{" "}
             <Link href="/login" className="text-green-700 font-medium hover:underline">

@@ -6,9 +6,9 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { 
-  Plus, 
-  Download, 
+import {
+  Plus,
+  Download,
   Receipt,
   PieChart,
   BarChart3,
@@ -18,82 +18,63 @@ import {
   PiggyBank,
   DollarSign,
   Calendar,
-  Tag
+  Tag,
+  Loader2,
 } from "lucide-react"
 import { ExpenseForm } from "@/components/expense-tracker/expense-form"
 import { ExpenseList } from "@/components/expense-tracker/expense-list"
 import { ExpenseSummary } from "@/components/expense-tracker/expense-summary"
 import { ExpenseFilters } from "@/components/expense-tracker/expense-filters"
+import { apiRequest, getEndpointUrl } from "@/lib/api"
 
-// Mock data for demonstration
-const mockExpenses = [
-  {
-    id: 1,
-    title: "Office Supplies",
-    amount: 125.50,
-    category: "Office",
-    date: "2024-01-15",
-    description: "Pens, notebooks, and stationery",
-    paymentMethod: "Credit Card",
-    tags: ["work", "supplies"],
-    receipt: "receipt_001.pdf"
-  },
-  {
-    id: 2,
-    title: "Lunch Meeting",
-    amount: 45.00,
-    category: "Meals",
-    date: "2024-01-14",
-    description: "Client lunch at restaurant",
-    paymentMethod: "Cash",
-    tags: ["business", "client"],
-    receipt: null
-  },
-  {
-    id: 3,
-    title: "Uber Ride",
-    amount: 18.75,
-    category: "Transportation",
-    date: "2024-01-13",
-    description: "Ride to client office",
-    paymentMethod: "Credit Card",
-    tags: ["transport", "business"],
-    receipt: null
-  },
-  {
-    id: 4,
-    title: "Software License",
-    amount: 299.00,
-    category: "Software",
-    date: "2024-01-12",
-    description: "Annual subscription for design software",
-    paymentMethod: "Bank Transfer",
-    tags: ["software", "subscription"],
-    receipt: "receipt_002.pdf"
-  },
-  {
-    id: 5,
-    title: "Coffee",
-    amount: 4.50,
-    category: "Meals",
-    date: "2024-01-11",
-    description: "Morning coffee",
-    paymentMethod: "Credit Card",
-    tags: ["coffee", "daily"],
-    receipt: null
-  }
-]
+interface Expense {
+  id: number
+  title: string
+  amount: number
+  category: string
+  date: string
+  description: string
+  paymentMethod: string
+  tags: string[]
+  receipt?: string | null
+  status?: string
+  employee_id?: number
+  employee_name?: string
+}
+
+interface ExpenseFormData {
+  title: string
+  amount: number
+  category: string
+  date: string
+  description: string
+  paymentMethod: string
+  tags: string[]
+}
 
 const categories = [
-  "Office", "Meals", "Transportation", "Software", "Travel", "Entertainment", 
-  "Healthcare", "Education", "Utilities", "Other"
+  "Office", "Meals", "Transportation", "Software", "Travel", "Entertainment",
+  "Healthcare", "Education", "Utilities", "Other",
 ]
 
-const paymentMethods = ["Credit Card", "Debit Card", "Cash", "Bank Transfer", "Digital Wallet"]
+function buildExpensePayload(expenseData: ExpenseFormData) {
+  return {
+    expense: {
+      title: expenseData.title,
+      amount: expenseData.amount,
+      category: expenseData.category,
+      expense_date: expenseData.date,
+      description: expenseData.description,
+      payment_method: expenseData.paymentMethod,
+      tags: expenseData.tags,
+    },
+  }
+}
 
 export default function ExpenseTracker() {
-  const [expenses, setExpenses] = useState(mockExpenses)
-  const [filteredExpenses, setFilteredExpenses] = useState(mockExpenses)
+  const [expenses, setExpenses] = useState<Expense[]>([])
+  const [filteredExpenses, setFilteredExpenses] = useState<Expense[]>([])
+  const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategory, setSelectedCategory] = useState("all")
   const [selectedMonth, setSelectedMonth] = useState("all")
@@ -102,26 +83,41 @@ export default function ExpenseTracker() {
   const [maxAmount, setMaxAmount] = useState("")
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
-  const [editingExpense, setEditingExpense] = useState(null)
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null)
 
-  // Filter expenses based on search and filters
+  useEffect(() => {
+    fetchExpenses()
+  }, [])
+
+  const fetchExpenses = async () => {
+    setLoading(true)
+    try {
+      const data = await apiRequest<Expense[]>(getEndpointUrl("EXPENSES"))
+      setExpenses(Array.isArray(data) ? data : [])
+    } catch {
+      setExpenses([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
   useEffect(() => {
     let filtered = expenses
 
     if (searchTerm) {
-      filtered = filtered.filter(expense =>
+      filtered = filtered.filter((expense) =>
         expense.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        expense.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        expense.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()))
+        (expense.description || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (expense.tags || []).some((tag) => tag.toLowerCase().includes(searchTerm.toLowerCase()))
       )
     }
 
     if (selectedCategory !== "all") {
-      filtered = filtered.filter(expense => expense.category === selectedCategory)
+      filtered = filtered.filter((expense) => expense.category === selectedCategory)
     }
 
     if (selectedMonth !== "all") {
-      filtered = filtered.filter(expense => {
+      filtered = filtered.filter((expense) => {
         const expenseDate = new Date(expense.date)
         const expenseMonth = expenseDate.getMonth() + 1
         return expenseMonth.toString() === selectedMonth
@@ -129,66 +125,64 @@ export default function ExpenseTracker() {
     }
 
     if (selectedPaymentMethod !== "all") {
-      filtered = filtered.filter(expense => expense.paymentMethod === selectedPaymentMethod)
+      filtered = filtered.filter((expense) => expense.paymentMethod === selectedPaymentMethod)
     }
 
     if (minAmount) {
-      filtered = filtered.filter(expense => expense.amount >= parseFloat(minAmount))
+      filtered = filtered.filter((expense) => expense.amount >= parseFloat(minAmount))
     }
 
     if (maxAmount) {
-      filtered = filtered.filter(expense => expense.amount <= parseFloat(maxAmount))
+      filtered = filtered.filter((expense) => expense.amount <= parseFloat(maxAmount))
     }
 
     setFilteredExpenses(filtered)
   }, [expenses, searchTerm, selectedCategory, selectedMonth, selectedPaymentMethod, minAmount, maxAmount])
 
-  // Calculate summary statistics
   const totalExpenses = filteredExpenses.reduce((sum, expense) => sum + expense.amount, 0)
-  const averageExpense = filteredExpenses.length > 0 ? totalExpenses / filteredExpenses.length : 0
   const categoryTotals = categories.reduce((acc, category) => {
     acc[category] = filteredExpenses
-      .filter(expense => expense.category === category)
+      .filter((expense) => expense.category === category)
       .reduce((sum, expense) => sum + expense.amount, 0)
     return acc
-  }, {})
+  }, {} as Record<string, number>)
 
-  const handleAddExpense = (expenseData) => {
-    const expense = {
-      id: Math.max(...expenses.map(e => e.id)) + 1,
-      ...expenseData,
-      receipt: null
-    }
-
-    setExpenses([expense, ...expenses])
+  const handleAddExpense = async (expenseData: ExpenseFormData) => {
+    const created = await apiRequest<Expense>(getEndpointUrl("EXPENSES"), {
+      method: "POST",
+      body: JSON.stringify(buildExpensePayload(expenseData)),
+    })
+    setExpenses((prev) => [created, ...prev])
     setIsAddDialogOpen(false)
   }
 
-  const handleEditExpense = (expense) => {
+  const handleEditExpense = (expense: Expense) => {
     setEditingExpense(expense)
     setIsEditDialogOpen(true)
   }
 
-  const handleUpdateExpense = (expenseData) => {
+  const handleUpdateExpense = async (expenseData: ExpenseFormData) => {
     if (!editingExpense) return
 
-    const updatedExpense = {
-      ...editingExpense,
-      ...expenseData
-    }
+    const updated = await apiRequest<Expense>(
+      `${getEndpointUrl("EXPENSES")}/${editingExpense.id}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(buildExpensePayload(expenseData)),
+      }
+    )
 
-    setExpenses(expenses.map(expense => 
-      expense.id === editingExpense.id ? updatedExpense : expense
-    ))
+    setExpenses((prev) => prev.map((expense) => (expense.id === updated.id ? updated : expense)))
     setIsEditDialogOpen(false)
     setEditingExpense(null)
   }
 
-  const handleDeleteExpense = (id) => {
-    setExpenses(expenses.filter(expense => expense.id !== id))
+  const handleDeleteExpense = async (id: number) => {
+    await apiRequest(`${getEndpointUrl("EXPENSES")}/${id}`, { method: "DELETE" })
+    setExpenses((prev) => prev.filter((expense) => expense.id !== id))
   }
 
-  const getCategoryIcon = (category) => {
+  const getCategoryIcon = (category: string) => {
     switch (category) {
       case "Office": return <Receipt className="w-4 h-4" />
       case "Meals": return <DollarSign className="w-4 h-4" />
@@ -203,8 +197,8 @@ export default function ExpenseTracker() {
     }
   }
 
-  const getCategoryColor = (category) => {
-    const colors = {
+  const getCategoryColor = (category: string) => {
+    const colors: Record<string, string> = {
       "Office": "bg-blue-100 text-blue-800",
       "Meals": "bg-green-100 text-green-800",
       "Transportation": "bg-yellow-100 text-yellow-800",
@@ -214,14 +208,13 @@ export default function ExpenseTracker() {
       "Healthcare": "bg-red-100 text-red-800",
       "Education": "bg-orange-100 text-orange-800",
       "Utilities": "bg-gray-100 text-gray-800",
-      "Other": "bg-slate-100 text-slate-800"
+      "Other": "bg-slate-100 text-slate-800",
     }
     return colors[category] || colors["Other"]
   }
 
   return (
     <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Expense Tracker</h1>
@@ -243,10 +236,8 @@ export default function ExpenseTracker() {
         </div>
       </div>
 
-      {/* Summary Cards */}
       <ExpenseSummary expenses={expenses} filteredExpenses={filteredExpenses} />
 
-      {/* Filters and Search */}
       <ExpenseFilters
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
@@ -262,97 +253,102 @@ export default function ExpenseTracker() {
         onMaxAmountChange={setMaxAmount}
       />
 
-      {/* Main Content */}
-      <Tabs defaultValue="list" className="space-y-6">
-        <TabsList>
-          <TabsTrigger value="list">Expense List</TabsTrigger>
-          <TabsTrigger value="categories">Categories</TabsTrigger>
-          <TabsTrigger value="analytics">Analytics</TabsTrigger>
-        </TabsList>
+      {loading ? (
+        <div className="flex items-center justify-center py-16 text-gray-500">
+          <Loader2 className="w-6 h-6 animate-spin mr-2" />
+          Loading expenses…
+        </div>
+      ) : (
+        <Tabs defaultValue="list" className="space-y-6">
+          <TabsList>
+            <TabsTrigger value="list">Expense List</TabsTrigger>
+            <TabsTrigger value="categories">Categories</TabsTrigger>
+            <TabsTrigger value="analytics">Analytics</TabsTrigger>
+          </TabsList>
 
-        <TabsContent value="list" className="space-y-6">
-          <ExpenseList
-            expenses={filteredExpenses}
-            onEdit={handleEditExpense}
-            onDelete={handleDeleteExpense}
-          />
-        </TabsContent>
+          <TabsContent value="list" className="space-y-6">
+            <ExpenseList
+              expenses={filteredExpenses}
+              onEdit={handleEditExpense}
+              onDelete={handleDeleteExpense}
+            />
+          </TabsContent>
 
-        <TabsContent value="categories" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Expenses by Category</CardTitle>
-              <CardDescription>Breakdown of your expenses by category</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {categories.map((category) => {
-                  const total = categoryTotals[category]
-                  const percentage = totalExpenses > 0 ? (total / totalExpenses) * 100 : 0
-                  const count = filteredExpenses.filter(e => e.category === category).length
-                  
-                  if (total === 0) return null
-                  
-                  return (
-                    <div key={category} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="flex items-center gap-4">
-                        <div className={`p-2 rounded-lg ${getCategoryColor(category)}`}>
-                          {getCategoryIcon(category)}
+          <TabsContent value="categories" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Expenses by Category</CardTitle>
+                <CardDescription>Breakdown of your expenses by category</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {categories.map((category) => {
+                    const total = categoryTotals[category]
+                    const percentage = totalExpenses > 0 ? (total / totalExpenses) * 100 : 0
+                    const count = filteredExpenses.filter((e) => e.category === category).length
+
+                    if (total === 0) return null
+
+                    return (
+                      <div key={category} className="flex items-center justify-between p-4 border rounded-lg">
+                        <div className="flex items-center gap-4">
+                          <div className={`p-2 rounded-lg ${getCategoryColor(category)}`}>
+                            {getCategoryIcon(category)}
+                          </div>
+                          <div>
+                            <h3 className="font-medium text-gray-900">{category}</h3>
+                            <p className="text-sm text-gray-500">{count} transaction{count !== 1 ? "s" : ""}</p>
+                          </div>
                         </div>
-                        <div>
-                          <h3 className="font-medium text-gray-900">{category}</h3>
-                          <p className="text-sm text-gray-500">{count} transaction{count !== 1 ? 's' : ''}</p>
+                        <div className="text-right">
+                          <p className="text-lg font-semibold text-gray-900">${total.toFixed(2)}</p>
+                          <p className="text-sm text-gray-500">{percentage.toFixed(1)}%</p>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-lg font-semibold text-gray-900">${total.toFixed(2)}</p>
-                        <p className="text-sm text-gray-500">{percentage.toFixed(1)}%</p>
-                      </div>
+                    )
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="analytics" className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Monthly Trend</CardTitle>
+                  <CardDescription>Your spending pattern over time</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-64 flex items-center justify-center text-gray-500">
+                    <div className="text-center">
+                      <BarChart3 className="w-12 h-12 mx-auto mb-2" />
+                      <p>Chart visualization would go here</p>
+                      <p className="text-sm">Monthly spending trends</p>
                     </div>
-                  )
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="analytics" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Monthly Trend</CardTitle>
-                <CardDescription>Your spending pattern over time</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="h-64 flex items-center justify-center text-gray-500">
-                  <div className="text-center">
-                    <BarChart3 className="w-12 h-12 mx-auto mb-2" />
-                    <p>Chart visualization would go here</p>
-                    <p className="text-sm">Monthly spending trends</p>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle>Category Distribution</CardTitle>
-                <CardDescription>How your expenses are distributed</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="h-64 flex items-center justify-center text-gray-500">
-                  <div className="text-center">
-                    <PieChart className="w-12 h-12 mx-auto mb-2" />
-                    <p>Pie chart would go here</p>
-                    <p className="text-sm">Category breakdown</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Category Distribution</CardTitle>
+                  <CardDescription>How your expenses are distributed</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-64 flex items-center justify-center text-gray-500">
+                    <div className="text-center">
+                      <PieChart className="w-12 h-12 mx-auto mb-2" />
+                      <p>Pie chart would go here</p>
+                      <p className="text-sm">Category breakdown</p>
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-      </Tabs>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+        </Tabs>
+      )}
 
-      {/* Expense Forms */}
       <ExpenseForm
         isOpen={isAddDialogOpen}
         onClose={() => setIsAddDialogOpen(false)}
@@ -363,7 +359,10 @@ export default function ExpenseTracker() {
 
       <ExpenseForm
         isOpen={isEditDialogOpen}
-        onClose={() => setIsEditDialogOpen(false)}
+        onClose={() => {
+          setIsEditDialogOpen(false)
+          setEditingExpense(null)
+        }}
         onSubmit={handleUpdateExpense}
         initialData={editingExpense}
         title="Edit Expense"

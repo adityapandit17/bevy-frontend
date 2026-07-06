@@ -404,6 +404,51 @@ export const API_ENDPOINTS = {
   NOTIFICATIONS: '/notifications',
   NOTIFICATIONS_MARK_ALL_READ: '/notifications/mark_all_read',
   NOTIFICATIONS_DESTROY_ALL: '/notifications/destroy_all',
+
+  // Performance
+  PERFORMANCE_REVIEWS: '/performance_reviews',
+  PERFORMANCE_REVIEWS_STATS: '/performance_reviews/stats',
+  PERFORMANCE_GOALS: '/performance_goals',
+  PERFORMANCE_GOALS_OVERDUE: '/performance_goals/overdue',
+  PERFORMANCE_GOALS_DUE_SOON: '/performance_goals/due_soon',
+  PERFORMANCE_GOAL_UPDATE_PROGRESS: '/performance_goals/{id}/update_progress',
+
+  // Learning / Training
+  EMPLOYEE_TRAININGS: '/employee_trainings',
+  EMPLOYEE_TRAININGS_STATS: '/employee_trainings/stats',
+  EMPLOYEE_TRAININGS_CURRENT: '/employee_trainings/current',
+  EMPLOYEE_TRAININGS_UPCOMING: '/employee_trainings/upcoming',
+
+  // Documents
+  POLICY_DOCUMENTS: '/policy_documents',
+  EMPLOYEE_DOCUMENTS: '/employee_documents',
+  EMPLOYEE_DOCUMENTS_EXPIRING: '/employee_documents/expiring_soon',
+  DIGITAL_SIGNATURES: '/digital_signatures',
+  DIGITAL_SIGNATURES_STATS: '/digital_signatures/stats',
+  DIGITAL_SIGNATURES_MY_PENDING: '/digital_signatures/my_pending',
+  DIGITAL_SIGNATURES_SEND_REMINDERS: '/digital_signatures/send_reminders',
+  POLICY_DOCUMENT_REQUEST_SIGNATURES: '/policy_documents/{id}/request_signatures',
+  EXPIRY_ALERTS: '/expiry_alerts',
+
+  // Workspace Seating
+  WORKSPACE_SEATS: '/workspace_seats',
+  WORKSPACE_SEATS_STATS: '/workspace_seats/stats',
+
+  // Project Management
+  PROJECTS: '/projects',
+  PROJECTS_STATS: '/projects/stats',
+  PROJECT_TASKS: '/project_tasks',
+  PROJECT_TASKS_SPRINTS: '/project_tasks/sprints',
+
+  // Expenses
+  EXPENSES: '/expenses',
+  EXPENSES_STATS: '/expenses/stats',
+
+  // User preferences
+  USER_PREFERENCES: '/users/{id}/preferences',
+  USER_UPDATE_PREFERENCES: '/users/{id}/update_preferences',
+  USER_UPDATE_PROFILE: '/users/{id}/update_profile',
+  USER_CHANGE_PASSWORD: '/users/{id}/change_password',
 } as const;
 
 /**

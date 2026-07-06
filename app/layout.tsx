@@ -14,7 +14,11 @@ const inter = Inter({ subsets: ["latin"] })
 export const metadata: Metadata = {
   title: "BevyHR - Human Resource Management System",
   description: "Complete HR Management Solution",
-    generator: 'Aditya'
+  generator: "Aditya",
+  icons: {
+    icon: [{ url: "/favicon.png", type: "image/png" }],
+    apple: [{ url: "/favicon.png", type: "image/png" }],
+  },
 }
 
 export default function RootLayout({
