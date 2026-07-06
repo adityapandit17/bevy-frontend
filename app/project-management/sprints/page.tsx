@@ -160,31 +160,31 @@ export default function SprintPlanning() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6">
+    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-4 sm:space-y-6 overflow-x-hidden">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 min-w-0">
           <Button variant="ghost" size="sm" onClick={() => router.back()}>
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back
           </Button>
-          <div>
-            <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Sprint Planning</h1>
+          <div className="min-w-0">
+            <h1 className="text-2xl lg:text-2xl sm:text-3xl font-bold text-gray-900">Sprint Planning</h1>
             <p className="text-gray-600">Manage your agile sprints and team capacity</p>
           </div>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm">
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          <Button variant="outline" size="sm" className="w-full sm:w-auto">
             <Filter className="w-4 h-4 mr-2" />
             Filter
           </Button>
-          <Button size="sm">
+          <Button size="sm" className="w-full sm:w-auto">
             <Plus className="w-4 h-4 mr-2" />
             New Sprint
           </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
         <Card className="hover:shadow-md transition-shadow">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
@@ -262,7 +262,7 @@ export default function SprintPlanning() {
         </Card>
       ) : (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="hrms-tabs-scroll">
             <TabsTrigger value="current">Current Sprint</TabsTrigger>
             <TabsTrigger value="completed">Completed</TabsTrigger>
             <TabsTrigger value="planning">Planning</TabsTrigger>
@@ -273,17 +273,17 @@ export default function SprintPlanning() {
               <>
                 <Card>
                   <CardHeader>
-                    <CardTitle className="flex items-center justify-between">
+                    <CardTitle className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                       <div className="flex items-center gap-2">
                         <Play className="w-5 h-5" />
                         {currentSprint.name}
                       </div>
-                      <div className="flex gap-2">
-                        <Button variant="outline" size="sm">
+                      <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                        <Button variant="outline" size="sm" className="w-full sm:w-auto">
                           <Pause className="w-4 h-4 mr-2" />
                           Pause Sprint
                         </Button>
-                        <Button variant="outline" size="sm">
+                        <Button variant="outline" size="sm" className="w-full sm:w-auto">
                           <RotateCcw className="w-4 h-4 mr-2" />
                           End Sprint
                         </Button>
@@ -294,7 +294,7 @@ export default function SprintPlanning() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
                       <div>
                         <p className="text-sm font-medium text-gray-600 mb-2">Sprint Progress</p>
                         <Progress value={currentSprint.progress} className="mb-2" />
@@ -416,12 +416,12 @@ export default function SprintPlanning() {
                 {plannedSprints.map((sprint) => (
                   <Card key={sprint.name}>
                     <CardHeader>
-                      <CardTitle className="flex items-center justify-between">
+                      <CardTitle className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                         <div className="flex items-center gap-2">
                           <Calendar className="w-5 h-5" />
                           {sprint.name}
                         </div>
-                        <Button size="sm">
+                        <Button size="sm" className="w-full sm:w-auto">
                           <Play className="w-4 h-4 mr-2" />
                           Start Sprint
                         </Button>

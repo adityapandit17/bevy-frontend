@@ -161,14 +161,14 @@ export default function OrgChartPage() {
 
   return (
     <ResourceGuard resourceKeys={["employees"]} pageName="Organization Chart">
-    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6">
+    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-4 sm:space-y-6 overflow-x-hidden">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Organization Chart</h1>
-          <p className="text-gray-600">Visualize your company's hierarchical structure</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Organization Chart</h1>
+          <p className="text-sm sm:text-base text-gray-600">Visualize your company&apos;s hierarchical structure</p>
         </div>
-        <div className="flex gap-2">
+        <div className="hrms-action-row w-full sm:w-auto flex-wrap">
           <Button variant="outline" size="sm" onClick={() => router.push('/team-assignment')} className="border-blue-200 text-blue-700 hover:bg-blue-50">
             <UserCheck className="w-4 h-4 mr-2" />
             Team Management
@@ -203,7 +203,7 @@ export default function OrgChartPage() {
 
       {/* Main Content */}
       <Tabs defaultValue="chart" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="hrms-tabs-scroll">
           <TabsTrigger value="chart">Organization Chart</TabsTrigger>
           <TabsTrigger value="list">Employee List</TabsTrigger>
         </TabsList>
@@ -221,25 +221,28 @@ export default function OrgChartPage() {
                     {employees.length} employees • Click on cards to view details
                   </CardDescription>
                 </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={fetchEmployees}>
+                <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+                  <Button variant="outline" size="sm" onClick={fetchEmployees} className="flex-1 sm:flex-none">
                     <RefreshCw className="w-4 h-4 mr-2" />
                     Refresh
                   </Button>
-                  <Button variant="outline" size="sm">
+                  <Button variant="outline" size="sm" className="hidden sm:inline-flex">
                     <ZoomIn className="w-4 h-4 mr-2" />
                     Zoom In
                   </Button>
-                  <Button variant="outline" size="sm">
+                  <Button variant="outline" size="sm" className="hidden sm:inline-flex">
                     <ZoomOut className="w-4 h-4 mr-2" />
                     Zoom Out
                   </Button>
-                  <Button variant="outline" size="sm">
+                  <Button variant="outline" size="sm" className="hidden sm:inline-flex">
                     <RotateCcw className="w-4 h-4 mr-2" />
                     Reset
                   </Button>
                 </div>
               </div>
+              <p className="text-xs text-muted-foreground md:hidden mt-2">
+                Swipe horizontally to explore the full organization chart
+              </p>
             </CardHeader>
             <CardContent className="p-0">
               <div className="border-t">
@@ -360,7 +363,7 @@ export default function OrgChartPage() {
 
       {/* Selected Employee Details */}
       {selectedEmployee && (
-        <Card className="fixed bottom-4 right-4 w-80 z-50 shadow-lg">
+        <Card className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-4 sm:w-80 z-50 shadow-lg max-h-[70dvh] overflow-y-auto">
           <CardHeader className="pb-3">
             <CardTitle className="text-lg">Employee Details</CardTitle>
           </CardHeader>

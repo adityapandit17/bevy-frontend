@@ -554,19 +554,19 @@ export default function HelpdeskPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6">
+    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-4 sm:space-y-6 overflow-x-hidden">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Helpdesk / HR Support</h1>
-          <p className="text-gray-600">Manage HR queries, tickets, and support workflows</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Helpdesk / HR Support</h1>
+          <p className="text-sm sm:text-base text-gray-600">Manage HR queries, tickets, and support workflows</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline">
+        <div className="flex gap-2 w-full sm:w-auto">
+          <Button variant="outline" className="flex-1 sm:flex-none">
             <BarChart3 className="w-4 h-4 mr-2" />
             Analytics
           </Button>
-          <Button onClick={handleCreateTicket}>
+          <Button onClick={handleCreateTicket} className="flex-1 sm:flex-none">
             <Plus className="w-4 h-4 mr-2" />
             Create Ticket
           </Button>
@@ -574,9 +574,9 @@ export default function HelpdeskPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
         <Card>
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Open Tickets</p>
@@ -589,7 +589,7 @@ export default function HelpdeskPage() {
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Avg Response Time</p>
@@ -602,7 +602,7 @@ export default function HelpdeskPage() {
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">SLA Compliance</p>
@@ -615,7 +615,7 @@ export default function HelpdeskPage() {
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Knowledge Articles</p>
@@ -631,7 +631,7 @@ export default function HelpdeskPage() {
 
       {/* Main Content */}
       <Tabs defaultValue="tickets" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="hrms-tabs-scroll">
           <TabsTrigger value="tickets">Tickets</TabsTrigger>
           <TabsTrigger value="sla">SLA Workflows</TabsTrigger>
           <TabsTrigger value="knowledge">Knowledge Base</TabsTrigger>
@@ -651,18 +651,18 @@ export default function HelpdeskPage() {
                     Manage and track HR support tickets
                   </CardDescription>
                 </div>
-                <div className="flex gap-2">
-                  <div className="relative">
+                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                  <div className="relative flex-1 sm:flex-none">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                     <Input
                       placeholder="Search tickets..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10 w-64"
+                      className="pl-10 w-full sm:w-64"
                     />
                   </div>
                   <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-                    <SelectTrigger className="w-32">
+                    <SelectTrigger className="w-full sm:w-32">
                       <AlertTriangle className="w-4 h-4 mr-2" />
                       <SelectValue placeholder="Priority" />
                     </SelectTrigger>
@@ -674,7 +674,7 @@ export default function HelpdeskPage() {
                     </SelectContent>
                   </Select>
                   <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-32">
+                    <SelectTrigger className="w-full sm:w-32">
                       <CheckCircle className="w-4 h-4 mr-2" />
                       <SelectValue placeholder="Status" />
                     </SelectTrigger>
@@ -689,7 +689,9 @@ export default function HelpdeskPage() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-4 sm:p-6">
+              {/* Desktop table */}
+              <div className="hidden md:block">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -818,6 +820,67 @@ export default function HelpdeskPage() {
                   )}
                 </TableBody>
               </Table>
+              </div>
+
+              {/* Mobile card list */}
+              <div className="md:hidden space-y-3">
+                {loading ? (
+                  <div className="text-center py-8 text-gray-500">Loading tickets...</div>
+                ) : tickets.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">No tickets found</div>
+                ) : (
+                  tickets.map((ticket) => (
+                    <Card key={ticket.id}>
+                      <CardContent className="p-4 space-y-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-start gap-3 min-w-0 flex-1">
+                            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-medium text-sm shrink-0">
+                              {ticket.id.toString().slice(-3)}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-medium text-gray-900">{ticket.title}</p>
+                              <p className="text-sm text-gray-500 line-clamp-2">{ticket.description}</p>
+                            </div>
+                          </div>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm" className="shrink-0">
+                                <MoreHorizontal className="w-4 h-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                              <DropdownMenuItem onClick={() => router.push(`/helpdesk/${ticket.id}`)}>
+                                <Eye className="mr-2 h-4 w-4" />
+                                View Details
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleEditTicket(ticket)}>
+                                <Edit className="mr-2 h-4 w-4" />
+                                Edit Ticket
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem className="text-red-600" onClick={() => handleDeleteTicket(ticket)}>
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Badge variant="outline">{ticket.category}</Badge>
+                          {getPriorityBadge(ticket.priority)}
+                          {getStatusBadge(ticket.status)}
+                          {getSLAStatusBadge(ticket.sla_status)}
+                        </div>
+                        <div className="flex items-center justify-between text-xs text-gray-500">
+                          <span>{ticket.assigned_to_name}</span>
+                          <span>{new Date(ticket.created_at).toLocaleDateString()}</span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -836,12 +899,12 @@ export default function HelpdeskPage() {
                     Configure and monitor Service Level Agreement workflows
                   </CardDescription>
                 </div>
-                <div className="flex gap-2">
-                  <Button variant="outline">
+                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                  <Button variant="outline" className="flex-1 sm:flex-none">
                     <BarChart3 className="w-4 h-4 mr-2" />
                     SLA Reports
                   </Button>
-                  <Button onClick={handleCreateWorkflow}>
+                  <Button onClick={handleCreateWorkflow} className="flex-1 sm:flex-none">
                     <Plus className="w-4 h-4 mr-2" />
                     Create Workflow
                   </Button>
@@ -944,16 +1007,16 @@ export default function HelpdeskPage() {
                     Self-service articles and FAQs for common HR queries
                   </CardDescription>
                 </div>
-                <div className="flex gap-2">
-                  <div className="relative">
+                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                  <div className="relative flex-1 sm:flex-none">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                     <Input
                       placeholder="Search articles..."
-                      className="pl-10 w-64"
+                      className="pl-10 w-full sm:w-64"
                     />
                   </div>
                   <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                    <SelectTrigger className="w-40">
+                    <SelectTrigger className="w-full sm:w-40">
                       <Filter className="w-4 h-4 mr-2" />
                       <SelectValue placeholder="Category" />
                     </SelectTrigger>
@@ -966,7 +1029,7 @@ export default function HelpdeskPage() {
                       <SelectItem value="IT Support">IT Support</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Button onClick={handleCreateArticle}>
+                  <Button onClick={handleCreateArticle} className="flex-1 sm:flex-none">
                     <Plus className="w-4 h-4 mr-2" />
                     Create Article
                   </Button>
@@ -974,7 +1037,7 @@ export default function HelpdeskPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
                 {knowledgeBase.map((article) => (
                   <Card key={article.id} className="hover:shadow-md transition-shadow">
                     <CardHeader className="pb-3">
@@ -1061,7 +1124,7 @@ export default function HelpdeskPage() {
 
       {/* Create Ticket Dialog */}
       <Dialog open={showCreateTicketDialog} onOpenChange={setShowCreateTicketDialog}>
-        <DialogContent className="sm:max-w-[600px]">
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Create New Ticket</DialogTitle>
             <DialogDescription>
@@ -1088,7 +1151,7 @@ export default function HelpdeskPage() {
                 rows={4}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="category">Category *</Label>
                 <Select
@@ -1168,7 +1231,7 @@ export default function HelpdeskPage() {
 
       {/* Create SLA Workflow Dialog */}
       <Dialog open={showCreateWorkflowDialog} onOpenChange={setShowCreateWorkflowDialog}>
-        <DialogContent className="sm:max-w-[700px]">
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Create SLA Workflow</DialogTitle>
             <DialogDescription>
@@ -1185,7 +1248,7 @@ export default function HelpdeskPage() {
                 onChange={(e) => setNewWorkflow({ ...newWorkflow, name: e.target.value })}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="workflow-category">Category *</Label>
                 <Select
@@ -1234,7 +1297,7 @@ export default function HelpdeskPage() {
             <div className="grid gap-2">
               <Label>Escalation Levels</Label>
               {newWorkflow.escalation_levels.map((level, index) => (
-                <div key={index} className="grid grid-cols-3 gap-2">
+                <div key={index} className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <Input
                     placeholder="Time (e.g., 4h)"
                     value={level.time}
@@ -1270,7 +1333,7 @@ export default function HelpdeskPage() {
 
       {/* Create Knowledge Article Dialog */}
       <Dialog open={showCreateArticleDialog} onOpenChange={setShowCreateArticleDialog}>
-        <DialogContent className="sm:max-w-[700px]">
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Create Knowledge Article</DialogTitle>
             <DialogDescription>
@@ -1297,7 +1360,7 @@ export default function HelpdeskPage() {
                 rows={8}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="article-category">Category *</Label>
                 <Select
@@ -1355,7 +1418,7 @@ export default function HelpdeskPage() {
 
       {/* Edit Ticket Dialog */}
       <Dialog open={showEditTicketDialog} onOpenChange={setShowEditTicketDialog}>
-        <DialogContent className="sm:max-w-[600px]">
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Ticket</DialogTitle>
             <DialogDescription>
@@ -1380,7 +1443,7 @@ export default function HelpdeskPage() {
                 rows={4}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="edit-category">Category *</Label>
                 <Select

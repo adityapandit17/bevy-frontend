@@ -108,14 +108,14 @@ export default function ReportsPage() {
 
   return (
     <ResourceGuard resourceKeys={["reports"]} pageName="Reports">
-      <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6">
+      <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-4 sm:space-y-6 overflow-x-hidden">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Reports & Analytics</h1>
+            <h1 className="text-2xl lg:text-2xl sm:text-3xl font-bold text-gray-900">Reports & Analytics</h1>
             <p className="text-gray-600">Generate insights and track organizational metrics</p>
           </div>
           <Select value={period} onValueChange={setPeriod}>
-            <SelectTrigger className="w-48">
+            <SelectTrigger className="w-full sm:w-48">
               <SelectValue placeholder="Select Period" />
             </SelectTrigger>
             <SelectContent>
@@ -127,7 +127,7 @@ export default function ReportsPage() {
           </Select>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <Card>
             <CardContent className="p-6 flex items-center justify-between">
               <div>
@@ -176,7 +176,7 @@ export default function ReportsPage() {
         </div>
 
         <Tabs defaultValue="all" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 lg:grid-cols-7">
+          <TabsList className="hrms-tabs-scroll">
             <TabsTrigger value="all">All Reports</TabsTrigger>
             <TabsTrigger value="employee">Employee</TabsTrigger>
             <TabsTrigger value="attendance">Attendance</TabsTrigger>

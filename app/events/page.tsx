@@ -367,14 +367,14 @@ export default function EventsPage() {
   })
 
   return (
-    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6">
+    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-4 sm:space-y-6 overflow-x-hidden">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Events & Meetings</h1>
+          <h1 className="text-2xl lg:text-2xl sm:text-3xl font-bold text-gray-900">Events & Meetings</h1>
           <p className="text-gray-600">Create and manage scheduled events and meetings</p>
         </div>
-        <Button onClick={handleCreateEvent}>
+        <Button onClick={handleCreateEvent} className="flex-1 sm:flex-none">
           <Plus className="w-4 h-4 mr-2" />
           Create Event
         </Button>
@@ -432,7 +432,7 @@ export default function EventsPage() {
             {filteredEvents.length} event{filteredEvents.length !== 1 ? 's' : ''} found
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-4 sm:p-6">
           {loading ? (
             <div className="text-center py-12 text-gray-500">Loading events...</div>
           ) : filteredEvents.length === 0 ? (
@@ -441,7 +441,9 @@ export default function EventsPage() {
               <p>No events found</p>
             </div>
           ) : (
-            <div className="rounded-md border">
+            <>
+            {/* Desktop table */}
+            <div className="hidden md:block rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -528,6 +530,64 @@ export default function EventsPage() {
                 </TableBody>
               </Table>
             </div>
+
+            {/* Mobile card list */}
+            <div className="md:hidden space-y-3">
+              {filteredEvents.map((event) => (
+                <Card key={event.id}>
+                  <CardContent className="p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-gray-900">{event.title}</p>
+                        {event.description && (
+                          <p className="text-sm text-gray-500 mt-1 line-clamp-2">{event.description}</p>
+                        )}
+                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" className="shrink-0">
+                            <MoreHorizontal className="w-4 h-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                          <DropdownMenuItem onClick={() => handleViewEvent(event)}>
+                            <Eye className="mr-2 h-4 w-4" />
+                            View Details
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleEditEvent(event)}>
+                            <Edit className="mr-2 h-4 w-4" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => handleDeleteEvent(event)} className="text-red-600">
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {getEventTypeBadge(event.event_type)}
+                      {getStatusBadge(event.status)}
+                    </div>
+                    <div className="space-y-1.5 text-sm text-gray-600">
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-gray-400 shrink-0" />
+                        <span>{event.start_time ? format(new Date(event.start_time), "MMM dd, yyyy HH:mm") : "N/A"}</span>
+                      </div>
+                      {event.location && (
+                        <div className="flex items-center gap-2">
+                          <MapPin className="w-4 h-4 text-gray-400 shrink-0" />
+                          <span className="truncate">{event.location}</span>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+            </>
           )}
         </CardContent>
       </Card>
@@ -567,7 +627,7 @@ export default function EventsPage() {
                 rows={4}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="event_type">Event Type *</Label>
                 <Select
@@ -604,7 +664,7 @@ export default function EventsPage() {
                 </Select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="start_time">Start Time *</Label>
                 <Input
@@ -645,7 +705,7 @@ export default function EventsPage() {
                 </div>
                 
                 {/* Add Attendee */}
-                <div className="flex gap-2 mb-3">
+                <div className="flex flex-col sm:flex-row gap-2 mb-3">
                   <Select 
                     value={selectedAttendeeId} 
                     onValueChange={setSelectedAttendeeId}
@@ -669,6 +729,7 @@ export default function EventsPage() {
                     disabled={!selectedAttendeeId || loadingEmployees}
                     size="sm"
                     type="button"
+                    className="flex-1 sm:flex-none"
                   >
                     <UserPlus className="h-4 w-4 mr-1" />
                     Add
@@ -718,15 +779,15 @@ export default function EventsPage() {
               </div>
             )}
           </div>
-          <DialogFooter>
+          <DialogFooter className="flex-col-reverse sm:flex-row gap-2">
             <Button variant="outline" onClick={() => {
               setShowCreateDialog(false)
               setShowEditDialog(false)
               setSelectedEvent(null)
-            }}>
+            }} className="flex-1 sm:flex-none">
               Cancel
             </Button>
-            <Button onClick={handleSubmitEvent} disabled={loading}>
+            <Button onClick={handleSubmitEvent} disabled={loading} className="flex-1 sm:flex-none">
               {loading ? "Saving..." : selectedEvent ? "Update Event" : "Create Event"}
             </Button>
           </DialogFooter>
@@ -735,14 +796,14 @@ export default function EventsPage() {
 
       {/* View Dialog */}
       <Dialog open={showViewDialog} onOpenChange={setShowViewDialog}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{selectedEvent?.title}</DialogTitle>
             <DialogDescription>Event Details</DialogDescription>
           </DialogHeader>
           {selectedEvent && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label className="text-sm font-semibold text-gray-500">Type</Label>
                   <div className="mt-1">{getEventTypeBadge(selectedEvent.event_type)}</div>
@@ -758,7 +819,7 @@ export default function EventsPage() {
                   <p className="text-sm text-gray-900 mt-1 whitespace-pre-wrap">{selectedEvent.description}</p>
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label className="text-sm font-semibold text-gray-500">Start Time</Label>
                   <p className="text-sm text-gray-900 mt-1">
@@ -794,15 +855,15 @@ export default function EventsPage() {
               )}
             </div>
           )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowViewDialog(false)}>
+          <DialogFooter className="flex-col-reverse sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => setShowViewDialog(false)} className="flex-1 sm:flex-none">
               Close
             </Button>
             {selectedEvent && (
               <Button onClick={() => {
                 setShowViewDialog(false)
                 handleEditEvent(selectedEvent)
-              }}>
+              }} className="flex-1 sm:flex-none">
                 <Edit className="w-4 h-4 mr-2" />
                 Edit
               </Button>

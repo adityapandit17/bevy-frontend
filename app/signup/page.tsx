@@ -125,7 +125,7 @@ function SignupPageContent() {
         <div className="grid lg:grid-cols-5 gap-8 items-start">
           <div className="lg:col-span-2 space-y-6">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Start your free trial</h1>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Start your free trial</h1>
               <p className="mt-2 text-gray-600">
                 Set up your company workspace in minutes. Full access for 14 days — no credit card required.
               </p>

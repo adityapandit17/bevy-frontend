@@ -489,15 +489,15 @@ export default function RecruitmentPage() {
 
   return (
     <ResourceGuard resourceKeys={["candidates", "job_openings", "interviews"]} pageName="Recruitment">
-    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6">
+    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-4 sm:space-y-6 overflow-x-hidden">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Recruitment</h1>
+          <h1 className="text-2xl lg:text-2xl sm:text-3xl font-bold text-gray-900">Recruitment</h1>
           <p className="text-gray-600">Manage job openings and candidate applications</p>
         </div>
-        <div className="flex flex-col gap-2">
-          <div className="flex gap-2">
+        <div className="flex flex-col gap-2 w-full sm:w-auto">
+          <div className="hrms-action-row flex-wrap">
             {(canViewCandidates) && (
               <Button variant="outline" size="sm" onClick={() => router.push('/ats')} className="border-blue-200 text-blue-700 hover:bg-blue-50">
                 <TrendingUp className="w-4 h-4 mr-2" />
@@ -522,7 +522,7 @@ export default function RecruitmentPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
         {recruitmentStats.map((stat, index) => (
           <Card key={index} className="hover:shadow-md transition-shadow">
             <CardContent className="p-6">
@@ -543,7 +543,7 @@ export default function RecruitmentPage() {
 
       {/* Tabs for Job Openings and Candidates */}
       <Tabs defaultValue="jobs" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 lg:w-96">
+        <TabsList className="hrms-tabs-scroll lg:w-auto">
           <TabsTrigger value="jobs">Job Openings</TabsTrigger>
           <TabsTrigger value="candidates">Candidates</TabsTrigger>
         </TabsList>
@@ -571,7 +571,7 @@ export default function RecruitmentPage() {
                 </div>
               </div>
 
-              <div className="rounded-md border">
+              <div className="hidden md:block rounded-md border overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -670,6 +670,51 @@ export default function RecruitmentPage() {
                   </TableBody>
                 </Table>
               </div>
+
+              <div className="md:hidden space-y-3">
+                {jobOpenings.map((job) => (
+                  <div key={job.id} className="border rounded-lg p-4 space-y-3 bg-white">
+                    <div className="flex items-start justify-between gap-2">
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/recruitment/${job.id}`)}
+                        className="font-medium text-blue-600 hover:underline text-left truncate"
+                      >
+                        {job.title}
+                      </button>
+                      <Badge className={getStatusColor(job.status)}>{job.status}</Badge>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div>
+                        <span className="text-gray-500">Department</span>
+                        <p className="font-medium truncate">
+                          {(job as any).department_name || ((job as any).department?.name) || getDepartmentName((job as any).department_id || (job as any).department)}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Applications</span>
+                        <p className="font-medium">{job.applications}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Location</span>
+                        <p className="font-medium truncate">{job.location}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Salary</span>
+                        <p className="font-medium">{job.salary}</p>
+                      </div>
+                    </div>
+                    {(canUpdateJobOpenings || canShowJobOpenings) && (
+                      <Button variant="outline" size="sm" className="w-full" onClick={() => router.push(`/recruitment/${job.id}`)}>
+                        View Applications
+                      </Button>
+                    )}
+                  </div>
+                ))}
+                {jobOpenings.length === 0 && (
+                  <p className="text-center text-gray-500 py-8">No job openings found</p>
+                )}
+              </div>
             </CardContent>
           </Card>
             ) : (
@@ -707,7 +752,7 @@ export default function RecruitmentPage() {
                   />
                 </div>
                 <Select value={candidateFilter} onValueChange={setCandidateFilter}>
-                  <SelectTrigger className="w-[200px]">
+                  <SelectTrigger className="w-full sm:w-[200px]">
                     <SelectValue placeholder="Filter candidates" />
                   </SelectTrigger>
                   <SelectContent>
@@ -718,7 +763,7 @@ export default function RecruitmentPage() {
                 </Select>
               </div>
 
-              <div className="rounded-md border">
+              <div className="hidden md:block rounded-md border overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -808,6 +853,61 @@ export default function RecruitmentPage() {
                     )}
                   </TableBody>
                 </Table>
+              </div>
+
+              <div className="md:hidden space-y-3">
+                {filteredCandidates.length === 0 ? (
+                  <p className="text-center text-gray-500 py-8">No candidates found</p>
+                ) : (
+                  filteredCandidates.map((candidate) => {
+                    const isArchived = archivedCandidates.some(ac => ac.id === candidate.id)
+                    return (
+                      <div key={candidate.id} className="border rounded-lg p-4 space-y-3 bg-white">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="font-medium text-gray-900 truncate">{getCandidateDisplayName(candidate)}</p>
+                            <p className="text-sm text-gray-500 truncate">{candidate.email}</p>
+                          </div>
+                          <Badge className={getStatusColor(candidate.status || "")}>
+                            {candidate.status || "Unknown"}
+                          </Badge>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                          <div>
+                            <span className="text-gray-500">Position</span>
+                            <p className="font-medium truncate">{candidate.position || "N/A"}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Experience</span>
+                            <p className="font-medium">{candidate.experience || "N/A"}</p>
+                          </div>
+                          <div className="col-span-2">
+                            <span className="text-gray-500">Applied</span>
+                            <p className="font-medium">
+                              {candidate.applied_date ? new Date(candidate.applied_date).toLocaleDateString() : "N/A"}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button variant="outline" size="sm" className="flex-1" onClick={() => router.push(`/candidates/${candidate.id}`)}>
+                            View Profile
+                          </Button>
+                          {!isArchived && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1"
+                              onClick={() => handleScheduleInterview(candidate)}
+                              disabled={candidate.status === "rejected"}
+                            >
+                              Schedule
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })
+                )}
               </div>
             </CardContent>
           </Card>

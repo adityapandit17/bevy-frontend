@@ -152,33 +152,33 @@ export default function ProjectManagement() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6">
+    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-4 sm:space-y-6 overflow-x-hidden">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Project Management</h1>
+          <h1 className="text-2xl lg:text-2xl sm:text-3xl font-bold text-gray-900">Project Management</h1>
           <p className="text-gray-600">Manage and track all your projects in one place</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => router.push("/project-management/kanban")}>
+        <div className="flex flex-col sm:flex-row flex-wrap gap-2 w-full sm:w-auto">
+          <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => router.push("/project-management/kanban")}>
             <FolderKanban className="w-4 h-4 mr-2" />
             Kanban Board
           </Button>
-          <Button variant="outline" size="sm" onClick={() => router.push("/project-management/sprints")}>
+          <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => router.push("/project-management/sprints")}>
             <Target className="w-4 h-4 mr-2" />
             Sprints
           </Button>
-          <Button variant="outline" size="sm" onClick={() => router.push("/project-management/timeline")}>
+          <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => router.push("/project-management/timeline")}>
             <BarChart3 className="w-4 h-4 mr-2" />
             Timeline
           </Button>
-          <Button size="sm">
+          <Button size="sm" className="w-full sm:w-auto">
             <Plus className="w-4 h-4 mr-2" />
             New Project
           </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
         <Card className="hover:shadow-md transition-shadow">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">

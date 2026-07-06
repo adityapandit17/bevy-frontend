@@ -54,7 +54,7 @@ export default function EmployeeProfileLoading() {
 
       {/* Tabs Skeleton */}
       <Tabs defaultValue="job-details" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-9">
+        <TabsList className="hrms-tabs-scroll">
           {Array.from({ length: 9 }).map((_, i) => (
             <TabsTrigger key={i} value={`tab-${i}`} disabled>
               <Skeleton className="h-4 w-16" />

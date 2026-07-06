@@ -1171,20 +1171,20 @@ export default function DocumentsPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6">
+    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-4 sm:space-y-6 overflow-x-hidden">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Document Management</h1>
-          <p className="text-gray-600">Manage policy documents, employee files, and digital signatures</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Document Management</h1>
+          <p className="text-sm sm:text-base text-gray-600">Manage policy documents, employee files, and digital signatures</p>
         </div>
         {canEditPolicyDocuments && (
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={handleUploadDocument}>
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+            <Button variant="outline" onClick={handleUploadDocument} className="w-full sm:w-auto">
               <Upload className="w-4 h-4 mr-2" />
               Upload Document
             </Button>
-            <Button onClick={handleCreateNew}>
+            <Button onClick={handleCreateNew} className="w-full sm:w-auto">
               <Plus className="w-4 h-4 mr-2" />
               New Policy
             </Button>
@@ -1231,9 +1231,9 @@ export default function DocumentsPage() {
       )}
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
         <Card>
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Total Documents</p>
@@ -1246,7 +1246,7 @@ export default function DocumentsPage() {
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Pending Signatures</p>
@@ -1259,7 +1259,7 @@ export default function DocumentsPage() {
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Expiring Soon</p>
@@ -1272,7 +1272,7 @@ export default function DocumentsPage() {
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Signed</p>
@@ -1288,7 +1288,7 @@ export default function DocumentsPage() {
 
       {/* Main Content */}
       <Tabs defaultValue="policies" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="hrms-tabs-scroll">
           <TabsTrigger value="policies">Policy Documents</TabsTrigger>
           <TabsTrigger value="employee">Employee Documents</TabsTrigger>
           <TabsTrigger value="signatures">Digital Signatures</TabsTrigger>
@@ -1309,18 +1309,18 @@ export default function DocumentsPage() {
                     Manage company policies and procedures
                   </CardDescription>
                 </div>
-                <div className="flex gap-2">
-                  <div className="relative">
+                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                  <div className="relative w-full sm:w-auto">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                     <Input
                       placeholder="Search policies..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10 w-64"
+                      className="pl-10 w-full sm:w-64"
                     />
                   </div>
                   <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                    <SelectTrigger className="w-48">
+                    <SelectTrigger className="w-full sm:w-48">
                       <Filter className="w-4 h-4 mr-2" />
                       <SelectValue placeholder="Category" />
                     </SelectTrigger>
@@ -1335,6 +1335,7 @@ export default function DocumentsPage() {
               </div>
             </CardHeader>
             <CardContent>
+              <div className="hidden md:block overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -1449,6 +1450,89 @@ export default function DocumentsPage() {
                   )}
                 </TableBody>
               </Table>
+              </div>
+
+              <div className="md:hidden space-y-3">
+                {isLoading ? (
+                  <div className="text-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin mx-auto text-gray-400" />
+                    <p className="text-sm text-gray-500 mt-2">Loading documents...</p>
+                  </div>
+                ) : filteredDocuments.length === 0 ? (
+                  <p className="text-center py-8 text-gray-500">No policy documents found</p>
+                ) : (
+                  filteredDocuments.map((doc) => (
+                    <div key={doc.id} className="border rounded-lg p-4 space-y-3 bg-white">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          {getFileIcon(doc.type)}
+                          <div className="min-w-0">
+                            <p className="font-medium text-gray-900 truncate">{doc.title}</p>
+                            <p className="text-sm text-gray-500">{doc.category} · {doc.size}</p>
+                          </div>
+                        </div>
+                        {getStatusBadge(doc.status)}
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div>
+                          <span className="text-gray-500">Version</span>
+                          <p className="font-medium">{doc.version || "N/A"}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Expiry</span>
+                          <p className="font-medium">{formatDate(doc.expiryDate)}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Updated</span>
+                          <p className="font-medium">{formatDate(doc.lastUpdated)}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Downloads</span>
+                          <p className="font-medium">{doc.downloads || 0}</p>
+                        </div>
+                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="outline" size="sm" className="w-full">
+                            <MoreHorizontal className="w-4 h-4 mr-2" />
+                            Actions
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                          <DropdownMenuItem onClick={() => handleView(doc)}>
+                            <Eye className="mr-2 h-4 w-4" />
+                            View
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleDownload(doc)}>
+                            <Download className="mr-2 h-4 w-4" />
+                            Download
+                          </DropdownMenuItem>
+                          {canEditPolicyDocuments && (
+                            <>
+                              <DropdownMenuItem onClick={() => handleEdit(doc)}>
+                                <Edit className="mr-2 h-4 w-4" />
+                                Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                className="text-red-600"
+                                onClick={() => {
+                                  setSelectedDocument(doc)
+                                  setShowDeleteDialog(true)
+                                }}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Delete
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  ))
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -1467,18 +1551,18 @@ export default function DocumentsPage() {
                     KYC documents, medical certificates, and other employee files
                   </CardDescription>
                 </div>
-                <div className="flex gap-2">
-                  <div className="relative">
+                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                  <div className="relative w-full sm:w-auto">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                     <Input
                       placeholder="Search documents..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10 w-64"
+                      className="pl-10 w-full sm:w-64"
                     />
                   </div>
                   <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-48">
+                    <SelectTrigger className="w-full sm:w-48">
                       <Filter className="w-4 h-4 mr-2" />
                       <SelectValue placeholder="Status" />
                     </SelectTrigger>
@@ -1493,6 +1577,7 @@ export default function DocumentsPage() {
               </div>
             </CardHeader>
             <CardContent>
+              <div className="hidden md:block overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -1607,6 +1692,70 @@ export default function DocumentsPage() {
                   )}
                 </TableBody>
               </Table>
+              </div>
+
+              <div className="md:hidden space-y-3">
+                {isLoadingEmployeeDocs ? (
+                  <div className="text-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin mx-auto text-gray-400" />
+                    <p className="text-sm text-gray-500 mt-2">Loading documents...</p>
+                  </div>
+                ) : filteredEmployeeDocuments.length === 0 ? (
+                  <p className="text-center py-8 text-gray-500">No employee documents found</p>
+                ) : (
+                  filteredEmployeeDocuments.map((doc) => {
+                    const fileExt = doc.file_path?.split('.').pop()?.toLowerCase() || 'pdf'
+                    const fileType = fileExt === 'pdf' ? 'pdf' : fileExt.match(/jpg|jpeg|png|gif/) ? 'image' : 'doc'
+                    return (
+                      <div key={doc.id} className="border rounded-lg p-4 space-y-3 bg-white">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="font-medium text-gray-900 truncate">{doc.employee_name || `Employee ${doc.employee_id}`}</p>
+                            <div className="flex items-center gap-2 mt-1">
+                              {getFileIcon(fileType)}
+                              <p className="text-sm text-gray-600 truncate">{doc.name}</p>
+                            </div>
+                          </div>
+                          {getStatusBadge(doc.status)}
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                          <div>
+                            <span className="text-gray-500">Type</span>
+                            <p className="font-medium">{doc.document_type?.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) || 'N/A'}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Uploaded</span>
+                            <p className="font-medium">{formatDate(doc.upload_date)}</p>
+                          </div>
+                          <div className="col-span-2">
+                            <span className="text-gray-500">Expiry</span>
+                            <p className="font-medium">{doc.expiry_date ? formatDate(doc.expiry_date) : 'No expiry'}</p>
+                          </div>
+                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="sm" className="w-full">
+                              <MoreHorizontal className="w-4 h-4 mr-2" />
+                              Actions
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <DropdownMenuItem onClick={() => handleViewEmployeeDoc(doc)}>
+                              <Eye className="mr-2 h-4 w-4" />
+                              View
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleDownloadEmployeeDoc(doc)}>
+                              <Download className="mr-2 h-4 w-4" />
+                              Download
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    )
+                  })
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -1625,10 +1774,11 @@ export default function DocumentsPage() {
                     Track document signatures and compliance
                   </CardDescription>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                   {canEditPolicyDocuments && (
                     <Button
                       variant="outline"
+                      className="w-full sm:w-auto"
                       onClick={handleSendReminders}
                       disabled={isSendingReminders || signatureStats.pending === 0}
                     >
@@ -1644,6 +1794,7 @@ export default function DocumentsPage() {
               </div>
             </CardHeader>
             <CardContent>
+              <div className="hidden md:block overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -1746,6 +1897,46 @@ export default function DocumentsPage() {
                   )}
                 </TableBody>
               </Table>
+              </div>
+
+              <div className="md:hidden space-y-3">
+                {isLoadingSignatures ? (
+                  <div className="text-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin mx-auto text-gray-400" />
+                    <p className="text-sm text-gray-500 mt-2">Loading signatures...</p>
+                  </div>
+                ) : digitalSignatures.length === 0 ? (
+                  <p className="text-center py-8 text-gray-500">No digital signatures found</p>
+                ) : (
+                  digitalSignatures.map((sig) => (
+                    <div key={sig.id} className="border rounded-lg p-4 space-y-3 bg-white">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="font-medium text-gray-900 truncate">{sig.documentTitle}</p>
+                          <p className="text-sm text-gray-600 truncate">{sig.employeeName}</p>
+                        </div>
+                        {getStatusBadge(sig.status)}
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div>
+                          <span className="text-gray-500">Signed</span>
+                          <p className="font-medium">{sig.signedDate ? formatDate(sig.signedDate) : 'Pending'}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Type</span>
+                          <p className="font-medium">{sig.signatureType === 'electronic' ? 'Electronic' : 'Pending'}</p>
+                        </div>
+                      </div>
+                      {sig.status === "pending" && user?.employee_id === sig.employeeId && (
+                        <Button size="sm" className="w-full" onClick={() => handleOpenSignDialog(sig)}>
+                          <Signature className="w-4 h-4 mr-2" />
+                          Sign Document
+                        </Button>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -1764,12 +1955,12 @@ export default function DocumentsPage() {
                     Documents expiring soon that require attention
                   </CardDescription>
                 </div>
-                <div className="flex gap-2">
-                  <Button variant="outline">
+                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                  <Button variant="outline" className="w-full sm:w-auto">
                     <Clock className="w-4 h-4 mr-2" />
                     View All Alerts
                   </Button>
-                  <Button>
+                  <Button className="w-full sm:w-auto">
                     <Bell className="w-4 h-4 mr-2" />
                     Configure Alerts
                   </Button>
@@ -1777,6 +1968,7 @@ export default function DocumentsPage() {
               </div>
             </CardHeader>
             <CardContent>
+              <div className="hidden md:block overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -1845,6 +2037,53 @@ export default function DocumentsPage() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
+
+              <div className="md:hidden space-y-3">
+                {isLoadingExpiryAlerts ? (
+                  <div className="text-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin mx-auto text-gray-400" />
+                    <p className="text-sm text-gray-500 mt-2">Loading alerts...</p>
+                  </div>
+                ) : expiryAlerts.length === 0 ? (
+                  <p className="text-center py-8 text-gray-500">No expiry alerts</p>
+                ) : (
+                  expiryAlerts.map((alert) => (
+                    <div
+                      key={alert.id}
+                      className={`border rounded-lg p-4 space-y-3 bg-white ${alert.priority === 'high' ? 'bg-red-50' : ''}`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="font-medium text-gray-900 truncate">{alert.documentTitle}</p>
+                          <p className="text-sm text-gray-600">{alert.documentType}</p>
+                        </div>
+                        {getPriorityBadge(alert.priority)}
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div>
+                          <span className="text-gray-500">Expiry</span>
+                          <p className="font-medium">{formatDate(alert.expiryDate)}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Days left</span>
+                          <p className={`font-medium ${(alert.daysUntilExpiry ?? 999) <= 30 ? 'text-red-600' : ''}`}>
+                            {alert.daysUntilExpiry ?? 0} days
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Assigned to</span>
+                          <p className="font-medium truncate">{alert.assignedTo}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Status</span>
+                          <div className="mt-0.5">{getStatusBadge(alert.status)}</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -1897,7 +2136,7 @@ export default function DocumentsPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="create-version">Version</Label>
                 <Input
@@ -2049,7 +2288,7 @@ export default function DocumentsPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="version">Version</Label>
                 <Input

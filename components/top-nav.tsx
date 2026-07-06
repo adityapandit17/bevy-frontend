@@ -280,7 +280,7 @@ export function TopNav() {
 
       {/* Mobile Navigation Menu */}
       {isMobileMenuOpen && (
-        <div className="lg:hidden border-t border-gray-200 bg-white fixed top-16 left-0 right-0 z-40 shadow-sm max-h-[60vh] overflow-auto">
+        <div className="lg:hidden border-t border-gray-200 bg-white fixed top-16 left-0 right-0 z-40 shadow-sm max-h-[60dvh] overflow-auto pb-[env(safe-area-inset-bottom)]">
           <div className="px-4 py-2 space-y-1">
             {/* Mobile Search */}
             <div className="md:hidden mb-3">

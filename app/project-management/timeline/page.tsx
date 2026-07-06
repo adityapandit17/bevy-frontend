@@ -167,24 +167,24 @@ export default function ProjectTimeline() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6">
+    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-4 sm:space-y-6 overflow-x-hidden">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 min-w-0">
           <Button variant="ghost" size="sm" onClick={() => router.back()}>
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back
           </Button>
-          <div>
-            <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Project Timeline</h1>
+          <div className="min-w-0">
+            <h1 className="text-2xl lg:text-2xl sm:text-3xl font-bold text-gray-900">Project Timeline</h1>
             <p className="text-gray-600">Gantt chart view of all projects and tasks</p>
           </div>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm">
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          <Button variant="outline" size="sm" className="w-full sm:w-auto">
             <Download className="w-4 h-4 mr-2" />
             Export
           </Button>
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" className="w-full sm:w-auto">
             <Share className="w-4 h-4 mr-2" />
             Share
           </Button>
@@ -194,13 +194,13 @@ export default function ProjectTimeline() {
       <Card>
         <CardContent className="p-4">
           <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-            <div className="flex gap-4">
-              <div>
+            <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
+              <div className="w-full sm:w-auto">
                 <label className="text-sm font-medium text-gray-600 mb-1 block">Project</label>
                 <select
                   value={selectedProject}
                   onChange={(e) => setSelectedProject(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  className="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-md text-sm"
                 >
                   <option value="all">All Projects</option>
                   {projects.map((project) => (
@@ -210,12 +210,12 @@ export default function ProjectTimeline() {
                   ))}
                 </select>
               </div>
-              <div>
+              <div className="w-full sm:w-auto">
                 <label className="text-sm font-medium text-gray-600 mb-1 block">View</label>
                 <select
                   value={viewMode}
                   onChange={(e) => setViewMode(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  className="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-md text-sm"
                 >
                   <option value="week">Week</option>
                   <option value="month">Month</option>
@@ -248,17 +248,17 @@ export default function ProjectTimeline() {
           {filteredProjects.map((project) => (
             <Card key={project.id}>
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-4 h-4 rounded ${project.color}`} />
-                    <div>
-                      <CardTitle className="text-lg">{project.name}</CardTitle>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`w-4 h-4 rounded flex-shrink-0 ${project.color}`} />
+                    <div className="min-w-0">
+                      <CardTitle className="text-lg truncate">{project.name}</CardTitle>
                       <CardDescription>
                         {formatDate(project.start_date)} - {formatDate(project.end_date)}
                       </CardDescription>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-shrink-0">
                     <Badge className={getStatusColor(project.status)}>{formatStatus(project.status)}</Badge>
                     <span className="text-sm text-gray-600">{project.progress}%</span>
                   </div>
@@ -280,46 +280,46 @@ export default function ProjectTimeline() {
                 ) : (
                   <div className="space-y-3">
                     {project.tasks.map((task) => (
-                      <div key={task.id} className="flex items-center gap-4 p-3 border rounded-lg hover:bg-gray-50">
-                        <div className="flex-shrink-0">{getTaskStatusIcon(task.status)}</div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1 flex-wrap">
-                            <h4 className="font-medium text-gray-900 truncate">{task.title}</h4>
-                            <Badge className={getStatusColor(task.status)} variant="secondary">
-                              {formatStatus(task.status)}
-                            </Badge>
-                          </div>
-                          <div className="flex items-center gap-4 text-sm text-gray-600 flex-wrap">
-                            {task.due_date && (
+                      <div key={task.id} className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 p-3 border rounded-lg hover:bg-gray-50">
+                        <div className="flex items-start gap-3 flex-1 min-w-0">
+                          <div className="flex-shrink-0">{getTaskStatusIcon(task.status)}</div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                              <h4 className="font-medium text-gray-900 truncate">{task.title}</h4>
+                              <Badge className={getStatusColor(task.status)} variant="secondary">
+                                {formatStatus(task.status)}
+                              </Badge>
+                            </div>
+                            <div className="flex items-center gap-4 text-sm text-gray-600 flex-wrap">
+                              {task.due_date && (
+                                <span className="flex items-center gap-1">
+                                  <Calendar className="w-3 h-3" />
+                                  Due: {formatDate(task.due_date)}
+                                </span>
+                              )}
+                              {task.sprint_name && (
+                                <span className="flex items-center gap-1">
+                                  <Target className="w-3 h-3" />
+                                  {task.sprint_name}
+                                </span>
+                              )}
                               <span className="flex items-center gap-1">
-                                <Calendar className="w-3 h-3" />
-                                Due: {formatDate(task.due_date)}
+                                <Users className="w-3 h-3" />
+                                {task.assignee}
                               </span>
-                            )}
-                            {task.sprint_name && (
-                              <span className="flex items-center gap-1">
-                                <Target className="w-3 h-3" />
-                                {task.sprint_name}
-                              </span>
-                            )}
-                            <span className="flex items-center gap-1">
-                              <Users className="w-3 h-3" />
-                              {task.assignee}
-                            </span>
+                            </div>
                           </div>
                         </div>
-                        <div className="flex-shrink-0">
-                          <div className="w-32">
-                            <div className="flex justify-between text-xs text-gray-600 mb-1">
-                              <span>Progress</span>
-                              <span>{task.progress}%</span>
-                            </div>
-                            <div className="w-full bg-gray-200 rounded-full h-1.5">
-                              <div
-                                className={`h-1.5 rounded-full ${project.color}`}
-                                style={{ width: `${task.progress}%` }}
-                              />
-                            </div>
+                        <div className="flex-shrink-0 w-full sm:w-32">
+                          <div className="flex justify-between text-xs text-gray-600 mb-1">
+                            <span>Progress</span>
+                            <span>{task.progress}%</span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-1.5">
+                            <div
+                              className={`h-1.5 rounded-full ${project.color}`}
+                              style={{ width: `${task.progress}%` }}
+                            />
                           </div>
                         </div>
                       </div>
@@ -332,7 +332,7 @@ export default function ProjectTimeline() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">

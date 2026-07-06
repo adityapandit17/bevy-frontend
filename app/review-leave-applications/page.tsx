@@ -194,12 +194,12 @@ export default function ReviewLeaveApplicationsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="container mx-auto px-4 lg:px-6 py-6 space-y-6">
+    <div className="min-h-screen bg-gray-50 overflow-x-hidden">
+      <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-4 sm:space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 flex items-center gap-2">
+            <h1 className="text-2xl lg:text-2xl sm:text-3xl font-bold text-gray-900 flex items-center gap-2">
               <AlertCircle className="w-6 h-6 text-yellow-600" />
               Review Leave Applications
             </h1>
@@ -207,7 +207,7 @@ export default function ReviewLeaveApplicationsPage() {
               Pending leave requests from your direct reports requiring your approval
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="hrms-action-row w-full sm:w-auto">
             <Button
               variant="outline"
               size="sm"
@@ -227,13 +227,13 @@ export default function ReviewLeaveApplicationsPage() {
           </div>
         </div>
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
           <Card className="border-l-4 border-l-yellow-500">
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-600">Total Pending</p>
-                  <p className="text-3xl font-bold text-gray-900 mt-1">{leaveRequests.length}</p>
+                  <p className="text-2xl sm:text-3xl font-bold text-gray-900 mt-1">{leaveRequests.length}</p>
                 </div>
                 <div className="p-3 bg-yellow-100 rounded-full">
                   <AlertCircle className="w-6 h-6 text-yellow-600" />
@@ -246,7 +246,7 @@ export default function ReviewLeaveApplicationsPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-600">Filtered Results</p>
-                  <p className="text-3xl font-bold text-gray-900 mt-1">{filteredRequests.length}</p>
+                  <p className="text-2xl sm:text-3xl font-bold text-gray-900 mt-1">{filteredRequests.length}</p>
                 </div>
                 <div className="p-3 bg-blue-100 rounded-full">
                   <Search className="w-6 h-6 text-blue-600" />
@@ -259,7 +259,7 @@ export default function ReviewLeaveApplicationsPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-600">Ready to Review</p>
-                  <p className="text-3xl font-bold text-gray-900 mt-1">{filteredRequests.length}</p>
+                  <p className="text-2xl sm:text-3xl font-bold text-gray-900 mt-1">{filteredRequests.length}</p>
                 </div>
                 <div className="p-3 bg-green-100 rounded-full">
                   <CheckCircle className="w-6 h-6 text-green-600" />
@@ -323,9 +323,9 @@ export default function ReviewLeaveApplicationsPage() {
                   )}
                 </div>
               ) : (
-                <div className="rounded-lg border border-gray-200 overflow-hidden bg-white">
-                  <div className="overflow-x-auto">
-                    <Table>
+                <>
+                <div className="hidden md:block rounded-lg border border-gray-200 overflow-hidden bg-white overflow-x-auto">
+                  <Table>
                       <TableHeader>
                         <TableRow className="bg-gray-50 hover:bg-gray-50">
                           <TableHead className="font-semibold text-gray-700">Employee</TableHead>
@@ -428,8 +428,68 @@ export default function ReviewLeaveApplicationsPage() {
                         ))}
                       </TableBody>
                     </Table>
-                  </div>
                 </div>
+
+                <div className="md:hidden space-y-3">
+                  {filteredRequests.map((request) => (
+                    <div key={request.id} className="border rounded-lg p-4 space-y-3 bg-white">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="font-medium truncate">{request.employee_name || `Employee ${request.employee_id}`}</p>
+                          <p className="text-sm text-gray-500">{request.employee_department || 'N/A'}</p>
+                        </div>
+                        <Badge className={`${getStatusColor(request.status)} text-xs`}>
+                          {request.status_label || request.status || 'Pending'}
+                        </Badge>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div>
+                          <span className="text-gray-500">Leave Type</span>
+                          <p className="font-medium">{request.leave_type_label || request.leave_type || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Days</span>
+                          <p className="font-medium">{request.days || request.duration_days || 0}</p>
+                        </div>
+                        <div className="col-span-2">
+                          <span className="text-gray-500">Duration</span>
+                          <p className="font-medium text-sm">
+                            {request.formatted_start_date && request.formatted_end_date
+                              ? `${request.formatted_start_date} - ${request.formatted_end_date}`
+                              : 'N/A'}
+                          </p>
+                        </div>
+                      </div>
+                      {request.reason && (
+                        <p className="text-sm text-gray-500 line-clamp-2">{request.reason}</p>
+                      )}
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" className="flex-1" onClick={() => handleViewDetails(request)}>
+                          <Eye className="w-4 h-4 mr-1" />
+                          View
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                          onClick={() => handleApprove(request.id)}
+                          disabled={actionLoading === request.id}
+                        >
+                          Approve
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          className="flex-1"
+                          onClick={() => handleReject(request.id)}
+                          disabled={actionLoading === request.id}
+                        >
+                          Reject
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                </>
               )}
             </div>
           </CardContent>

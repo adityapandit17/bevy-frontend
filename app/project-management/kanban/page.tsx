@@ -176,30 +176,30 @@ export default function KanbanBoard() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6">
+    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-4 sm:space-y-6 overflow-x-hidden">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 min-w-0">
           <Button variant="ghost" size="sm" onClick={() => router.back()}>
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back
           </Button>
-          <div>
-            <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Kanban Board</h1>
+          <div className="min-w-0">
+            <h1 className="text-2xl lg:text-2xl sm:text-3xl font-bold text-gray-900">Kanban Board</h1>
             <p className="text-gray-600">
               {tasks.length > 0 ? `${tasks.length} tasks across all projects` : "No tasks yet"}
             </p>
           </div>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm">
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          <Button variant="outline" size="sm" className="w-full sm:w-auto">
             <Filter className="w-4 h-4 mr-2" />
             Filter
           </Button>
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" className="w-full sm:w-auto">
             <Search className="w-4 h-4 mr-2" />
             Search
           </Button>
-          <Button size="sm">
+          <Button size="sm" className="w-full sm:w-auto">
             <Plus className="w-4 h-4 mr-2" />
             Add Task
           </Button>
@@ -233,9 +233,9 @@ export default function KanbanBoard() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+        <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 md:grid md:grid-cols-2 lg:grid-cols-5 md:overflow-visible md:gap-6">
           {columns.map((column) => (
-            <div key={column.id} className="space-y-4">
+            <div key={column.id} className="space-y-4 min-w-[280px] w-[280px] flex-shrink-0 md:min-w-0 md:w-auto md:flex-shrink">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <h3 className="font-semibold text-gray-900">{column.title}</h3>
@@ -346,20 +346,20 @@ export default function KanbanBoard() {
           <CardDescription>Common actions for managing your board</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Button variant="outline" className="h-20 flex-col gap-2">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+            <Button variant="outline" className="h-20 flex-col gap-2 w-full">
               <Plus className="w-6 h-6" />
               <span className="text-sm">Add Task</span>
             </Button>
-            <Button variant="outline" className="h-20 flex-col gap-2">
+            <Button variant="outline" className="h-20 flex-col gap-2 w-full">
               <Filter className="w-6 h-6" />
               <span className="text-sm">Filter Tasks</span>
             </Button>
-            <Button variant="outline" className="h-20 flex-col gap-2">
+            <Button variant="outline" className="h-20 flex-col gap-2 w-full">
               <User className="w-6 h-6" />
               <span className="text-sm">Assign Tasks</span>
             </Button>
-            <Button variant="outline" className="h-20 flex-col gap-2">
+            <Button variant="outline" className="h-20 flex-col gap-2 w-full">
               <Clock className="w-6 h-6" />
               <span className="text-sm">Set Deadlines</span>
             </Button>

@@ -255,7 +255,7 @@ export default function CandidateProfilePage() {
 
   if (!candidate) {
     return (
-      <div className="max-w-7xl mx-auto p-6">
+      <div className="max-w-7xl mx-auto p-4 lg:p-6 overflow-x-hidden">
         <div className="text-center py-12">
           <p className="text-gray-600 mb-4">Candidate not found</p>
           <Button onClick={() => router.push("/recruitment")} variant="outline">
@@ -268,30 +268,30 @@ export default function CandidateProfilePage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6">
+    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-4 sm:space-y-6 overflow-x-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => router.push("/recruitment")}
-            className="gap-2"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back
-          </Button>
+      <div className="flex flex-col gap-4">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => router.push("/recruitment")}
+          className="gap-2 w-fit"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back
+        </Button>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Candidate Profile</h1>
+            <h1 className="text-2xl lg:text-2xl sm:text-3xl font-bold text-gray-900">Candidate Profile</h1>
             <p className="text-gray-600">View candidate details and application information</p>
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge className={getStatusColor(candidate.status)}>{candidate.status}</Badge>
-          <Button variant="outline" size="sm" onClick={handleEditCandidate}>
-            <Edit className="w-4 h-4 mr-2" />
-            Edit
-          </Button>
+          <div className="hrms-action-row">
+            <Badge className={getStatusColor(candidate.status)}>{candidate.status}</Badge>
+            <Button variant="outline" size="sm" onClick={handleEditCandidate}>
+              <Edit className="w-4 h-4 mr-2" />
+              Edit
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -335,7 +335,7 @@ export default function CandidateProfilePage() {
 
       {/* Tabs */}
       <Tabs defaultValue="overview" className="space-y-6">
-        <TabsList>
+        <TabsList className="hrms-tabs-scroll">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="interviews">Interviews ({candidate.interviews?.length || 0})</TabsTrigger>
           <TabsTrigger value="documents">Documents</TabsTrigger>
@@ -462,7 +462,8 @@ export default function CandidateProfilePage() {
             </CardHeader>
             <CardContent>
               {candidate.interviews && candidate.interviews.length > 0 ? (
-                <div className="rounded-md border">
+                <>
+                <div className="hidden md:block rounded-md border overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -501,6 +502,30 @@ export default function CandidateProfilePage() {
                     </TableBody>
                   </Table>
                 </div>
+                <div className="md:hidden space-y-3">
+                  {candidate.interviews.map((interview) => (
+                    <div key={interview.id} className="border rounded-lg p-4 space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="font-medium text-sm">{formatDateTime(interview.scheduled_date, interview.scheduled_time)}</p>
+                        <Badge className={getInterviewStatusColor(interview.status)}>{interview.status}</Badge>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div>
+                          <span className="text-gray-500">Type</span>
+                          <p className="font-medium">{interview.interview_type || "N/A"}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Interviewer</span>
+                          <p className="font-medium">{interview.interviewer || "N/A"}</p>
+                        </div>
+                      </div>
+                      {interview.feedback && (
+                        <p className="text-sm text-gray-600 line-clamp-2">{interview.feedback}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                </>
               ) : (
                 <div className="text-center py-8 text-gray-500">
                   <Calendar className="w-12 h-12 mx-auto mb-4 text-gray-300" />

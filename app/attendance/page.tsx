@@ -459,21 +459,21 @@ export default function AttendancePage() {
   }))
 
   return (
-    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6">
+    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-4 sm:space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Attendance & Leave Management</h1>
-          <p className="text-gray-600">Track employee attendance and manage leave requests</p>
+          <h1 className="text-xl sm:text-2xl lg:text-2xl sm:text-3xl font-bold text-gray-900">Attendance & Leave</h1>
+          <p className="text-sm sm:text-base text-gray-600">Track attendance and manage leave requests</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 w-full sm:w-auto">
           {checkPermission('attendance_records.approve') && (
-            <Button variant="outline" size="sm" onClick={() => setShowAttendanceModal(true)}>
+            <Button variant="outline" size="sm" onClick={() => setShowAttendanceModal(true)} className="flex-1 sm:flex-none">
               <CalendarIcon className="w-4 h-4 mr-2" />
               Mark Attendance
             </Button>
           )}
-          <Button size="sm" onClick={() => setShowLeaveForm(true)}>
+          <Button size="sm" onClick={() => setShowLeaveForm(true)} className="flex-1 sm:flex-none">
             <Plus className="w-4 h-4 mr-2" />
             Apply Leave
           </Button>
@@ -490,8 +490,8 @@ export default function AttendancePage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
+            <div className="flex flex-col gap-4">
+              <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-4">
                 <div>
                   <p className="text-sm text-gray-600">Status</p>
                   <Badge className={getStatusColor(todayAttendance.status)}>
@@ -519,13 +519,13 @@ export default function AttendancePage() {
               </div>
               <div className="flex gap-2">
                 {!todayAttendance.check_in && (
-                  <Button onClick={handleCheckIn} className="bg-green-600 hover:bg-green-700">
+                  <Button onClick={handleCheckIn} className="bg-green-600 hover:bg-green-700 flex-1 sm:flex-none">
                     <CheckCircle className="w-4 h-4 mr-2" />
                     Check In
                   </Button>
                 )}
                 {todayAttendance.check_in && !todayAttendance.check_out && (
-                  <Button onClick={handleCheckOut} className="bg-red-600 hover:bg-red-700">
+                  <Button onClick={handleCheckOut} className="bg-red-600 hover:bg-red-700 flex-1 sm:flex-none">
                     <XCircle className="w-4 h-4 mr-2" />
                     Check Out
                   </Button>
@@ -537,9 +537,9 @@ export default function AttendancePage() {
       )}
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
         <Card>
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Present Today</p>
@@ -553,7 +553,7 @@ export default function AttendancePage() {
         </Card>
         
         <Card>
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Absent Today</p>
@@ -567,7 +567,7 @@ export default function AttendancePage() {
         </Card>
         
         <Card>
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Late Arrivals</p>
@@ -581,7 +581,7 @@ export default function AttendancePage() {
         </Card>
         
         <Card>
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Attendance %</p>
@@ -597,13 +597,13 @@ export default function AttendancePage() {
 
       {/* Main Content Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className={`grid w-full max-w-2xl ${hasLeaveManagementPermission ? 'grid-cols-5' : 'grid-cols-4'}`}>
-          <TabsTrigger value="attendance">Attendance</TabsTrigger>
-          <TabsTrigger value="leave-requests">Leave Requests</TabsTrigger>
-          <TabsTrigger value="leave-balance">Leave Balance</TabsTrigger>
-          <TabsTrigger value="calendar">Calendar</TabsTrigger>
+        <TabsList className="hrms-tabs-scroll">
+          <TabsTrigger value="attendance" className="text-xs sm:text-sm whitespace-nowrap flex-shrink-0 px-3">Attendance</TabsTrigger>
+          <TabsTrigger value="leave-requests" className="text-xs sm:text-sm whitespace-nowrap flex-shrink-0 px-3">Leave Requests</TabsTrigger>
+          <TabsTrigger value="leave-balance" className="text-xs sm:text-sm whitespace-nowrap flex-shrink-0 px-3">Leave Balance</TabsTrigger>
+          <TabsTrigger value="calendar" className="text-xs sm:text-sm whitespace-nowrap flex-shrink-0 px-3">Calendar</TabsTrigger>
           {hasLeaveManagementPermission && (
-            <TabsTrigger value="leave-management">Leave Management</TabsTrigger>
+            <TabsTrigger value="leave-management" className="text-xs sm:text-sm whitespace-nowrap flex-shrink-0 px-3">Management</TabsTrigger>
           )}
         </TabsList>
 
@@ -674,6 +674,8 @@ export default function AttendancePage() {
                 <CardDescription>Recent attendance records for all employees</CardDescription>
               </CardHeader>
               <CardContent>
+                {/* Desktop table */}
+                <div className="hidden md:block overflow-x-auto">
                 <Table>
                 <TableHeader>
                   <TableRow>
@@ -722,6 +724,45 @@ export default function AttendancePage() {
                   ))}
                 </TableBody>
               </Table>
+                </div>
+
+                {/* Mobile card list */}
+                <div className="md:hidden space-y-3">
+                  {filteredAttendanceRecords.map((record) => (
+                    <div key={record.id} className="border rounded-lg p-4 space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="font-medium truncate">{record.employee_name}</p>
+                          <p className="text-sm text-gray-500">{record.employee_department}</p>
+                        </div>
+                        <Badge className={getStatusColor(record.status)}>
+                          {record.status_label}
+                        </Badge>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div>
+                          <span className="text-gray-500">Date</span>
+                          <p className="font-medium">{format(new Date(record.date), 'MMM dd, yyyy')}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Hours</span>
+                          <p className="font-medium">{record.working_hours}h</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Check In</span>
+                          <p className="font-medium">{record.formatted_check_in || '-'}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Check Out</span>
+                          <p className="font-medium">{record.formatted_check_out || '-'}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {filteredAttendanceRecords.length === 0 && (
+                    <p className="text-center text-gray-500 py-8">No attendance records found</p>
+                  )}
+                </div>
             </CardContent>
           </Card>
           ) : (
@@ -808,7 +849,7 @@ export default function AttendancePage() {
               </CardContent>
             </Card>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
               {leaveBalance.length > 0 ? (
                 leaveBalance.map((balance) => (
                   <Card key={balance.leave_type}>
@@ -862,7 +903,7 @@ export default function AttendancePage() {
                 mode="single"
                 selected={selectedDate}
                 onSelect={setSelectedDate}
-                className="rounded-md border"
+                className="rounded-md border mx-auto"
               />
             </CardContent>
           </Card>
@@ -874,12 +915,12 @@ export default function AttendancePage() {
             {/* Apply Leave for Others Section */}
             <Card>
               <CardHeader>
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
                     <CardTitle>Apply Leave for Others</CardTitle>
                     <CardDescription>Apply leave on behalf of employees</CardDescription>
                   </div>
-                  <Button onClick={() => setShowManagementLeaveForm(true)}>
+                  <Button onClick={() => setShowManagementLeaveForm(true)} className="w-full sm:w-auto">
                     <Plus className="w-4 h-4 mr-2" />
                     Apply Leave
                   </Button>
@@ -900,30 +941,28 @@ export default function AttendancePage() {
                 <CardContent>
                   <div className="space-y-4">
                     {pendingApprovals.map((request) => (
-                      <div key={request.id} className="border rounded-lg p-4 flex items-center justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3">
-                            <div>
-                              <p className="font-medium">{request.employee_name}</p>
-                              <p className="text-sm text-gray-600">{request.employee_department}</p>
-                            </div>
-                            <Badge className={getStatusColor(request.status)}>
-                              {request.leave_type_label}
-                            </Badge>
-                            <div className="text-sm text-gray-600">
-                              {request.formatted_start_date} - {request.formatted_end_date}
-                            </div>
-                            <div className="text-sm text-gray-600">
-                              {request.days} day{request.days !== 1 ? 's' : ''}
-                            </div>
+                      <div key={request.id} className="border rounded-lg p-4 space-y-3">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                          <div className="min-w-0">
+                            <p className="font-medium">{request.employee_name}</p>
+                            <p className="text-sm text-gray-600">{request.employee_department}</p>
                           </div>
-                          <p className="text-sm text-gray-500 mt-2">{request.reason}</p>
+                          <Badge className={getStatusColor(request.status)}>
+                            {request.leave_type_label}
+                          </Badge>
+                          <div className="text-sm text-gray-600">
+                            {request.formatted_start_date} - {request.formatted_end_date}
+                          </div>
+                          <div className="text-sm text-gray-600">
+                            {request.days} day{request.days !== 1 ? 's' : ''}
+                          </div>
                         </div>
+                        <p className="text-sm text-gray-500">{request.reason}</p>
                         <div className="flex gap-2">
                           <Button
                             size="sm"
                             variant="outline"
-                            className="text-green-600 border-green-600 hover:bg-green-50"
+                            className="flex-1 text-green-600 border-green-600 hover:bg-green-50"
                             onClick={async () => {
                               try {
                                 await apiRequest<any>(getApiUrl(`/leave_requests/${request.id}/approve`), {
@@ -942,7 +981,7 @@ export default function AttendancePage() {
                           <Button
                             size="sm"
                             variant="outline"
-                            className="text-red-600 border-red-600 hover:bg-red-50"
+                            className="flex-1 text-red-600 border-red-600 hover:bg-red-50"
                             onClick={async () => {
                               try {
                                 await apiRequest<any>(getApiUrl(`/leave_requests/${request.id}/reject`), {
@@ -1047,7 +1086,7 @@ export default function AttendancePage() {
       
       {/* Debug info - remove in production */}
       {process.env.NODE_ENV === 'development' && (
-        <div className="fixed bottom-4 right-4 bg-gray-800 text-white p-2 text-xs rounded z-50 max-w-xs">
+        <div className="hidden md:block fixed bottom-4 right-4 bg-gray-800 text-white p-2 text-xs rounded z-50 max-w-xs">
           <div>canSelectEmployee: {canSelectEmployee ? 'true' : 'false'}</div>
           <div>employees: {employees.length}</div>
           <div>isSuperAdmin: {isSuperAdmin ? 'true' : 'false'}</div>

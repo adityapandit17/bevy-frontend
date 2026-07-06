@@ -214,20 +214,20 @@ export default function ExpenseTracker() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6">
+    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-4 sm:space-y-6 overflow-x-hidden">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Expense Tracker</h1>
+          <h1 className="text-2xl lg:text-2xl sm:text-3xl font-bold text-gray-900">Expense Tracker</h1>
           <p className="text-gray-600">Track and manage your personal expenses</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm">
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          <Button variant="outline" size="sm" className="w-full sm:w-auto">
             <Download className="w-4 h-4 mr-2" />
             Export
           </Button>
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
-              <Button size="sm">
+              <Button size="sm" className="w-full sm:w-auto">
                 <Plus className="w-4 h-4 mr-2" />
                 Add Expense
               </Button>
@@ -259,8 +259,8 @@ export default function ExpenseTracker() {
           Loading expenses…
         </div>
       ) : (
-        <Tabs defaultValue="list" className="space-y-6">
-          <TabsList>
+        <Tabs defaultValue="list" className="space-y-4 sm:space-y-6">
+          <TabsList className="hrms-tabs-scroll">
             <TabsTrigger value="list">Expense List</TabsTrigger>
             <TabsTrigger value="categories">Categories</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>

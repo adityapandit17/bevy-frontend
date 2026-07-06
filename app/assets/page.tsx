@@ -926,14 +926,14 @@ export default function AssetsPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6">
+    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-4 sm:space-y-6 overflow-x-hidden">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Asset Management</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Asset Management</h1>
           <p className="text-gray-600">Track, allocate, and manage all company assets</p>
         </div>
-        <div className="flex gap-2">
+        <div className="hrms-action-row w-full sm:w-auto">
           {(canViewReports || canExportReports) && (
             <Button variant="outline" size="sm">
               <Download className="w-4 h-4 mr-2" />
@@ -956,10 +956,10 @@ export default function AssetsPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
         {assetStats.map((stat, index) => (
           <Card key={index} className="hover:shadow-md transition-shadow">
-            <CardContent className="p-6">
+            <CardContent className="p-4 sm:p-6">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-600">{stat.title}</p>
@@ -1022,7 +1022,7 @@ export default function AssetsPage() {
             <CardDescription>Financial overview and utilization metrics</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
               <div className="space-y-4">
                 <div>
                   <p className="text-sm font-medium text-gray-600">Total Asset Value</p>
@@ -1055,7 +1055,7 @@ export default function AssetsPage() {
 
       {/* Main Content */}
       <Tabs defaultValue="inventory" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4 lg:w-96">
+        <TabsList className="hrms-tabs-scroll lg:w-auto">
           <TabsTrigger value="inventory">Inventory</TabsTrigger>
           {canViewAllocations && <TabsTrigger value="allocations">Allocations</TabsTrigger>}
           {canViewAssets && <TabsTrigger value="maintenance">Maintenance</TabsTrigger>}
@@ -1113,7 +1113,7 @@ export default function AssetsPage() {
                 </Select>
               </div>
 
-              <div className="rounded-md border">
+              <div className="hidden md:block rounded-md border overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -1256,6 +1256,55 @@ export default function AssetsPage() {
                   </TableBody>
                 </Table>
               </div>
+
+              <div className="md:hidden space-y-3">
+                {loading ? (
+                  <p className="text-center text-gray-500 py-8">Loading assets...</p>
+                ) : filteredAssets.length === 0 ? (
+                  <p className="text-center text-gray-500 py-8">No assets found</p>
+                ) : (
+                  filteredAssets.map((asset) => {
+                    const TypeIcon = getAssetTypeIcon(asset.assetType)
+                    return (
+                      <div key={asset.id} className="border rounded-lg p-4 space-y-3 bg-white">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="p-2 bg-gray-100 rounded-lg shrink-0">
+                              <TypeIcon className="w-4 h-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-medium text-gray-900 truncate">{asset.name}</p>
+                              <p className="text-sm text-gray-500 truncate">{asset.brand} {asset.model}</p>
+                            </div>
+                          </div>
+                          <Badge className={getStatusColor(asset.status)}>
+                            {asset.status.charAt(0).toUpperCase() + asset.status.slice(1)}
+                          </Badge>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                          <div>
+                            <span className="text-gray-500">Type</span>
+                            <p className="font-medium capitalize">{asset.assetType}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Value</span>
+                            <p className="font-medium">₹{asset.currentValue.toLocaleString()}</p>
+                          </div>
+                          <div className="col-span-2">
+                            <span className="text-gray-500">Assigned To</span>
+                            <p className="font-medium">{asset.assignedTo?.name || "Not assigned"}</p>
+                          </div>
+                        </div>
+                        {canViewAssets && (
+                          <Button variant="outline" size="sm" className="w-full" onClick={() => handleViewAsset(asset)}>
+                            View Details
+                          </Button>
+                        )}
+                      </div>
+                    )
+                  })
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -1278,26 +1327,26 @@ export default function AssetsPage() {
                   allocations.map((allocation) => {
                     const asset = assets.find(a => a.id === allocation.assetId)
                     return (
-                      <div key={allocation.id} className="p-4 border rounded-lg hover:bg-gray-50">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-4">
-                            <div className="p-3 bg-blue-100 rounded-lg">
+                      <div key={allocation.id} className="p-4 border rounded-lg hover:bg-gray-50 space-y-3">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="p-3 bg-blue-100 rounded-lg shrink-0">
                               {asset ? React.createElement(getAssetTypeIcon(asset.assetType), { className: "w-6 h-6 text-blue-600" }) : <Package className="w-6 h-6 text-blue-600" />}
                             </div>
-                            <div>
-                              <h3 className="font-medium text-gray-900">{asset?.name || `Asset ${allocation.assetId}`}</h3>
-                              <p className="text-sm text-gray-500">{asset ? `${asset.brand} ${asset.model}` : allocation.notes}</p>
+                            <div className="min-w-0">
+                              <h3 className="font-medium text-gray-900 truncate">{asset?.name || `Asset ${allocation.assetId}`}</h3>
+                              <p className="text-sm text-gray-500 truncate">{asset ? `${asset.brand} ${asset.model}` : allocation.notes}</p>
                             </div>
                           </div>
-                          <div className="text-right">
+                          <div className="sm:text-right">
                             <p className="font-medium text-gray-900">{allocation.employeeName}</p>
                             <p className="text-sm text-gray-500">Assigned: {new Date(allocation.assignedDate).toLocaleDateString()}</p>
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 w-full sm:w-auto">
                             <Badge className={allocation.status === "active" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}>
                               {allocation.status.charAt(0).toUpperCase() + allocation.status.slice(1)}
                             </Badge>
-                            <Button variant="outline" size="sm">
+                            <Button variant="outline" size="sm" className="flex-1 sm:flex-none">
                               <User className="w-4 h-4 mr-2" />
                               Reallocate
                             </Button>
@@ -1338,17 +1387,17 @@ export default function AssetsPage() {
                       const isOverdue = record.overdue || (maintenanceDate < new Date() && isUpcoming === false)
                       
                       return (
-                        <div key={record.id} className="p-4 border rounded-lg hover:bg-gray-50">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-4 flex-1">
-                              <div className={`p-3 rounded-lg ${
+                        <div key={record.id} className="p-4 border rounded-lg hover:bg-gray-50 space-y-3">
+                          <div className="flex flex-col sm:flex-row sm:items-start gap-3 sm:justify-between">
+                            <div className="flex items-start gap-3 flex-1 min-w-0">
+                              <div className={`p-3 rounded-lg shrink-0 ${
                                 isOverdue ? "bg-red-100" : isUpcoming ? "bg-orange-100" : "bg-gray-100"
                               }`}>
                                 <Wrench className={`w-6 h-6 ${
                                   isOverdue ? "text-red-600" : isUpcoming ? "text-orange-600" : "text-gray-600"
                                 }`} />
                               </div>
-                              <div className="flex-1">
+                              <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 mb-1">
                                   <h3 className="font-medium text-gray-900">
                                     {asset?.name || `Asset ${record.assetId || record.asset_id}`}
@@ -1387,7 +1436,7 @@ export default function AssetsPage() {
                                 </div>
                               </div>
                             </div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto sm:justify-end">
                               {isOverdue && (
                                 <Badge className="bg-red-100 text-red-800">
                                   Overdue
@@ -1479,7 +1528,7 @@ export default function AssetsPage() {
       {/* Asset Details Dialog */}
       {selectedAsset && (
         <Dialog open={!!selectedAsset} onOpenChange={() => setSelectedAsset(null)}>
-          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 {React.createElement(getAssetTypeIcon(selectedAsset.assetType), { className: "w-5 h-5" })}

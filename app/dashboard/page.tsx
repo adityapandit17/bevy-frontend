@@ -901,9 +901,9 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-5 space-y-5">
+    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-4 sm:space-y-6 overflow-x-hidden">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
           <p className="text-gray-600 text-sm">Welcome back! Here's what's happening at your company.</p>
@@ -913,11 +913,11 @@ export default function Dashboard() {
       <TrialUpgradeCard />
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5">
         {statsLoading ? (
           Array.from({ length: 4 }).map((_, index) => (
             <Card key={index} className="hover:shadow-md transition-shadow">
-              <CardContent className="p-5">
+              <CardContent className="p-4 sm:p-6">
                 <div className="flex items-center justify-between">
                   <div className="flex-1">
                     <div className="h-4 bg-gray-200 rounded w-24 mb-2 animate-pulse"></div>
@@ -932,7 +932,7 @@ export default function Dashboard() {
         ) : (
           stats.map((stat, index) => (
             <Card key={index} className="hover:shadow-md transition-shadow">
-              <CardContent className="p-5">
+              <CardContent className="p-4 sm:p-6">
                 <div className="flex items-center justify-between">
                   <div className="flex-1">
                     <p className="text-sm font-medium text-gray-600">{stat.title}</p>
@@ -1018,7 +1018,7 @@ export default function Dashboard() {
           {/* Upcoming Events */}
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <CardTitle className="flex items-center gap-2">
                     <Calendar className="w-5 h-5" />
@@ -1029,6 +1029,7 @@ export default function Dashboard() {
                 <Button
                   variant="outline"
                   size="sm"
+                  className="flex-1 sm:flex-none"
                   onClick={() => router.push('/events?filter=upcoming')}
                 >
                   <Plus className="w-4 h-4 mr-2" />
@@ -1071,7 +1072,7 @@ export default function Dashboard() {
           {user?.employee_id && (
             <Card className="flex-1 flex flex-col min-h-0">
               <CardHeader className="flex-shrink-0">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
                     <CardTitle className="text-lg flex items-center gap-2">
                       <Clock className="w-5 h-5" />
@@ -1081,7 +1082,7 @@ export default function Dashboard() {
                       Punch in, punch out, and track your break time
                     </CardDescription>
                   </div>
-                  <div className="text-right">
+                  <div className="sm:text-right">
                     <p className="text-sm font-medium text-gray-900">
                       {new Date().toLocaleDateString("en-US", {
                         weekday: "long",
@@ -1135,7 +1136,7 @@ export default function Dashboard() {
                   {/* Break Status */}
                   {isOnBreak && (
                     <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div>
                           <p className="text-sm font-medium text-orange-900">On Break</p>
                           <p className="text-xs text-orange-700 mt-1">
@@ -1151,7 +1152,7 @@ export default function Dashboard() {
                           size="sm"
                           variant="outline"
                           onClick={handleBreakEnd}
-                          className="border-orange-300 text-orange-700 hover:bg-orange-100"
+                          className="w-full sm:w-auto border-orange-300 text-orange-700 hover:bg-orange-100"
                         >
                           <Coffee className="w-4 h-4 mr-2" />
                           End Break
@@ -1253,7 +1254,7 @@ export default function Dashboard() {
 
       {/* Sessions Modal */}
       <Dialog open={sessionsModalOpen} onOpenChange={setSessionsModalOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Today's Sessions</DialogTitle>
             <DialogDescription>

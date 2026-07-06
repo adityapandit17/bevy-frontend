@@ -76,7 +76,7 @@ const EmployeeCard: React.FC<EmployeeCardProps> = ({
       {/* Employee Card */}
       <Card 
         className={cn(
-          "w-64 cursor-pointer transition-all duration-200 hover:shadow-lg border-2",
+          "group w-full max-w-[280px] sm:w-64 cursor-pointer transition-all duration-200 hover:shadow-lg border-2",
           isHovered ? "border-primary shadow-md" : "border-gray-200",
           level === 0 ? "bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-300" : "bg-white"
         )}
@@ -103,7 +103,7 @@ const EmployeeCard: React.FC<EmployeeCardProps> = ({
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="h-8 w-8 p-0 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <MoreHorizontal className="h-4 w-4" />
@@ -224,7 +224,7 @@ const OrgChartLevel: React.FC<{
 
   return (
     <div className="flex flex-col items-center space-y-8">
-      <div className="flex items-center justify-center space-x-8">
+      <div className="flex flex-col items-center justify-center gap-4 sm:flex-row sm:gap-8">
         {employees.map((employee, index) => {
           const hasSubordinates = employee.subordinates && employee.subordinates.length > 0
           const isExpanded = expandedEmployees.has(employee.id)
@@ -272,8 +272,8 @@ export const OrgChart: React.FC<OrgChartProps> = ({
   const rootEmployees = data.filter(emp => !emp.reportsTo || emp.reportsTo === undefined || emp.reportsTo === "")
 
   return (
-    <div className="w-full overflow-auto">
-      <div className="min-w-max p-8">
+    <div className="w-full overflow-x-auto overscroll-x-contain touch-pan-x">
+      <div className="min-w-max p-4 sm:p-8">
         {rootEmployees.length > 0 ? (
           <OrgChartLevel
             employees={rootEmployees}

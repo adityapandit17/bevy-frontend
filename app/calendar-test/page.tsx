@@ -57,7 +57,7 @@ export default function CalendarTestPage() {
   return (
     <div className="max-w-7xl mx-auto p-6 space-y-8">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Calendar Test Page</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Calendar Test Page</h1>
         <p className="text-gray-600">Testing calendar components and functionality</p>
       </div>
 

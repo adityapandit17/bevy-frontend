@@ -73,7 +73,7 @@ export default function TestEmployeesPage() {
     return (
       <div className="min-h-screen bg-gray-50 p-8">
         <div className="max-w-4xl mx-auto">
-          <h1 className="text-3xl font-bold text-gray-900 mb-8">Loading Employee Data...</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-8">Loading Employee Data...</h1>
         </div>
       </div>
     )
@@ -82,16 +82,16 @@ export default function TestEmployeesPage() {
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-4xl mx-auto">
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">Dynamic Employee Data Test</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-8">Dynamic Employee Data Test</h1>
         
         {/* Summary */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6 mb-8">
           <Card>
             <CardHeader>
               <CardTitle>Total Employees</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-3xl font-bold text-blue-600">{employees.length}</p>
+              <p className="text-2xl sm:text-3xl font-bold text-blue-600">{employees.length}</p>
             </CardContent>
           </Card>
           
@@ -100,7 +100,7 @@ export default function TestEmployeesPage() {
               <CardTitle>Total Departments</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-3xl font-bold text-green-600">{departments.length}</p>
+              <p className="text-2xl sm:text-3xl font-bold text-green-600">{departments.length}</p>
             </CardContent>
           </Card>
           
@@ -109,7 +109,7 @@ export default function TestEmployeesPage() {
               <CardTitle>Active Employees</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-3xl font-bold text-purple-600">
+              <p className="text-2xl sm:text-3xl font-bold text-purple-600">
                 {employees.filter(emp => emp.status === 'active' || emp.status === 'Active').length}
               </p>
             </CardContent>

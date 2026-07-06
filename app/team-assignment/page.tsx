@@ -185,14 +185,14 @@ export default function TeamAssignmentPage() {
 
   return (
     <ResourceGuard resourceKeys={["employees"]} pageName="Team Assignment">
-      <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6">
+      <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-4 sm:space-y-6 overflow-x-hidden">
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Team & Manager Assignment</h1>
-            <p className="text-gray-600">Assign managers to employees and organize teams</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Team & Manager Assignment</h1>
+            <p className="text-sm sm:text-base text-gray-600">Assign managers to employees and organize teams</p>
           </div>
-          <div className="flex gap-2">
+          <div className="hrms-action-row w-full sm:w-auto flex-wrap">
             <Button
               variant={viewMode === "list" ? "default" : "outline"}
               onClick={() => setViewMode("list")}
@@ -260,6 +260,8 @@ export default function TeamAssignmentPage() {
               {loading ? (
                 <div className="text-center py-8">Loading employees...</div>
               ) : (
+                <>
+                <div className="hidden md:block overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -310,6 +312,44 @@ export default function TeamAssignmentPage() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
+
+                <div className="md:hidden space-y-3">
+                  {filteredEmployees.map((employee) => (
+                    <div key={employee.id} className="border rounded-lg p-4 space-y-3 bg-white">
+                      <div className="min-w-0">
+                        <p className="font-medium">{employee.first_name} {employee.last_name}</p>
+                        <p className="text-sm text-gray-500 truncate">{employee.email}</p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div>
+                          <span className="text-gray-500">Department</span>
+                          <p className="font-medium">{employee.department_name || "N/A"}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Manager</span>
+                          <p className="font-medium">{employee.manager_name || "No Manager"}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Designation</span>
+                          <p className="font-medium">{employee.designation}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Reports</span>
+                          <p className="font-medium">{employee.direct_reports_count > 0 ? `${employee.direct_reports_count} reports` : "-"}</p>
+                        </div>
+                      </div>
+                      <Button variant="outline" size="sm" className="w-full" onClick={() => handleAssignManager(employee)}>
+                        <UserCheck className="w-4 h-4 mr-2" />
+                        Assign Manager
+                      </Button>
+                    </div>
+                  ))}
+                  {filteredEmployees.length === 0 && (
+                    <p className="text-center text-gray-500 py-8">No employees found</p>
+                  )}
+                </div>
+                </>
               )}
             </CardContent>
           </Card>
@@ -387,7 +427,7 @@ export default function TeamAssignmentPage() {
               <CardDescription>View reporting structure</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-6">
+              <div className="space-y-6 overflow-x-auto">
                 {/* Top-level managers (employees without managers) */}
                 {filteredEmployees
                   .filter(emp => !emp.manager_id && emp.status === "active")
@@ -396,8 +436,8 @@ export default function TeamAssignmentPage() {
                       emp => emp.manager_id === topManager.id
                     )
                     return (
-                      <div key={topManager.id} className="border-l-2 border-gray-200 pl-4">
-                        <div className="flex items-center gap-3 mb-4">
+                      <div key={topManager.id} className="border-l-2 border-gray-200 pl-3 sm:pl-4 min-w-0">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
                           <div className="p-3 bg-blue-100 rounded-lg">
                             <UserCheck className="w-5 h-5 text-blue-600" />
                           </div>
@@ -417,8 +457,8 @@ export default function TeamAssignmentPage() {
                                 emp => emp.manager_id === report.id
                               )
                               return (
-                                <div key={report.id} className="border-l-2 border-gray-200 pl-4">
-                                  <div className="flex items-center gap-3 mb-2">
+                                <div key={report.id} className="border-l-2 border-gray-200 pl-3 sm:pl-4 min-w-0">
+                                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
                                     <ArrowRight className="w-4 h-4 text-gray-400" />
                                     <div className="p-2 bg-gray-100 rounded-lg">
                                       <Users className="w-4 h-4 text-gray-600" />
@@ -468,7 +508,7 @@ export default function TeamAssignmentPage() {
 
         {/* Assign Manager Dialog */}
         <Dialog open={showManagerDialog} onOpenChange={setShowManagerDialog}>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Assign Manager</DialogTitle>
               <DialogDescription>

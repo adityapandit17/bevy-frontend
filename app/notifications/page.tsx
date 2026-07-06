@@ -195,18 +195,20 @@ export default function NotificationsPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-6xl">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Notifications</h1>
-        <p className="text-gray-600 mt-1">
-          Manage and view all your notifications ({notifications.length} total, {unreadCount} unread)
-        </p>
+    <div className="max-w-6xl mx-auto p-4 lg:p-6 space-y-4 sm:space-y-6 overflow-x-hidden">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Notifications</h1>
+          <p className="text-gray-600 mt-1">
+            Manage and view all your notifications ({notifications.length} total, {unreadCount} unread)
+          </p>
+        </div>
       </div>
 
       {/* Filters and Actions */}
-      <Card className="mb-6">
-        <CardContent className="pt-6">
-          <div className="flex flex-col md:flex-row gap-4">
+      <Card>
+        <CardContent className="p-4 sm:p-6">
+          <div className="flex flex-col gap-4">
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
               <Input
@@ -216,11 +218,12 @@ export default function NotificationsPage() {
                 className="pl-10"
               />
             </div>
-            <Select value={filterType} onValueChange={setFilterType}>
-              <SelectTrigger className="w-full md:w-[180px]">
-                <Filter className="w-4 h-4 mr-2" />
-                <SelectValue placeholder="Filter by type" />
-              </SelectTrigger>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Select value={filterType} onValueChange={setFilterType}>
+                <SelectTrigger className="w-full">
+                  <Filter className="w-4 h-4 mr-2" />
+                  <SelectValue placeholder="Filter by type" />
+                </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Types</SelectItem>
                 <SelectItem value="leave">Leave</SelectItem>
@@ -231,25 +234,26 @@ export default function NotificationsPage() {
                 <SelectItem value="reminder">Reminder</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={filterRead} onValueChange={setFilterRead}>
-              <SelectTrigger className="w-full md:w-[180px]">
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
+              <Select value={filterRead} onValueChange={setFilterRead}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Filter by status" />
+                </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
                 <SelectItem value="unread">Unread</SelectItem>
                 <SelectItem value="read">Read</SelectItem>
               </SelectContent>
             </Select>
-            <div className="flex gap-2">
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2">
               {unreadCount > 0 && (
-                <Button variant="outline" onClick={handleMarkAllAsRead}>
+                <Button variant="outline" onClick={handleMarkAllAsRead} className="flex-1 sm:flex-none">
                   <CheckCheck className="w-4 h-4 mr-2" />
                   Mark all read
                 </Button>
               )}
               {notifications.length > 0 && (
-                <Button variant="outline" onClick={handleDeleteAll}>
+                <Button variant="outline" onClick={handleDeleteAll} className="flex-1 sm:flex-none">
                   <Trash2 className="w-4 h-4 mr-2" />
                   Delete all
                 </Button>
@@ -268,7 +272,7 @@ export default function NotificationsPage() {
             {filteredNotifications.length} notifications
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-4 sm:p-6">
           {isLoading ? (
             <div className="text-center py-12">
               <p className="text-sm text-gray-500">Loading notifications...</p>
@@ -306,12 +310,12 @@ export default function NotificationsPage() {
                             )}
                           </div>
                           <p className="text-sm text-gray-600 mt-1">{notification.message}</p>
-                          <div className="flex items-center gap-4 mt-2">
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 mt-2">
                             <div className="flex items-center gap-1 text-xs text-gray-500">
                               <Clock className="w-3 h-3" />
                               <span>{formatTimeAgo(notification.createdAt)}</span>
-                              <span className="mx-1">•</span>
-                              <span>{formatFullDate(notification.createdAt)}</span>
+                              <span className="hidden sm:inline mx-1">•</span>
+                              <span className="hidden sm:inline">{formatFullDate(notification.createdAt)}</span>
                             </div>
                           </div>
                         </div>
@@ -355,21 +359,22 @@ export default function NotificationsPage() {
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-between mt-6 pt-6 border-t">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-6 pt-6 border-t">
               <div className="text-sm text-gray-600">
                 Page {currentPage} of {totalPages}
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center justify-between sm:justify-end gap-2">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
                   disabled={currentPage === 1}
+                  className="flex-1 sm:flex-none"
                 >
                   <ArrowLeft className="w-4 h-4 mr-1" />
                   Previous
                 </Button>
-                <div className="flex items-center gap-1">
+                <div className="hidden sm:flex items-center gap-1">
                   {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
                     if (
                       page === 1 ||
@@ -398,6 +403,7 @@ export default function NotificationsPage() {
                   size="sm"
                   onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
                   disabled={currentPage === totalPages}
+                  className="flex-1 sm:flex-none"
                 >
                   Next
                   <ArrowRight className="w-4 h-4 ml-1" />

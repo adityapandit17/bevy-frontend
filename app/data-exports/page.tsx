@@ -65,10 +65,10 @@ export default function DataExportsPage() {
 
   return (
     <ResourceGuard resource="reports" action="index">
-      <div className="max-w-6xl mx-auto p-4 lg:p-6 space-y-6">
+      <div className="max-w-6xl mx-auto p-4 lg:p-6 space-y-4 sm:space-y-6 overflow-x-hidden">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 flex items-center gap-2">
+            <h1 className="text-2xl lg:text-2xl sm:text-3xl font-bold text-gray-900 flex items-center gap-2">
               <Database className="w-8 h-8 text-primary" />
               Data Exports
             </h1>
@@ -76,10 +76,10 @@ export default function DataExportsPage() {
               Download company data as CSV. Exports are scoped to your organization.
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
             <span className="text-sm text-gray-600">Period</span>
             <Select value={period} onValueChange={setPeriod}>
-              <SelectTrigger className="w-36">
+              <SelectTrigger className="w-full sm:w-36">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -123,11 +123,12 @@ export default function DataExportsPage() {
                         <p className="font-medium text-gray-900">{report.name}</p>
                         <p className="text-sm text-gray-500">{report.description}</p>
                       </div>
-                      <div className="flex gap-2 shrink-0">
+                      <div className="flex flex-col sm:flex-row gap-2 shrink-0 w-full sm:w-auto">
                         {!report.customPage && (
                           <Button
                             variant="outline"
                             size="sm"
+                            className="w-full sm:w-auto"
                             disabled={downloadingSlug === report.slug}
                             onClick={() => handleDownload(report.slug)}
                           >
@@ -139,7 +140,7 @@ export default function DataExportsPage() {
                             Export CSV
                           </Button>
                         )}
-                        <Button variant="ghost" size="sm" asChild>
+                        <Button variant="ghost" size="sm" className="w-full sm:w-auto" asChild>
                           <Link href={`/reports/${report.slug}`}>
                             <FileText className="w-4 h-4 mr-2" />
                             View

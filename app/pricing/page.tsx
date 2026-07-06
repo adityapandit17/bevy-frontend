@@ -201,7 +201,7 @@ export default function PricingPage() {
       <section className="py-16 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 mb-3">Compare plans</h2>
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-3">Compare plans</h2>
             <p className="text-gray-600">See what&apos;s included in each tier</p>
           </div>
           <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
@@ -239,7 +239,7 @@ export default function PricingPage() {
       <section className="py-16 bg-white">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-10">
-            <h2 className="text-3xl font-bold text-gray-900 mb-3 flex items-center justify-center gap-2">
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-3 flex items-center justify-center gap-2">
               <HelpCircle className="w-8 h-8 text-green-600" />
               Frequently asked questions
             </h2>
@@ -262,7 +262,7 @@ export default function PricingPage() {
       {/* CTA */}
       <section className="py-16 bg-gradient-to-r from-green-600 to-emerald-600">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-3xl font-bold text-white mb-4">Still deciding?</h2>
+          <h2 className="text-2xl sm:text-3xl font-bold text-white mb-4">Still deciding?</h2>
           <p className="text-xl text-green-100 mb-8 max-w-2xl mx-auto">
             Start your 14-day trial on any plan, or talk to our team about Enterprise requirements.
           </p>

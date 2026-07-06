@@ -361,16 +361,16 @@ export default function CalendarPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 lg:p-6">
-      <div className="max-w-[1600px] mx-auto space-y-6">
+    <div className="min-h-screen bg-gray-50 p-4 lg:p-6 overflow-x-hidden">
+      <div className="max-w-[1600px] mx-auto space-y-4 sm:space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 flex items-center gap-2">
-              <CalendarIcon className="w-6 h-6 text-green-600" />
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 flex items-center gap-2">
+              <CalendarIcon className="w-6 h-6 text-green-600 shrink-0" />
               Company Calendar
             </h1>
-            <p className="text-gray-600 mt-1">
+            <p className="text-sm sm:text-base text-gray-600 mt-1">
               View holidays and company-wide events
             </p>
           </div>
@@ -379,7 +379,7 @@ export default function CalendarPage() {
         {/* Large Calendar View */}
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <CardTitle className="flex items-center gap-2">
                 <CalendarIcon className="h-5 w-5" />
                 {format(currentMonth, 'MMMM yyyy')}
@@ -409,9 +409,10 @@ export default function CalendarPage() {
               </div>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 sm:p-6">
+            <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
             {/* Weekday Headers */}
-            <div className="grid grid-cols-7 gap-px bg-gray-200 border border-gray-200 rounded-lg overflow-hidden">
+            <div className="grid grid-cols-7 gap-px bg-gray-200 border border-gray-200 rounded-lg overflow-hidden min-w-[560px]">
               {weekDays.map((day) => (
                 <div
                   key={day}
@@ -433,7 +434,7 @@ export default function CalendarPage() {
                   <div
                     key={day.toString()}
                     className={cn(
-                      "min-h-[120px] bg-white border-r border-b border-gray-200 p-2 flex flex-col",
+                      "min-h-[72px] sm:min-h-[120px] bg-white border-r border-b border-gray-200 p-1.5 sm:p-2 flex flex-col",
                       !isCurrentMonth && "bg-gray-50",
                       isToday && "bg-green-50 border-green-300",
                       isSelected && "ring-2 ring-green-500 ring-inset",
@@ -497,6 +498,7 @@ export default function CalendarPage() {
                 )
               })}
             </div>
+            </div>
 
             {/* Legend */}
             <div className="mt-6 pt-4 border-t">
@@ -523,9 +525,52 @@ export default function CalendarPage() {
           </CardContent>
         </Card>
 
+        {/* Selected day events — easier to tap on mobile than tiny calendar cells */}
+        {selectedDate && (
+          <Card className="md:hidden">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">
+                {format(selectedDate, "EEEE, MMMM d")}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {getEventsForDate(selectedDate).length === 0 ? (
+                <p className="text-sm text-gray-500">No events on this day</p>
+              ) : (
+                getEventsForDate(selectedDate).map((event) => (
+                  <button
+                    key={event.id}
+                    type="button"
+                    className={cn(
+                      "w-full text-left p-3 rounded-lg border transition-opacity hover:opacity-90",
+                      getEventTypeColor(event.event_type)
+                    )}
+                    onClick={() => {
+                      setSelectedEvent(event)
+                      setShowEventDialog(true)
+                    }}
+                  >
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      {getEventTypeIcon(event.event_type)}
+                      {format(parseISO(event.start_time), "h:mm a")}
+                    </div>
+                    <p className="font-semibold mt-1">{event.title}</p>
+                    {event.location && (
+                      <p className="text-xs mt-1 flex items-center gap-1 opacity-80">
+                        <MapPin className="h-3 w-3" />
+                        {event.location}
+                      </p>
+                    )}
+                  </button>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Event Detail Dialog */}
         <Dialog open={showEventDialog} onOpenChange={setShowEventDialog}>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 {selectedEvent && getEventTypeIcon(selectedEvent.event_type)}
@@ -537,7 +582,7 @@ export default function CalendarPage() {
             </DialogHeader>
             {selectedEvent && (
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm font-medium text-gray-700">Start Time</p>
                     <p className="text-sm text-gray-600">
@@ -592,7 +637,7 @@ export default function CalendarPage() {
                   {/* Add Attendee - Only show if user can manage */}
                   {canManageAttendees(selectedEvent) ? (
                     <>
-                      <div className="flex gap-2 mb-3">
+                      <div className="flex flex-col sm:flex-row gap-2 mb-3">
                         <Select value={selectedAttendeeId} onValueChange={setSelectedAttendeeId}>
                           <SelectTrigger className="flex-1">
                             <SelectValue placeholder="Select employee to add" />
@@ -611,6 +656,7 @@ export default function CalendarPage() {
                           onClick={handleAddAttendee}
                           disabled={!selectedAttendeeId || updatingAttendees}
                           size="sm"
+                          className="flex-1 sm:flex-none"
                         >
                           <UserPlus className="h-4 w-4 mr-1" />
                           Add

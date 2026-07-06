@@ -273,17 +273,17 @@ export default function TicketDetailPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6">
+    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-4 sm:space-y-6 overflow-x-hidden">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="sm" onClick={() => router.push('/helpdesk')}>
+      <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+        <Button variant="ghost" size="sm" onClick={() => router.push('/helpdesk')} className="self-start shrink-0">
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back
         </Button>
-        <div className="flex-1">
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">{ticket.title}</h1>
-            <div className="flex items-center gap-2">
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">{ticket.title}</h1>
+            <div className="flex flex-wrap items-center gap-2">
               {getPriorityBadge(ticket.priority)}
               {getStatusBadge(ticket.status)}
             </div>
@@ -314,7 +314,7 @@ export default function TicketDetailPage() {
             <CardHeader>
               <CardTitle>Details</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="p-4 sm:p-6 space-y-4">
               <div>
                 <Label className="text-sm font-semibold text-gray-500">Description</Label>
                 <p className="text-sm text-gray-900 mt-1 whitespace-pre-wrap">{ticket.description}</p>
@@ -353,7 +353,7 @@ export default function TicketDetailPage() {
                   onChange={(e) => setNewComment(e.target.value)}
                   rows={4}
                 />
-                <Button onClick={handleAddComment} disabled={commentLoading || !newComment.trim()}>
+                <Button onClick={handleAddComment} disabled={commentLoading || !newComment.trim()} className="w-full sm:w-auto">
                   <Send className="w-4 h-4 mr-2" />
                   {commentLoading ? "Posting..." : "Post Comment"}
                 </Button>
@@ -412,7 +412,7 @@ export default function TicketDetailPage() {
             <CardHeader>
               <CardTitle className="text-lg">Ticket Information</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="p-4 sm:p-6 space-y-4">
               <div>
                 <Label className="text-xs font-semibold text-gray-500 uppercase">Status</Label>
                 <div className="mt-1">{getStatusBadge(ticket.status)}</div>
@@ -444,7 +444,7 @@ export default function TicketDetailPage() {
             <CardHeader>
               <CardTitle className="text-lg">People</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="p-4 sm:p-6 space-y-4">
               <div>
                 <Label className="text-xs font-semibold text-gray-500 uppercase">Requester</Label>
                 <div className="mt-2 flex items-center gap-2">
@@ -520,7 +520,7 @@ export default function TicketDetailPage() {
                   rows={6}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="edit-category">Category</Label>
                   <Input
@@ -543,7 +543,7 @@ export default function TicketDetailPage() {
                   </select>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="edit-status">Status</Label>
                   <select
@@ -574,11 +574,11 @@ export default function TicketDetailPage() {
                   </select>
                 </div>
               </div>
-              <div className="flex gap-2 justify-end">
-                <Button variant="outline" onClick={() => setShowEditDialog(false)}>
+              <div className="flex flex-col-reverse sm:flex-row gap-2 justify-end">
+                <Button variant="outline" onClick={() => setShowEditDialog(false)} className="flex-1 sm:flex-none">
                   Cancel
                 </Button>
-                <Button onClick={handleUpdateTicket} disabled={loading}>
+                <Button onClick={handleUpdateTicket} disabled={loading} className="flex-1 sm:flex-none">
                   {loading ? "Updating..." : "Update Ticket"}
                 </Button>
               </div>

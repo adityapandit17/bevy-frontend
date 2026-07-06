@@ -281,7 +281,7 @@ export function InterviewManagement({ onScheduleInterview }: InterviewManagement
   return (
     <div className="space-y-6">
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Interviews</CardTitle>
@@ -414,7 +414,7 @@ export function InterviewManagement({ onScheduleInterview }: InterviewManagement
 
       {/* Interview Management Tabs */}
       <Tabs defaultValue="list" className="space-y-4">
-        <TabsList>
+        <TabsList className="hrms-tabs-scroll">
           <TabsTrigger value="list">List View</TabsTrigger>
           <TabsTrigger value="calendar">Calendar View</TabsTrigger>
         </TabsList>
@@ -428,6 +428,7 @@ export function InterviewManagement({ onScheduleInterview }: InterviewManagement
               </CardDescription>
             </CardHeader>
             <CardContent>
+              <div className="hidden md:block overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -530,6 +531,41 @@ export function InterviewManagement({ onScheduleInterview }: InterviewManagement
                   ))}
                 </TableBody>
               </Table>
+              </div>
+
+              <div className="md:hidden space-y-3">
+                {filteredInterviews.map((interview) => (
+                  <div key={interview.id} className="border rounded-lg p-4 space-y-3 bg-white">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-medium truncate">{interview.candidate_name}</p>
+                        <p className="text-sm text-gray-500 truncate">{interview.candidate_email}</p>
+                      </div>
+                      <Badge className={getStatusColor(interview.status)}>{interview.status}</Badge>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div>
+                        <span className="text-gray-500">Type</span>
+                        <p className="font-medium capitalize">{interview.interview_type}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Interviewer</span>
+                        <p className="font-medium truncate">{interview.interviewer}</p>
+                      </div>
+                      <div className="col-span-2">
+                        <span className="text-gray-500">Date & Time</span>
+                        <p className="font-medium">{interview.formatted_date} at {interview.formatted_time}</p>
+                      </div>
+                    </div>
+                    <Button variant="outline" size="sm" className="w-full" onClick={() => setSelectedInterview(interview)}>
+                      View / Edit
+                    </Button>
+                  </div>
+                ))}
+                {filteredInterviews.length === 0 && (
+                  <p className="text-center text-gray-500 py-8">No interviews found</p>
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

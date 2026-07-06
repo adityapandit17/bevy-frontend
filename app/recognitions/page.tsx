@@ -339,9 +339,9 @@ export default function RecognitionsPage() {
   })
 
   return (
-    <div className="max-w-7xl mx-auto p-5 space-y-5">
+    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-4 sm:space-y-6 overflow-x-hidden">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
             <Award className="w-6 h-6 text-green-600" />
@@ -349,7 +349,7 @@ export default function RecognitionsPage() {
           </h1>
           <p className="text-gray-600 text-sm">Celebrate achievements and recognize outstanding contributions</p>
         </div>
-        <Button onClick={handleCreateRecognition}>
+        <Button onClick={handleCreateRecognition} className="flex-1 sm:flex-none">
           <Plus className="w-4 h-4 mr-2" />
           Give Recognition
         </Button>
@@ -407,7 +407,7 @@ export default function RecognitionsPage() {
         <div className="text-center py-12 text-gray-500">Loading recognitions...</div>
       ) : filteredRecognitions.length === 0 ? (
         <Card>
-          <CardContent className="py-12 text-center">
+          <CardContent className="p-4 sm:p-6 py-12 text-center">
             <Award className="w-12 h-12 mx-auto mb-2 text-gray-300" />
             <p className="text-gray-500">No recognitions found</p>
             <Button onClick={handleCreateRecognition} className="mt-4">
@@ -609,15 +609,15 @@ export default function RecognitionsPage() {
               </Select>
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="flex-col-reverse sm:flex-row gap-2">
             <Button variant="outline" onClick={() => {
               setShowCreateDialog(false)
               setShowEditDialog(false)
               setSelectedRecognition(null)
-            }}>
+            }} className="flex-1 sm:flex-none">
               Cancel
             </Button>
-            <Button onClick={handleSubmitRecognition} disabled={loading}>
+            <Button onClick={handleSubmitRecognition} disabled={loading} className="flex-1 sm:flex-none">
               {loading ? "Saving..." : selectedRecognition ? "Update Recognition" : "Give Recognition"}
             </Button>
           </DialogFooter>
@@ -626,7 +626,7 @@ export default function RecognitionsPage() {
 
       {/* View Dialog */}
       <Dialog open={showViewDialog} onOpenChange={setShowViewDialog}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               {selectedRecognition && getRecognitionTypeIcon(selectedRecognition.recognition_type)}
@@ -673,14 +673,14 @@ export default function RecognitionsPage() {
               </div>
 
               {/* Given By */}
-              <div className="flex items-center justify-between pt-2 border-t">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t">
                 <div>
                   <Label className="text-sm font-semibold text-gray-500">Given By</Label>
                   <p className="text-sm text-gray-900 mt-1">
                     {selectedRecognition.given_by_name}
                   </p>
                 </div>
-                <div className="text-right">
+                <div className="sm:text-right">
                   <Label className="text-sm font-semibold text-gray-500">Date</Label>
                   <p className="text-sm text-gray-900 mt-1">
                     {selectedRecognition.formatted_date}
@@ -700,15 +700,15 @@ export default function RecognitionsPage() {
               )}
             </div>
           )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowViewDialog(false)}>
+          <DialogFooter className="flex-col-reverse sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => setShowViewDialog(false)} className="flex-1 sm:flex-none">
               Close
             </Button>
             {selectedRecognition && user?.id === selectedRecognition.given_by_id && (
               <Button onClick={() => {
                 setShowViewDialog(false)
                 handleEditRecognition(selectedRecognition)
-              }}>
+              }} className="flex-1 sm:flex-none">
                 <Edit className="w-4 h-4 mr-2" />
                 Edit
               </Button>

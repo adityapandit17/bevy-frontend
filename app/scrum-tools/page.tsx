@@ -181,18 +181,18 @@ export default function ScrumTools() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6">
+    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-4 sm:space-y-6 overflow-x-hidden">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Scrum Tools</h1>
+          <h1 className="text-2xl lg:text-2xl sm:text-3xl font-bold text-gray-900">Scrum Tools</h1>
           <p className="text-gray-600">Planning poker and t-shirt sizing for agile estimation</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm">
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          <Button variant="outline" size="sm" className="w-full sm:w-auto">
             <Calendar className="w-4 h-4 mr-2" />
             Schedule Session
           </Button>
-          <Button size="sm">
+          <Button size="sm" className="w-full sm:w-auto">
             <Plus className="w-4 h-4 mr-2" />
             New Session
           </Button>
@@ -200,7 +200,7 @@ export default function ScrumTools() {
       </div>
 
       <Tabs value={activeSession} onValueChange={setActiveSession} className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="hrms-tabs-scroll">
           <TabsTrigger value="poker" className="flex items-center gap-2">
             <Target className="w-4 h-4" />
             Planning Poker
@@ -312,17 +312,17 @@ export default function ScrumTools() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center justify-between">
+              <CardTitle className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div className="flex items-center gap-2">
                   <Target className="w-5 h-5" />
                   Planning Poker Cards
                 </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={handleReveal} className="flex items-center gap-2">
+                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                  <Button variant="outline" size="sm" onClick={handleReveal} className="flex items-center gap-2 w-full sm:w-auto">
                     {revealed ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     {revealed ? "Hide" : "Reveal"}
                   </Button>
-                  <Button variant="outline" size="sm" onClick={handleReset} className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={handleReset} className="flex items-center gap-2 w-full sm:w-auto">
                     <RotateCcw className="w-4 h-4" />
                     Reset
                   </Button>
@@ -499,14 +499,15 @@ export default function ScrumTools() {
                     ))}
                   </div>
 
-                  <div className="flex items-center justify-between pt-4 border-t">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-4 border-t">
                     <div className="text-sm text-gray-600">
                       {selectedCard ? `Selected: ${selectedCard}` : "Select a size for this story"}
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                       <Button
                         variant="outline"
                         size="sm"
+                        className="w-full sm:w-auto"
                         onClick={() => setCurrentStoryIndex((i) => Math.max(0, i - 1))}
                         disabled={currentStoryIndex === 0}
                       >
@@ -515,6 +516,7 @@ export default function ScrumTools() {
                       </Button>
                       <Button
                         size="sm"
+                        className="w-full sm:w-auto"
                         onClick={() =>
                           setCurrentStoryIndex((i) => Math.min(userStories.length - 1, i + 1))
                         }

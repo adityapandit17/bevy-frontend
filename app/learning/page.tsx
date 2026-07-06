@@ -221,19 +221,19 @@ export default function LearningPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6">
+    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-4 sm:space-y-6 overflow-x-hidden">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Learning & Development</h1>
-          <p className="text-gray-600">Manage courses, training sessions, and certifications</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Learning & Development</h1>
+          <p className="text-sm sm:text-base text-gray-600">Manage courses, training sessions, and certifications</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline">
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          <Button variant="outline" className="w-full sm:w-auto">
             <Upload className="w-4 h-4 mr-2" />
             Upload Certificate
           </Button>
-          <Button>
+          <Button className="w-full sm:w-auto">
             <Plus className="w-4 h-4 mr-2" />
             Create Course
           </Button>
@@ -241,7 +241,7 @@ export default function LearningPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
         {loading && !stats ? (
           <div className="col-span-full flex justify-center py-8">
             <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
@@ -249,7 +249,7 @@ export default function LearningPage() {
         ) : (
           <>
             <Card>
-              <CardContent className="p-6">
+              <CardContent className="p-4 sm:p-6">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-gray-600">Total Trainings</p>
@@ -262,7 +262,7 @@ export default function LearningPage() {
               </CardContent>
             </Card>
             <Card>
-              <CardContent className="p-6">
+              <CardContent className="p-4 sm:p-6">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-gray-600">In Progress</p>
@@ -275,7 +275,7 @@ export default function LearningPage() {
               </CardContent>
             </Card>
             <Card>
-              <CardContent className="p-6">
+              <CardContent className="p-4 sm:p-6">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-gray-600">Avg. Completion Rate</p>
@@ -288,7 +288,7 @@ export default function LearningPage() {
               </CardContent>
             </Card>
             <Card>
-              <CardContent className="p-6">
+              <CardContent className="p-4 sm:p-6">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-gray-600">Certifications</p>
@@ -306,7 +306,7 @@ export default function LearningPage() {
 
       {/* Main Content */}
       <Tabs defaultValue="courses" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="hrms-tabs-scroll">
           <TabsTrigger value="courses">Courses</TabsTrigger>
           <TabsTrigger value="assignments">Assignments</TabsTrigger>
           <TabsTrigger value="sessions">Training Sessions</TabsTrigger>
@@ -327,18 +327,18 @@ export default function LearningPage() {
                     Browse and manage learning courses
                   </CardDescription>
                 </div>
-                <div className="flex gap-2">
-                  <div className="relative">
+                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                  <div className="relative w-full sm:w-auto">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                     <Input
                       placeholder="Search courses..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10 w-64"
+                      className="pl-10 w-full sm:w-64"
                     />
                   </div>
                   <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                    <SelectTrigger className="w-48">
+                    <SelectTrigger className="w-full sm:w-48">
                       <Filter className="w-4 h-4 mr-2" />
                       <SelectValue placeholder="Category" />
                     </SelectTrigger>
@@ -360,10 +360,10 @@ export default function LearningPage() {
               ) : filteredCourses.length === 0 ? (
                 <p className="text-sm text-gray-500 text-center py-12">No trainings found.</p>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
                   {filteredCourses.map((training) => (
                     <Card key={training.id} className="hover:shadow-md transition-shadow">
-                      <CardHeader className="pb-3">
+                      <CardHeader className="pb-3 p-4 sm:p-6">
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
                             <CardTitle className="text-lg">{training.name}</CardTitle>
@@ -400,7 +400,7 @@ export default function LearningPage() {
                           </DropdownMenu>
                         </div>
                       </CardHeader>
-                      <CardContent className="space-y-4">
+                      <CardContent className="space-y-4 p-4 sm:p-6 pt-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           {getStatusBadge(training.status)}
                           {getDifficultyBadge(training.training_type)}
@@ -464,12 +464,12 @@ export default function LearningPage() {
                     Track course assignments and completion progress
                   </CardDescription>
                 </div>
-                <div className="flex gap-2">
-                  <Button variant="outline">
+                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                  <Button variant="outline" className="w-full sm:w-auto">
                     <BarChart3 className="w-4 h-4 mr-2" />
                     Generate Report
                   </Button>
-                  <Button>
+                  <Button className="w-full sm:w-auto">
                     <Plus className="w-4 h-4 mr-2" />
                     Assign Course
                   </Button>
@@ -484,6 +484,8 @@ export default function LearningPage() {
               ) : inProgressAssignments.length === 0 ? (
                 <p className="text-sm text-gray-500 text-center py-12">No in-progress assignments.</p>
               ) : (
+                <>
+                <div className="hidden md:block overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -560,6 +562,54 @@ export default function LearningPage() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
+
+                <div className="md:hidden space-y-3">
+                  {inProgressAssignments.map((assignment) => (
+                    <div key={assignment.id} className="border rounded-lg p-4 space-y-3 bg-white">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-medium text-sm flex-shrink-0">
+                            {assignment.employee_name?.split(" ").map((n) => n[0]).join("") || "?"}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-medium text-gray-900 truncate">{assignment.employee_name}</p>
+                            <p className="text-sm text-gray-600 truncate">{assignment.name}</p>
+                          </div>
+                        </div>
+                        {getStatusBadge(assignment.status)}
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div>
+                          <span className="text-gray-500">Start</span>
+                          <p className="font-medium">
+                            {assignment.formatted_start_date ||
+                              (assignment.start_date ? new Date(assignment.start_date).toLocaleDateString() : "—")}
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">End</span>
+                          <p className="font-medium">
+                            {assignment.formatted_end_date ||
+                              (assignment.end_date ? new Date(assignment.end_date).toLocaleDateString() : "—")}
+                          </p>
+                        </div>
+                        <div className="col-span-2">
+                          <span className="text-gray-500">Progress</span>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Progress value={assignment.progress} className="flex-1 h-2" />
+                            <span className="text-sm font-medium">{assignment.progress}%</span>
+                          </div>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Hours</span>
+                          <p className="font-medium">{assignment.hours ?? 0}h</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                </>
               )}
             </CardContent>
           </Card>
@@ -579,12 +629,12 @@ export default function LearningPage() {
                     Schedule and manage internal training sessions
                   </CardDescription>
                 </div>
-                <div className="flex gap-2">
-                  <Button variant="outline">
+                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                  <Button variant="outline" className="w-full sm:w-auto">
                     <Calendar className="w-4 h-4 mr-2" />
                     View Calendar
                   </Button>
-                  <Button>
+                  <Button className="w-full sm:w-auto">
                     <Plus className="w-4 h-4 mr-2" />
                     Schedule Session
                   </Button>
@@ -599,6 +649,8 @@ export default function LearningPage() {
               ) : sessionTrainings.length === 0 ? (
                 <p className="text-sm text-gray-500 text-center py-12">No current or upcoming sessions.</p>
               ) : (
+                <>
+                <div className="hidden md:block overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -682,6 +734,49 @@ export default function LearningPage() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
+
+                <div className="md:hidden space-y-3">
+                  {sessionTrainings.map((session) => (
+                    <div key={session.id} className="border rounded-lg p-4 space-y-3 bg-white">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="font-medium text-gray-900 truncate">{session.name}</p>
+                          <p className="text-sm text-gray-600">{session.provider}</p>
+                        </div>
+                        {getStatusBadge(getSessionStatus(session))}
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div>
+                          <span className="text-gray-500">Type</span>
+                          <p className="font-medium">{session.training_type_label || session.training_type}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Employee</span>
+                          <p className="font-medium truncate">{session.employee_name}</p>
+                        </div>
+                        <div className="col-span-2">
+                          <span className="text-gray-500">Dates</span>
+                          <p className="font-medium">
+                            {session.formatted_start_date ||
+                              (session.start_date ? new Date(session.start_date).toLocaleDateString() : "—")}
+                            {" – "}
+                            {session.formatted_end_date ||
+                              (session.end_date ? new Date(session.end_date).toLocaleDateString() : "—")}
+                          </p>
+                        </div>
+                        <div className="col-span-2">
+                          <span className="text-gray-500">Progress</span>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Progress value={session.progress} className="flex-1 h-2" />
+                            <span className="text-sm">{session.progress}%</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                </>
               )}
             </CardContent>
           </Card>
@@ -701,12 +796,12 @@ export default function LearningPage() {
                     Track employee certifications and professional development
                   </CardDescription>
                 </div>
-                <div className="flex gap-2">
-                  <Button variant="outline">
+                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                  <Button variant="outline" className="w-full sm:w-auto">
                     <Download className="w-4 h-4 mr-2" />
                     Export Report
                   </Button>
-                  <Button>
+                  <Button className="w-full sm:w-auto">
                     <Upload className="w-4 h-4 mr-2" />
                     Upload Certificate
                   </Button>
@@ -721,6 +816,8 @@ export default function LearningPage() {
               ) : certifications.length === 0 ? (
                 <p className="text-sm text-gray-500 text-center py-12">No certifications found.</p>
               ) : (
+                <>
+                <div className="hidden md:block overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -802,6 +899,50 @@ export default function LearningPage() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
+
+                <div className="md:hidden space-y-3">
+                  {certifications.map((cert) => (
+                    <div key={cert.id} className="border rounded-lg p-4 space-y-3 bg-white">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-600 rounded-full flex items-center justify-center text-white font-medium text-sm flex-shrink-0">
+                            {cert.employee_name?.split(" ").map((n) => n[0]).join("") || "?"}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-medium text-gray-900 truncate">{cert.employee_name}</p>
+                            <p className="text-sm text-gray-600 truncate">{cert.name}</p>
+                          </div>
+                        </div>
+                        {getStatusBadge(cert.status)}
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div>
+                          <span className="text-gray-500">Provider</span>
+                          <p className="font-medium">{cert.provider}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Completed</span>
+                          <p className="font-medium">
+                            {cert.formatted_end_date ||
+                              (cert.end_date ? new Date(cert.end_date).toLocaleDateString() : "—")}
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Type</span>
+                          <p className="font-medium">{cert.training_type_label || cert.training_type}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Certificate</span>
+                          <p className="font-medium">
+                            {cert.certificate ? "Verified" : "Not available"}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                </>
               )}
             </CardContent>
           </Card>

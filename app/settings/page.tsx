@@ -122,12 +122,12 @@ function LeavePoliciesTab() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
           <div>
             <h4 className="font-medium text-gray-900">Current Year Policy ({new Date().getFullYear()})</h4>
             <p className="text-sm text-gray-500">Configure leave allocations and holidays for the current year</p>
           </div>
-          <Button onClick={editing ? handleSave : () => setEditing(true)} disabled={loading}>
+          <Button onClick={editing ? handleSave : () => setEditing(true)} disabled={loading} className="w-full sm:w-auto">
             <Save className="w-4 h-4 mr-2" />
             {editing ? "Save Changes" : "Edit Policy"}
           </Button>
@@ -448,20 +448,20 @@ function SettingsPageContent() {
 
   return (
     <ResourceGuard resourceKeys={["settings"]} requiredRoles={["Super Admin", "HR Manager"]} pageName="Settings">
-      <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6">
+      <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-4 sm:space-y-6 overflow-x-hidden">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Settings</h1>
+          <h1 className="text-2xl lg:text-2xl sm:text-3xl font-bold text-gray-900">Settings</h1>
           <p className="text-gray-600">Manage your BevyHR system configuration</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
           {edit && (
-            <Button variant="outline" onClick={handleCancelEdit} disabled={loading}>
+            <Button variant="outline" onClick={handleCancelEdit} disabled={loading} className="w-full sm:w-auto">
               Cancel
             </Button>
           )}
-          <Button onClick={edit ? handleSave : () => setEdit(true)} disabled={loading}>
+          <Button onClick={edit ? handleSave : () => setEdit(true)} disabled={loading} className="w-full sm:w-auto">
             <Save className="w-4 h-4 mr-2" />
             {edit ? "Save Changes" : "Edit"}
           </Button>
@@ -470,7 +470,7 @@ function SettingsPageContent() {
 
       {/* Settings Tabs */}
       <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3 sm:grid-cols-5 lg:grid-cols-9">
+        <TabsList className="hrms-tabs-scroll">
           <TabsTrigger value="company">Company</TabsTrigger>
           <TabsTrigger value="departments">Departments</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
@@ -643,7 +643,7 @@ function SettingsPageContent() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="timezone">Timezone</Label>
                   <Select value={safeCompany.timezone} onValueChange={v => handleChange("timezone", v)} disabled={!edit}>
@@ -833,13 +833,13 @@ function SettingsPageContent() {
                   { role: "Department Head", users: 12, permissions: "Team management, attendance approval" },
                   { role: "Employee", users: 229, permissions: "Self-service portal access" },
                 ].map((role, index) => (
-                  <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
+                  <div key={index} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 border rounded-lg">
                     <div>
                       <h4 className="font-medium text-gray-900">{role.role}</h4>
                       <p className="text-sm text-gray-500">{role.permissions}</p>
                       <p className="text-xs text-gray-400">{role.users} users assigned</p>
                     </div>
-                    <Button variant="outline" size="sm" onClick={() => window.location.href = '/settings/role-permissions'}>
+                    <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => window.location.href = '/settings/role-permissions'}>
                       Edit Permissions
                     </Button>
                   </div>
@@ -847,12 +847,12 @@ function SettingsPageContent() {
               </div>
 
               <div className="pt-4 border-t">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
                     <h4 className="font-medium text-gray-900">Advanced Role Management</h4>
                     <p className="text-sm text-gray-500">Create custom roles and manage detailed permissions</p>
                   </div>
-                  <Button onClick={() => window.location.href = '/settings/role-permissions'}>
+                  <Button className="w-full sm:w-auto" onClick={() => window.location.href = '/settings/role-permissions'}>
                     <Users className="w-4 h-4 mr-2" />
                     Manage Roles & Permissions
                   </Button>
@@ -1090,12 +1090,12 @@ function SettingsPageContent() {
               </div>
 
               <div className="pt-4 border-t">
-                <div className="flex gap-4">
-                  <Button variant="outline">
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <Button variant="outline" className="w-full sm:w-auto">
                     <Database className="w-4 h-4 mr-2" />
                     Export Data
                   </Button>
-                  <Button variant="outline">
+                  <Button variant="outline" className="w-full sm:w-auto">
                     <Download className="w-4 h-4 mr-2" />
                     Download Backup
                   </Button>

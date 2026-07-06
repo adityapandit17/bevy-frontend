@@ -390,21 +390,21 @@ export default function ScheduledInterviewsPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6">
+    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-4 sm:space-y-6 overflow-x-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => router.back()}
-            className="flex items-center gap-2"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back
-          </Button>
+      <div className="flex flex-col gap-4">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => router.back()}
+          className="flex items-center gap-2 w-fit"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back
+        </Button>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 flex items-center gap-2">
+            <h1 className="text-2xl lg:text-2xl sm:text-3xl font-bold text-gray-900 flex items-center gap-2">
               <Calendar className="w-6 h-6" />
               {isMissedInterviews ? "Missed Interviews" : "Scheduled Interviews"}
             </h1>
@@ -414,15 +414,16 @@ export default function ScheduledInterviewsPage() {
                 : "Interviews assigned to you that are scheduled"}
             </p>
           </div>
+          <Button
+            variant="outline"
+            onClick={fetchInterviews}
+            disabled={loading}
+            className="w-full sm:w-auto"
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
         </div>
-        <Button
-          variant="outline"
-          onClick={fetchInterviews}
-          disabled={loading}
-        >
-          <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
       </div>
 
       {/* Main Content */}
@@ -460,7 +461,8 @@ export default function ScheduledInterviewsPage() {
                 <p>{isMissedInterviews ? "No missed interviews found." : "No scheduled interviews found."}</p>
               </div>
             ) : (
-              <div className="rounded-md border overflow-hidden">
+              <>
+              <div className="hidden md:block rounded-md border overflow-hidden overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -567,6 +569,52 @@ export default function ScheduledInterviewsPage() {
                   </TableBody>
                 </Table>
               </div>
+
+              <div className="md:hidden space-y-3">
+                {filteredInterviews.map((interview) => (
+                  <div key={interview.id} className="border rounded-lg p-4 space-y-3 bg-white">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-medium truncate">{interview.candidate_name || `Candidate ${interview.candidate_id}`}</p>
+                        {interview.candidate_email && (
+                          <p className="text-sm text-gray-500 truncate">{interview.candidate_email}</p>
+                        )}
+                      </div>
+                      <Badge className={getStatusColor(interview.status)}>{interview.status || 'Scheduled'}</Badge>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div>
+                        <span className="text-gray-500">Type</span>
+                        <p className="font-medium">{getInterviewTypeLabel(interview.interview_type)}</p>
+                      </div>
+                      <div className="col-span-2">
+                        <span className="text-gray-500">Scheduled</span>
+                        <p className="font-medium">
+                          {interview.formatted_date && interview.formatted_time
+                            ? `${interview.formatted_date} at ${interview.formatted_time}`
+                            : formatDateTime(interview.scheduled_date, interview.scheduled_time)}
+                        </p>
+                      </div>
+                    </div>
+                    {interview.is_overdue && (
+                      <Badge variant="outline" className="text-xs bg-red-50 text-red-700 border-red-200">Overdue</Badge>
+                    )}
+                    {interview.status === "scheduled" && (
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" className="flex-1" onClick={() => handleOpenCompleteDialog(interview)}>
+                          Complete
+                        </Button>
+                        {interview.is_overdue && (
+                          <Button variant="outline" size="sm" className="flex-1" onClick={() => handleOpenRescheduleDialog(interview)}>
+                            Reschedule
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+              </>
             )}
           </div>
         </CardContent>
@@ -811,7 +859,7 @@ export default function ScheduledInterviewsPage() {
                 <p className="text-sm text-gray-600">Candidate: {selectedInterview.candidate_name}</p>
               </div>
               
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="reschedule-date">New Date *</Label>
                   <DatePicker

@@ -22,9 +22,9 @@ import {
   Network,
 } from "lucide-react"
 import { useRouter } from "next/navigation"
-import Image from "next/image"
 import { MarketingShell } from "@/components/marketing/marketing-shell"
 import { TypewriterHeadline } from "@/components/marketing/typewriter-headline"
+import { BrandLogoLink } from "@/components/brand-logo-link"
 
 export default function HomePage() {
   const router = useRouter()
@@ -110,12 +110,9 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center">
             <div className="flex justify-center mb-6">
-              <Image
-                src="/bevyhr-logo.png"
-                alt="BevyHR"
-                width={1024}
-                height={455}
-                className="h-28 md:h-40 w-auto object-contain"
+              <BrandLogoLink
+                className="inline-flex items-center justify-center"
+                imageClassName="h-28 md:h-40 w-auto object-contain"
                 priority
               />
             </div>
@@ -196,7 +193,7 @@ export default function HomePage() {
               All the modules you need in one integrated platform. No more juggling multiple tools.
             </p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
             {modules.map((module, index) => (
               <Card key={index} className="border border-gray-200 hover:border-green-300 hover:shadow-lg transition-all">
                 <CardHeader className="pb-3">

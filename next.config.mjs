@@ -18,15 +18,16 @@ const nextConfig = {
   },
   poweredByHeader: false,
   async headers() {
+    const longCache = [
+      { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+    ]
     return [
-      {
-        source: '/bevyhr-logo.png',
-        headers: [
-          { key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' },
-          { key: 'Pragma', value: 'no-cache' },
-          { key: 'Expires', value: '0' },
-        ],
-      },
+      ...['/bevyhr-logo.webp', '/bevyhr-logo.png', '/bevyhr-logo-transparent.png'].map(
+        (source) => ({
+          source,
+          headers: longCache,
+        })
+      ),
       {
         source: '/:path*',
         headers: [

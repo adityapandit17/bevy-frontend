@@ -292,14 +292,16 @@ export default function UserSettingsPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-5xl">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
-        <p className="text-gray-600 mt-1">Manage your account settings and preferences</p>
+    <div className="max-w-5xl mx-auto p-4 lg:p-6 space-y-4 sm:space-y-6 overflow-x-hidden">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Settings</h1>
+          <p className="text-gray-600 mt-1">Manage your account settings and preferences</p>
+        </div>
       </div>
 
-      <Tabs defaultValue="account" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+      <Tabs defaultValue="account" className="space-y-4 sm:space-y-6">
+        <TabsList className="hrms-tabs-scroll">
           <TabsTrigger value="account" className="flex items-center gap-2">
             <User className="w-4 h-4" />
             Account
@@ -330,7 +332,7 @@ export default function UserSettingsPage() {
                 Update your account information and contact details
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent className="p-4 sm:p-6 space-y-6">
               <div className="space-y-2">
                 <Label htmlFor="name">Full Name</Label>
                 <Input
@@ -381,7 +383,7 @@ export default function UserSettingsPage() {
                 Update your password to keep your account secure
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent className="p-4 sm:p-6 space-y-6">
               <div className="space-y-2">
                 <Label htmlFor="current-password">Current Password</Label>
                 <div className="relative">
@@ -491,9 +493,9 @@ export default function UserSettingsPage() {
                 Choose how you want to be notified about updates and activities
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
+            <CardContent className="p-4 sm:p-6 space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-0.5 min-w-0 flex-1">
                   <Label htmlFor="email-notifications">Email Notifications</Label>
                   <p className="text-sm text-gray-500">
                     Receive notifications via email
@@ -506,8 +508,8 @@ export default function UserSettingsPage() {
                 />
               </div>
               <Separator />
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-0.5 min-w-0 flex-1">
                   <Label htmlFor="push-notifications">Push Notifications</Label>
                   <p className="text-sm text-gray-500">
                     Receive push notifications in your browser
@@ -523,8 +525,8 @@ export default function UserSettingsPage() {
               <div className="space-y-4">
                 <h4 className="font-medium text-sm">Notification Types</h4>
                 <div className="space-y-4 pl-4">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-0.5 min-w-0 flex-1">
                       <Label htmlFor="leave-notifications">Leave Requests</Label>
                       <p className="text-sm text-gray-500">
                         Notifications about leave applications and approvals
@@ -536,8 +538,8 @@ export default function UserSettingsPage() {
                       onCheckedChange={setLeaveNotifications}
                     />
                   </div>
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-0.5 min-w-0 flex-1">
                       <Label htmlFor="attendance-notifications">Attendance</Label>
                       <p className="text-sm text-gray-500">
                         Notifications about attendance records
@@ -549,8 +551,8 @@ export default function UserSettingsPage() {
                       onCheckedChange={setAttendanceNotifications}
                     />
                   </div>
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-0.5 min-w-0 flex-1">
                       <Label htmlFor="payroll-notifications">Payroll</Label>
                       <p className="text-sm text-gray-500">
                         Notifications about payroll and salary updates
@@ -562,8 +564,8 @@ export default function UserSettingsPage() {
                       onCheckedChange={setPayrollNotifications}
                     />
                   </div>
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-0.5 min-w-0 flex-1">
                       <Label htmlFor="system-notifications">System Updates</Label>
                       <p className="text-sm text-gray-500">
                         Important system announcements and updates
@@ -598,7 +600,7 @@ export default function UserSettingsPage() {
                 Customize your application experience
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent className="p-4 sm:p-6 space-y-6">
               <div className="space-y-2">
                 <Label htmlFor="language">Language</Label>
                 <select

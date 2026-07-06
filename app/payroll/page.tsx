@@ -1687,14 +1687,14 @@ export default function PayrollPage() {
 
   return (
     <ResourceGuard resourceKeys={["payrolls", "salary_structures"]} pageName="Payroll">
-      <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6">
+      <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-4 sm:space-y-6 overflow-x-hidden">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Payroll</h1>
+          <h1 className="text-2xl lg:text-2xl sm:text-3xl font-bold text-gray-900">Payroll</h1>
           <p className="text-gray-600">Manage employee salaries and compensation</p>
         </div>
-        <div className="flex gap-2">
+        <div className="hrms-action-row w-full sm:w-auto">
           <Button variant="outline" size="sm">
             <Download className="w-4 h-4 mr-2" />
             Export Payroll
@@ -1709,7 +1709,7 @@ export default function PayrollPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
         {payrollStats.map((stat, index) => (
           <Card key={index} className="hover:shadow-md transition-shadow">
             <CardContent className="p-6">
@@ -1730,7 +1730,7 @@ export default function PayrollPage() {
 
       {/* Tabs for Payroll Records and Salary Structures */}
       <Tabs defaultValue="records" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 lg:w-96">
+        <TabsList className="hrms-tabs-scroll lg:w-auto">
           {canPayrollIndex && <TabsTrigger value="records">Payroll Records</TabsTrigger>}
           {canPayrollIndex && <TabsTrigger value="structures">Salary Structures</TabsTrigger>}
         </TabsList>
@@ -1811,7 +1811,7 @@ export default function PayrollPage() {
                 </Popover>
               </div>
 
-              <div className="rounded-md border">
+              <div className="hidden md:block rounded-md border overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -2000,6 +2000,58 @@ export default function PayrollPage() {
                     )}
                   </TableBody>
                 </Table>
+              </div>
+
+              {/* Mobile card list */}
+              <div className="md:hidden space-y-3">
+                {paginatedPayrollRecords.length === 0 ? (
+                  <div className="text-center text-gray-500 py-8">No payroll records found.</div>
+                ) : (
+                  paginatedPayrollRecords.map((record: any) => {
+                    const departmentName = getEmployeeDepartmentName(record.employee_id) || getDepartmentName(record.department_id)
+                    const status = record.status || "processed"
+                    const basic = safeNumber(record.earnings_breakdown?.basic ?? 0)
+                    const net = safeNumber(record.net_salary ?? 0)
+                    const deductions = safeNumber(record.leave_deduction ?? record.deductions_breakdown?.leave_deduction ?? 0)
+                    return (
+                      <div key={record.id} className="border rounded-lg p-4 space-y-3 bg-white">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="font-medium text-gray-900 truncate">{getEmployeeName(record.employee_id)}</p>
+                            <p className="text-sm text-gray-500 truncate">
+                              {record.employee_id}{departmentName ? ` • ${departmentName}` : ""}
+                            </p>
+                          </div>
+                          <Badge className={getStatusColor(status)}>{status}</Badge>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                          <div>
+                            <span className="text-gray-500">Basic</span>
+                            <p className="font-medium">{formatCurrencySafe(basic)}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Leave Ded.</span>
+                            <p className="font-medium text-red-600">{formatCurrencySafe(deductions)}</p>
+                          </div>
+                          <div className="col-span-2">
+                            <span className="text-gray-500">Net Salary</span>
+                            <p className="font-bold text-gray-900">{formatCurrencySafe(net)}</p>
+                          </div>
+                        </div>
+                        {(canPayrollShow || canPayrollUpdate || canPayrollCreate) && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full"
+                            onClick={() => canPayrollShow && handleViewCalculation(record.id)}
+                          >
+                            View Details
+                          </Button>
+                        )}
+                      </div>
+                    )
+                  })
+                )}
               </div>
 
               {/* Pagination controls matching other pages */}
@@ -2376,7 +2428,7 @@ export default function PayrollPage() {
                 </div>
 
                 {/* Employee Details */}
-                <div className="grid grid-cols-2 gap-6 border-b border-gray-200 pb-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 border-b border-gray-200 pb-4">
                   <div>
                     <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
                       <User className="w-4 h-4" />
@@ -2424,7 +2476,7 @@ export default function PayrollPage() {
                 </div>
 
                 {/* Salary Breakdown */}
-                <div className="grid grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   {/* Earnings */}
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b-2 border-green-500">
@@ -2523,7 +2575,7 @@ export default function PayrollPage() {
                   <div className="flex justify-between items-center">
                     <div>
                       <p className="text-sm text-gray-600 mb-1">Net Salary Payable</p>
-                      <p className="text-3xl font-bold text-gray-900">
+                      <p className="text-2xl sm:text-3xl font-bold text-gray-900">
                         {formatCurrencySafe(amounts.net)}
                       </p>
                       <p className="text-xs text-gray-500 mt-1">Paid on {paymentDate}</p>

@@ -147,10 +147,12 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-6xl">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">My Profile</h1>
-        <p className="text-gray-600 mt-1">View and manage your profile information</p>
+    <div className="max-w-6xl mx-auto p-4 lg:p-6 space-y-4 sm:space-y-6 overflow-x-hidden">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">My Profile</h1>
+          <p className="text-gray-600 mt-1">View and manage your profile information</p>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -233,7 +235,7 @@ export default function ProfilePage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div>
                   <label className="text-sm font-medium text-gray-500">Full Name</label>
                   <p className="text-gray-900 mt-1">{user?.name || "N/A"}</p>
@@ -250,7 +252,7 @@ export default function ProfilePage() {
                   <label className="text-sm font-medium text-gray-500">Date of Birth</label>
                   <p className="text-gray-900 mt-1">{formatDate(employee?.date_of_birth)}</p>
                 </div>
-                <div className="md:col-span-2">
+                <div className="sm:col-span-2">
                   <label className="text-sm font-medium text-gray-500">Address</label>
                   <p className="text-gray-900 mt-1">{employee?.address || "N/A"}</p>
                 </div>
@@ -267,7 +269,7 @@ export default function ProfilePage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div>
                   <label className="text-sm font-medium text-gray-500">Position</label>
                   <p className="text-gray-900 mt-1">{employee?.designation || "N/A"}</p>
@@ -301,7 +303,7 @@ export default function ProfilePage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div>
                   <label className="text-sm font-medium text-gray-500">User ID</label>
                   <p className="text-gray-900 mt-1">#{user?.id || "N/A"}</p>
@@ -321,7 +323,7 @@ export default function ProfilePage() {
       </div>
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit profile</DialogTitle>
             <DialogDescription>
@@ -330,7 +332,7 @@ export default function ProfilePage() {
           </DialogHeader>
 
           <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label htmlFor="first_name">First name</Label>
                 <Input
@@ -349,11 +351,11 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setEditOpen(false)} disabled={saving}>
+            <div className="flex flex-col-reverse sm:flex-row justify-end gap-2">
+              <Button variant="outline" onClick={() => setEditOpen(false)} disabled={saving} className="flex-1 sm:flex-none">
                 Cancel
               </Button>
-              <Button onClick={saveProfile} disabled={saving}>
+              <Button onClick={saveProfile} disabled={saving} className="flex-1 sm:flex-none">
                 {saving ? "Saving…" : "Save"}
               </Button>
             </div>

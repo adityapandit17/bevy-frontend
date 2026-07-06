@@ -111,9 +111,9 @@ export function ExpenseList({ expenses, onEdit, onDelete, onView }: ExpenseListP
           {expenses.map((expense) => (
             <div 
               key={expense.id} 
-              className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+              className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 border rounded-lg hover:bg-gray-50 transition-colors"
             >
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-4 min-w-0">
                 <div className={`p-2 rounded-lg ${getCategoryColor(expense.category)}`}>
                   {getCategoryIcon(expense.category)}
                 </div>
@@ -146,7 +146,7 @@ export function ExpenseList({ expenses, onEdit, onDelete, onView }: ExpenseListP
                   )}
                 </div>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
                 <span className="text-lg font-semibold text-gray-900">
                   {formatAmount(expense.amount)}
                 </span>

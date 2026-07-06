@@ -281,7 +281,7 @@ export default function LeaveManagementPage() {
 
   if (!isAuthenticated) {
     return (
-      <div className="container mx-auto p-6">
+      <div className="container mx-auto p-4 sm:p-6">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-900">Access Denied</h1>
           <p className="text-gray-600">Please log in to access leave management.</p>
@@ -291,20 +291,20 @@ export default function LeaveManagementPage() {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="container mx-auto p-4 sm:p-6 space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Leave Management</h1>
-          <p className="text-gray-600">Manage employee leave requests and approvals</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Leave Management</h1>
+          <p className="text-sm sm:text-base text-gray-600">Manage employee leave requests and approvals</p>
         </div>
-        <div className="flex gap-2">
-          <Button onClick={() => { fetchLeaveRequests(); fetchLeaveStats(); }} variant="outline">
+        <div className="flex gap-2 w-full sm:w-auto">
+          <Button onClick={() => { fetchLeaveRequests(); fetchLeaveStats(); }} variant="outline" className="flex-1 sm:flex-none">
             <RefreshCw className="w-4 h-4 mr-2" />
             Refresh
           </Button>
           {canApplyOnBehalf && (
-            <Button onClick={() => setShowLeaveForm(true)}>
+            <Button onClick={() => setShowLeaveForm(true)} className="flex-1 sm:flex-none">
               Apply Leave
             </Button>
           )}
@@ -329,7 +329,7 @@ export default function LeaveManagementPage() {
 
       {/* Stats Cards */}
       {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Requests</CardTitle>
@@ -440,7 +440,9 @@ export default function LeaveManagementPage() {
               Loading leave requests...
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+            {/* Desktop table */}
+            <div className="hidden md:block overflow-x-auto">
               <Table>
                 <TableHeader className="sticky top-0 bg-white z-10">
                   <TableRow>
@@ -560,6 +562,95 @@ export default function LeaveManagementPage() {
                 ))}
                 </TableBody>
               </Table>
+            </div>
+
+            {/* Mobile card list */}
+            <div className="md:hidden space-y-3">
+              {paginatedRequests.map((request) => (
+                <div key={request.id} className="border rounded-lg p-4 space-y-3 bg-white">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="font-medium truncate">{request.employee_name}</div>
+                      <div className="text-sm text-gray-500 truncate">{request.employee_department}</div>
+                    </div>
+                    <Badge variant={getStatusBadgeVariant(request.status)} className="flex items-center gap-1 shrink-0 text-xs">
+                      {getStatusIcon(request.status)}
+                      {request.status_label}
+                    </Badge>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <span className="text-gray-500">Type</span>
+                      <p className="font-medium">{request.leave_type_label}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Duration</span>
+                      <p className="font-medium">{request.duration_days} day(s)</p>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="text-gray-500">Dates</span>
+                      <p className="font-medium">{request.formatted_start_date} – {request.formatted_end_date}</p>
+                    </div>
+                  </div>
+                  {request.reason && (
+                    <p className="text-sm text-gray-500 line-clamp-2">{request.reason}</p>
+                  )}
+                  <div className="flex items-center gap-2 pt-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => {
+                        setSelectedRequest(request)
+                        setShowDetails(true)
+                      }}
+                    >
+                      <Eye className="w-4 h-4 mr-1" />
+                      View
+                    </Button>
+                    {request.status === 'pending' && (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 text-green-600 border-green-200"
+                          onClick={() => handleAction(request.id, 'approve')}
+                          disabled={actionLoading === request.id}
+                        >
+                          <Check className="w-4 h-4 mr-1" />
+                          Approve
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 text-red-600 border-red-200"
+                          onClick={() => handleAction(request.id, 'reject')}
+                          disabled={actionLoading === request.id}
+                        >
+                          <X className="w-4 h-4 mr-1" />
+                          Reject
+                        </Button>
+                      </>
+                    )}
+                    {request.can_be_cancelled && request.status !== 'cancelled' && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleAction(request.id, 'cancel')}
+                        disabled={actionLoading === request.id}
+                        className="text-orange-600"
+                      >
+                        {actionLoading === request.id ? (
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <X className="w-4 h-4" />
+                        )}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
 
               {/* Pagination controls */}
               <div className="flex flex-col md:flex-row items-center justify-between gap-4 mt-4">
@@ -599,16 +690,21 @@ export default function LeaveManagementPage() {
                     </Select>
                   </div>
 
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1 overflow-x-auto max-w-full">
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => handlePageChange(currentPage - 1)}
                       disabled={currentPage === 1}
                     >
-                      ‹ Previous
+                      ‹ Prev
                     </Button>
 
+                    <span className="text-sm text-gray-600 px-2 sm:hidden whitespace-nowrap">
+                      {currentPage} / {totalPages}
+                    </span>
+
+                    <div className="hidden sm:flex items-center gap-1">
                     {Array.from({ length: totalPages }, (_, index) => {
                       const page = index + 1
                       return (
@@ -622,6 +718,7 @@ export default function LeaveManagementPage() {
                         </Button>
                       )
                     })}
+                    </div>
 
                     <Button
                       variant="outline"
@@ -634,14 +731,14 @@ export default function LeaveManagementPage() {
                   </div>
                 </div>
               </div>
-            </div>
+            </>
           )}
         </CardContent>
       </Card>
 
       {/* Leave Request Details Modal */}
       <Dialog open={showDetails} onOpenChange={setShowDetails}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Leave Request Details</DialogTitle>
             <DialogDescription>
@@ -651,7 +748,7 @@ export default function LeaveManagementPage() {
           {selectedRequest && (
             <div className="space-y-6">
               {/* Employee Information */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium text-gray-500">Employee Name</label>
                   <p className="text-lg font-semibold">{selectedRequest.employee_name}</p>
@@ -674,7 +771,7 @@ export default function LeaveManagementPage() {
               </div>
 
               {/* Leave Information */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium text-gray-500">Leave Type</label>
                   <p className="text-lg font-semibold">{selectedRequest.leave_type_label}</p>
@@ -724,7 +821,7 @@ export default function LeaveManagementPage() {
               )}
 
               {/* Timestamps */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium text-gray-500">Applied On</label>
                   <p className="text-lg">{format(new Date(selectedRequest.created_at), 'MMM dd, yyyy HH:mm')}</p>

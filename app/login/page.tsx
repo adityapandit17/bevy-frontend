@@ -102,6 +102,7 @@ export default function LoginPage() {
             <BrandLogoLink
               className="inline-flex items-center justify-center"
               imageClassName="h-36 w-auto max-w-full object-contain"
+              priority
             />
           </div>
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Welcome back</h1>

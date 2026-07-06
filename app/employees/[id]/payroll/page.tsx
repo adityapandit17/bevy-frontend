@@ -833,7 +833,7 @@ export default function EmployeePayrollPage() {
           Back
         </Button>
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 flex items-center gap-2">
+          <h1 className="text-2xl lg:text-2xl sm:text-3xl font-bold text-gray-900 flex items-center gap-2">
             <IndianRupee className="w-6 h-6" />
             Payroll Information
           </h1>
@@ -844,7 +844,7 @@ export default function EmployeePayrollPage() {
       </div>
 
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="hrms-tabs-scroll">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="salary-slips">Salary Slips</TabsTrigger>
           <TabsTrigger value="history">Payroll History</TabsTrigger>
@@ -1428,7 +1428,7 @@ export default function EmployeePayrollPage() {
                 <div className="flex justify-between items-center">
                   <div>
                     <p className="text-sm text-gray-600 mb-1">Net Salary Payable</p>
-                    <p className="text-3xl font-bold text-gray-900">{selectedSlip.amount}</p>
+                    <p className="text-2xl sm:text-3xl font-bold text-gray-900">{selectedSlip.amount}</p>
                     <p className="text-xs text-gray-500 mt-1">
                       Paid on {new Date(selectedSlip.date).toLocaleDateString('en-US', { 
                         weekday: 'long', 

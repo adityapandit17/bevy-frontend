@@ -21,7 +21,7 @@ export function SidebarLayout({ children }: SidebarLayoutProps) {
           <NavUserActions />
         </header>
         <TrialBanner className="sticky top-16 z-30 shrink-0" />
-        <main className="flex-1 min-h-0">{children}</main>
+        <main className="hrms-app-main">{children}</main>
       </SidebarInset>
     </SidebarProvider>
   )

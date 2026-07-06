@@ -187,20 +187,20 @@ export default function WorkspaceSeatingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 overflow-x-hidden">
       <div className="bg-white border-b">
         <div className="max-w-7xl mx-auto px-4 lg:px-6 py-5">
-          <div className="flex items-start justify-between gap-6">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <Building2 className="w-5 h-5 text-gray-700" />
-                <h1 className="text-xl font-semibold text-gray-900">Workspace Seating</h1>
+                <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">Workspace Seating</h1>
               </div>
               <p className="text-sm text-gray-500 mt-1">
                 Top-view seat map. Click any seat to inspect or update allocation.
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Badge className="bg-emerald-600">Occupied: {counts.occupied}</Badge>
               <Badge variant="outline">Vacant: {counts.vacant}</Badge>
               <Badge variant="secondary">Blocked: {counts.blocked}</Badge>
@@ -209,7 +209,7 @@ export default function WorkspaceSeatingPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 lg:px-6 py-6 space-y-6">
+      <div className="max-w-7xl mx-auto px-4 lg:px-6 py-6 space-y-4 sm:space-y-6">
         <Card>
           <CardHeader className="pb-4">
             <CardTitle className="flex items-center gap-2">
@@ -276,7 +276,7 @@ export default function WorkspaceSeatingPage() {
                       </div>
 
                       <div className="rounded-xl border bg-white p-4">
-                        <div className="grid grid-cols-6 gap-2">
+                        <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
                           {zoneSeats.map((seat) => {
                             const isSelected = seat.id === selectedSeatId
 
@@ -399,13 +399,14 @@ export default function WorkspaceSeatingPage() {
                 </div>
               )}
 
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setSelectedSeatId(null)} disabled={saving}>
+              <div className="flex flex-col sm:flex-row justify-end gap-2">
+                <Button variant="outline" onClick={() => setSelectedSeatId(null)} disabled={saving} className="w-full sm:w-auto">
                   Close
                 </Button>
                 <Button
                   onClick={handleSaveSeat}
                   disabled={saving || (editStatus === "occupied" && !editEmployeeId)}
+                  className="w-full sm:w-auto"
                 >
                   {saving ? (
                     <>

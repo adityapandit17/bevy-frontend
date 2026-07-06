@@ -662,14 +662,14 @@ export default function OffboardingPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6">
+    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-4 sm:space-y-6 overflow-x-hidden">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Employee Offboarding</h1>
+          <h1 className="text-2xl lg:text-2xl sm:text-3xl font-bold text-gray-900">Employee Offboarding</h1>
           <p className="text-gray-600">Manage employee exit process and ensure smooth transitions</p>
         </div>
-        <div className="flex gap-2">
+        <div className="hrms-action-row w-full sm:w-auto">
           <Button variant="outline" size="sm">
             <Download className="w-4 h-4 mr-2" />
             Export
@@ -722,7 +722,7 @@ export default function OffboardingPage() {
               
               <form onSubmit={editEmployee ? handleUpdate : handleSubmit} className="space-y-4">
                 <div className="grid gap-4 py-4">
-                  <div className="grid grid-cols-4 items-center gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-4">
                     <label htmlFor="employee" className="text-right text-sm font-medium">
                       Employee *
                     </label>
@@ -755,7 +755,7 @@ export default function OffboardingPage() {
                     </div>
                   </div>
                   
-                  <div className="grid grid-cols-4 items-center gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-4">
                     <label htmlFor="last-working-day" className="text-right text-sm font-medium">
                       Last Working Day *
                     </label>
@@ -772,7 +772,7 @@ export default function OffboardingPage() {
                   </div>
                   
                   {!editEmployee && (
-                    <div className="grid grid-cols-4 items-center gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-4">
                       <label htmlFor="reason" className="text-right text-sm font-medium">
                         Reason *
                       </label>
@@ -799,7 +799,7 @@ export default function OffboardingPage() {
                     </div>
                   )}
                   
-                  <div className="grid grid-cols-4 items-center gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-4">
                     <label htmlFor="assigned-to" className="text-right text-sm font-medium">
                       Assigned To *
                     </label>
@@ -823,7 +823,7 @@ export default function OffboardingPage() {
                     </div>
                   </div>
                   
-                  <div className="grid grid-cols-4 items-center gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-4">
                     <label htmlFor="notes" className="text-right text-sm font-medium">
                       Notes
                     </label>
@@ -864,7 +864,7 @@ export default function OffboardingPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
         {loading ? (
           Array.from({ length: 4 }).map((_, index) => (
             <Card key={index} className="hover:shadow-md transition-shadow">
@@ -989,7 +989,7 @@ export default function OffboardingPage() {
           </div>
 
           {/* Employees Table */}
-          <div className="rounded-md border">
+          <div className="hidden md:block rounded-md border overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -1136,13 +1136,58 @@ export default function OffboardingPage() {
               </TableBody>
             </Table>
           </div>
+
+          <div className="md:hidden space-y-3">
+            {loading ? (
+              <div className="text-center py-8 text-gray-500">Loading...</div>
+            ) : filteredEmployees.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">No offboarding records found</div>
+            ) : (
+              filteredEmployees.map((employee) => (
+                <div key={employee.id} className="border rounded-lg p-4 space-y-3 bg-white">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-medium text-gray-900 truncate">{employee.name}</p>
+                      <p className="text-sm text-gray-500 truncate">{employee.email}</p>
+                    </div>
+                    <Badge className={getStatusColor(employee.status)}>
+                      {employee.status.replace("_", " ")}
+                    </Badge>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <span className="text-gray-500">Department</span>
+                      <p className="font-medium">{employee.department}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Last Day</span>
+                      <p className="font-medium">{new Date(employee.lastWorkingDay).toLocaleDateString()}</p>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="text-gray-500">Progress</span>
+                      <Progress value={employee.progress} className="h-2 mt-1" />
+                      <p className="text-xs text-gray-500 mt-1">{employee.progress}% complete</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" className="flex-1" onClick={() => handleViewDetails(employee)}>
+                      View Details
+                    </Button>
+                    <Button variant="outline" size="sm" className="flex-1" onClick={() => handleEdit(employee)}>
+                      Edit
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         </CardContent>
       </Card>
 
       {/* Employee Details Dialog */}
       {selectedEmployee && (
         <Dialog open={!!selectedEmployee} onOpenChange={() => setSelectedEmployee(null)}>
-          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <UserMinus className="w-5 h-5" />
@@ -1160,7 +1205,7 @@ export default function OffboardingPage() {
                   <CardTitle className="text-lg">Employee Information</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <p className="text-sm font-medium text-gray-600">Employee ID</p>
                       <p className="text-gray-900">{selectedEmployee.employeeId}</p>

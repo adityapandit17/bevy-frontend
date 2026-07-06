@@ -374,11 +374,11 @@ export default function EmployeeProfilePage() {
   }
 
   if (headerLoading) {
-    return <div className="max-w-4xl mx-auto p-6 text-gray-600">Loading employee...</div>
+    return <div className="max-w-4xl mx-auto p-4 lg:p-6 text-gray-600 overflow-x-hidden">Loading employee...</div>
   }
 
   if (!employee) {
-    return <div className="max-w-4xl mx-auto p-6 text-gray-600">Employee not found.</div>
+    return <div className="max-w-4xl mx-auto p-4 lg:p-6 text-gray-600 overflow-x-hidden">Employee not found.</div>
   }
 
   const tabBusy = tabLoading[activeTab]
@@ -419,66 +419,68 @@ export default function EmployeeProfilePage() {
 
   return (
     <ResourceGuard resource="employees" action="show">
-    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6">
+    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-4 sm:space-y-6 overflow-x-hidden">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button variant="outline" size="sm" onClick={() => router.back()}>
+      <div className="flex flex-col gap-4">
+        <Button variant="outline" size="sm" onClick={() => router.back()} className="w-fit">
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back
         </Button>
-        <div className="flex-1">
-          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Employee Profile</h1>
-          <p className="text-gray-600">Detailed information about {employee.name}</p>
-        </div>
-        <div className="flex gap-2">
-          {canUpdate && (
-            <Button variant="outline" size="sm" onClick={openEditForm}>
-              <Edit className="w-4 h-4 mr-2" />
-              Edit Profile
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl lg:text-2xl sm:text-3xl font-bold text-gray-900">Employee Profile</h1>
+            <p className="text-gray-600">Detailed information about {employee.name}</p>
+          </div>
+          <div className="hrms-action-row">
+            {canUpdate && (
+              <Button variant="outline" size="sm" onClick={openEditForm}>
+                <Edit className="w-4 h-4 mr-2" />
+                Edit Profile
+              </Button>
+            )}
+            <Button size="sm" onClick={() => router.push("/data-exports")}>
+              <Download className="w-4 h-4 mr-2" />
+              Export
             </Button>
-          )}
-          <Button size="sm" onClick={() => router.push("/data-exports")}>
-            <Download className="w-4 h-4 mr-2" />
-            Export
-          </Button>
+          </div>
         </div>
       </div>
 
       {/* Employee Overview Card */}
       <Card>
-        <CardContent className="p-6">
-          <div className="flex items-start gap-6">
-            <Avatar className="w-24 h-24">
+        <CardContent className="p-4 sm:p-6">
+          <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-6">
+            <Avatar className="w-20 h-20 sm:w-24 sm:h-24">
               <AvatarImage src={employee.avatar} alt={employee.name} />
               <AvatarFallback className="text-2xl">{employee.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
             </Avatar>
-            <div className="flex-1">
-              <div className="flex items-start justify-between">
+            <div className="flex-1 w-full">
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                 <div>
-                  <h2 className="text-2xl font-bold text-gray-900">{employee.name}</h2>
-                  <p className="text-lg text-gray-600">{employee.position}</p>
-                  <p className="text-gray-500">{employee.department}{employee.manager ? ` • Reports to ${employee.manager}` : ""}</p>
+                  <h2 className="text-xl sm:text-2xl font-bold text-gray-900">{employee.name}</h2>
+                  <p className="text-base sm:text-lg text-gray-600">{employee.position}</p>
+                  <p className="text-gray-500 text-sm sm:text-base">{employee.department}{employee.manager ? ` • Reports to ${employee.manager}` : ""}</p>
                 </div>
-                <Badge className={getStatusColor(employee.status)}>
+                <Badge className={`${getStatusColor(employee.status)} w-fit`}>
                   {employee.status.charAt(0).toUpperCase() + employee.status.slice(1)}
                 </Badge>
               </div>
               
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
-                <div className="flex items-center gap-2">
-                  <Mail className="w-4 h-4 text-gray-400" />
-                  <span className="text-sm text-gray-600">{employee.email}</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mt-4 sm:mt-6">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Mail className="w-4 h-4 text-gray-400 shrink-0" />
+                  <span className="text-sm text-gray-600 truncate">{employee.email}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Phone className="w-4 h-4 text-gray-400" />
+                  <Phone className="w-4 h-4 text-gray-400 shrink-0" />
                   <span className="text-sm text-gray-600">{employee.phone}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Building className="w-4 h-4 text-gray-400" />
+                  <Building className="w-4 h-4 text-gray-400 shrink-0" />
                   <span className="text-sm text-gray-600">ID: {employee.employeeId}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <CalendarDays className="w-4 h-4 text-gray-400" />
+                  <CalendarDays className="w-4 h-4 text-gray-400 shrink-0" />
                   <span className="text-sm text-gray-600">Hired: {employee.hireDate || "—"}</span>
                 </div>
               </div>
@@ -489,7 +491,7 @@ export default function EmployeeProfilePage() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-9">
+        <TabsList className="hrms-tabs-scroll">
           <TabsTrigger value="job-details">Job Details</TabsTrigger>
           <TabsTrigger value="time-off">Time Off</TabsTrigger>
           <TabsTrigger value="pay-info">Pay Info</TabsTrigger>
@@ -584,7 +586,8 @@ export default function EmployeeProfilePage() {
               ) : timeOff.length === 0 ? (
                 <p className="text-sm text-gray-500 py-4">No leave requests found.</p>
               ) : (
-              <div className="rounded-md border">
+              <>
+              <div className="hidden md:block rounded-md border overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -614,6 +617,37 @@ export default function EmployeeProfilePage() {
                   </TableBody>
                 </Table>
               </div>
+              <div className="md:hidden space-y-3">
+                {timeOff.map((leave) => (
+                  <div key={leave.id} className="border rounded-lg p-4 space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="font-medium">{leave.type}</p>
+                      <Badge className={getStatusColor(leave.status)}>
+                        {leave.status.charAt(0).toUpperCase() + leave.status.slice(1)}
+                      </Badge>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div>
+                        <span className="text-gray-500">Start</span>
+                        <p className="font-medium">{new Date(leave.startDate).toLocaleDateString()}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">End</span>
+                        <p className="font-medium">{new Date(leave.endDate).toLocaleDateString()}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Days</span>
+                        <p className="font-medium">{leave.days}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Approved By</span>
+                        <p className="font-medium">{leave.approvedBy || '-'}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              </>
               )}
             </CardContent>
           </Card>
@@ -741,7 +775,7 @@ export default function EmployeeProfilePage() {
             <CardContent>
               <div className="space-y-4">
                     {(documents || []).map((doc) => (
-                  <div key={doc.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
+                  <div key={doc.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 border rounded-lg hover:bg-gray-50">
                     <div className="flex items-center gap-4">
                       <div className="p-2 bg-blue-100 rounded-lg">
                         <FileText className="w-5 h-5 text-blue-600" />
@@ -861,7 +895,7 @@ export default function EmployeeProfilePage() {
               <CardDescription>Track work hours and project time</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="rounded-md border">
+              <div className="hidden md:block rounded-md border overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -891,6 +925,39 @@ export default function EmployeeProfilePage() {
                   </TableBody>
                 </Table>
               </div>
+              <div className="md:hidden space-y-3">
+                {(timesheets || []).map((timesheet) => (
+                  <div key={timesheet.id} className="border rounded-lg p-4 space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="font-medium">{new Date(timesheet.date).toLocaleDateString()}</p>
+                      <Badge className={getStatusColor(timesheet.status)}>
+                        {timesheet.status.charAt(0).toUpperCase() + timesheet.status.slice(1)}
+                      </Badge>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div>
+                        <span className="text-gray-500">Hours</span>
+                        <p className="font-medium">{timesheet.hours}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Project</span>
+                        <p className="font-medium truncate">{timesheet.project}</p>
+                      </div>
+                      <div className="col-span-2">
+                        <span className="text-gray-500">Task</span>
+                        <p className="font-medium">{timesheet.task}</p>
+                      </div>
+                      <div className="col-span-2">
+                        <span className="text-gray-500">Approved By</span>
+                        <p className="font-medium">{timesheet.approvedBy || '-'}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {(timesheets || []).length === 0 && (
+                  <p className="text-center text-gray-500 py-8">No timesheets found</p>
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -909,7 +976,7 @@ export default function EmployeeProfilePage() {
               <div className="space-y-4">
                 {(benefits || []).map((benefit) => (
                   <div key={benefit.id} className="p-4 border rounded-lg hover:bg-gray-50">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="flex items-center gap-4">
                         <div className="p-2 bg-green-100 rounded-lg">
                           <Heart className="w-5 h-5 text-green-600" />
@@ -948,7 +1015,7 @@ export default function EmployeeProfilePage() {
               <div className="space-y-4">
                 {(training || []).map((program) => (
                   <div key={program.id} className="p-4 border rounded-lg hover:bg-gray-50">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="flex items-center gap-4">
                         <div className="p-2 bg-blue-100 rounded-lg">
                           <GraduationCap className="w-5 h-5 text-blue-600" />
@@ -998,7 +1065,7 @@ export default function EmployeeProfilePage() {
                 <div className="space-y-4">
                   {assets.map((asset) => (
                     <div key={asset.id} className="p-4 border rounded-lg hover:bg-gray-50">
-                      <div className="flex items-center justify-between gap-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                         <div className="flex items-center gap-4">
                           <div className="p-2 bg-purple-100 rounded-lg">
                             <Package className="w-5 h-5 text-purple-600" />

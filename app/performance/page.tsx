@@ -323,17 +323,17 @@ export default function PerformancePage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6">
+    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-4 sm:space-y-6 overflow-x-hidden">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Performance Management</h1>
+          <h1 className="text-2xl lg:text-2xl sm:text-3xl font-bold text-gray-900">Performance Management</h1>
           <p className="text-gray-600">Track, evaluate, and improve employee performance</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
           <Dialog open={showAddGoalDialog} onOpenChange={setShowAddGoalDialog}>
             <DialogTrigger asChild>
-              <Button variant="outline" size="sm" onClick={handleAddGoal}>
+              <Button variant="outline" size="sm" onClick={handleAddGoal} className="w-full sm:w-auto">
                 <Target className="w-4 h-4 mr-2" />
                 Add Goal
               </Button>
@@ -452,7 +452,7 @@ export default function PerformancePage() {
           </Dialog>
           <Dialog open={showScheduleDialog} onOpenChange={setShowScheduleDialog}>
             <DialogTrigger asChild>
-              <Button size="sm" onClick={handleScheduleReview}>
+              <Button size="sm" onClick={handleScheduleReview} className="w-full sm:w-auto">
                 <Plus className="w-4 h-4 mr-2" />
                 Schedule Review
               </Button>
@@ -549,7 +549,7 @@ export default function PerformancePage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
         {loading && !stats ? (
           <div className="col-span-full flex justify-center py-8">
             <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
@@ -579,7 +579,7 @@ export default function PerformancePage() {
 
       {/* Main Content */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="hrms-tabs-scroll">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="reviews">Reviews</TabsTrigger>
           <TabsTrigger value="goals">Goals</TabsTrigger>
@@ -670,8 +670,8 @@ export default function PerformancePage() {
         <TabsContent value="reviews" className="space-y-6">
           {/* Filters */}
           <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center gap-4">
+            <CardContent className="p-4 sm:p-6">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
                 <div className="flex-1">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
@@ -684,7 +684,7 @@ export default function PerformancePage() {
                   </div>
                 </div>
                 <Select value={filterStatus} onValueChange={setFilterStatus}>
-                  <SelectTrigger className="w-40">
+                  <SelectTrigger className="w-full sm:w-40">
                     <SelectValue placeholder="Status" />
                   </SelectTrigger>
                   <SelectContent>
@@ -716,7 +716,8 @@ export default function PerformancePage() {
               ) : filteredReviews.length === 0 ? (
                 <p className="text-sm text-gray-500 text-center py-12">No performance reviews found.</p>
               ) : (
-                <div className="rounded-md border">
+                <>
+                <div className="hidden md:block overflow-x-auto rounded-md border">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -798,6 +799,80 @@ export default function PerformancePage() {
                     </TableBody>
                   </Table>
                 </div>
+
+                <div className="md:hidden space-y-3">
+                  {filteredReviews.map((review) => (
+                    <div key={review.id} className="border rounded-lg p-4 space-y-3 bg-white">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Avatar className="w-8 h-8 flex-shrink-0">
+                            <AvatarFallback>
+                              {review.employee_name?.split(" ").map((n) => n[0]).join("") || "?"}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0">
+                            <p className="font-medium text-gray-900 truncate">{review.employee_name}</p>
+                            <p className="text-sm text-gray-600 truncate">{review.employee_department || "—"}</p>
+                          </div>
+                        </div>
+                        <Badge className={getStatusColor(review.rating != null ? "completed" : "pending")}>
+                          {review.rating != null ? "completed" : "pending"}
+                        </Badge>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div>
+                          <span className="text-gray-500">Type</span>
+                          <p className="font-medium capitalize">{review.period?.replace("_", " ")}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Date</span>
+                          <p className="font-medium">
+                            {review.formatted_review_date ||
+                              (review.review_date ? new Date(review.review_date).toLocaleDateString() : "—")}
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Rating</span>
+                          <p className="font-medium">
+                            {review.rating != null ? (
+                              <span className="inline-flex items-center gap-1">
+                                {review.rating}
+                                <Star className="w-3 h-3 text-yellow-400 fill-current" />
+                              </span>
+                            ) : "—"}
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Reviewer</span>
+                          <p className="font-medium truncate">{review.reviewer}</p>
+                        </div>
+                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="outline" size="sm" className="w-full">
+                            <MoreHorizontal className="w-4 h-4 mr-2" />
+                            Actions
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem>
+                            <Eye className="w-4 h-4 mr-2" />
+                            View Details
+                          </DropdownMenuItem>
+                          <DropdownMenuItem>
+                            <Edit className="w-4 h-4 mr-2" />
+                            Edit Review
+                          </DropdownMenuItem>
+                          <DropdownMenuItem>
+                            <Download className="w-4 h-4 mr-2" />
+                            Export PDF
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  ))}
+                </div>
+                </>
               )}
             </CardContent>
           </Card>

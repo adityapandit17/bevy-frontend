@@ -44,8 +44,16 @@ import {
   ChevronUp,
   ChevronDown,
   X,
+  ArrowLeft,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useIsMobile } from "@/components/ui/use-mobile"
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
 import { chatApi, ChatCable, Channel, Message } from "@/lib/chat"
 import { useAuthContext } from "@/lib/auth"
 import { apiRequest, getApiUrl } from "@/lib/api"
@@ -63,6 +71,9 @@ interface User {
 
 export default function ChatPage() {
   const { user: currentUser } = useAuthContext()
+  const isMobile = useIsMobile()
+  const [mobileView, setMobileView] = useState<"list" | "chat">("list")
+  const [showChannelInfo, setShowChannelInfo] = useState(false)
   const [channels, setChannels] = useState<Channel[]>([])
   const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
@@ -104,6 +115,20 @@ export default function ChatPage() {
   const [huddlePanelExpanded, setHuddlePanelExpanded] = useState(false)
   const localVideoRef = useRef<HTMLVideoElement>(null)
   const remoteVideoRefs = useRef<Map<number, HTMLVideoElement>>(new Map())
+
+  const selectChannel = useCallback(
+    (channel: Channel, options?: { openChat?: boolean }) => {
+      setSelectedChannel(channel)
+      if (isMobile && (options?.openChat ?? true)) {
+        setMobileView("chat")
+      }
+    },
+    [isMobile]
+  )
+
+  const handleMobileBack = () => {
+    setMobileView("list")
+  }
 
   // WebRTC Call state from global provider (notifications work app-wide)
   const {
@@ -416,7 +441,7 @@ export default function ChatPage() {
         // Create direct message channel
         const channel = await chatApi.createDirectChannel({ user_id: selectedUsers[0] })
         setChannels((prev) => [channel, ...prev])
-        setSelectedChannel(channel)
+        selectChannel(channel)
         setShowCreateDialog(false)
         resetCreateDialog()
         toast({
@@ -433,7 +458,7 @@ export default function ChatPage() {
           user_ids: selectedUsers,
         })
         setChannels((prev) => [channel, ...prev])
-        setSelectedChannel(channel)
+        selectChannel(channel)
         setShowCreateDialog(false)
         resetCreateDialog()
         toast({
@@ -798,22 +823,27 @@ export default function ChatPage() {
 
   if (loading) {
     return (
-      <div className="flex h-[calc(100vh-4rem)] items-center justify-center">
+      <div className="flex h-[calc(100dvh-4rem)] items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] bg-background relative">
+    <div className="flex flex-col h-[calc(100dvh-4rem)] bg-background relative">
       {/* Main Chat Area - Adjust height when huddle is active */}
       <div className={cn(
-        "flex flex-1 overflow-hidden",
+        "flex flex-1 min-h-0 overflow-hidden",
         activeHuddle && activeHuddle.status === 'active' && !huddlePanelExpanded && "mb-16",
-        activeHuddle && activeHuddle.status === 'active' && huddlePanelExpanded && "mb-96"
+        activeHuddle && activeHuddle.status === 'active' && huddlePanelExpanded && "mb-64 md:mb-96"
       )}>
         {/* Left Sidebar - Channels/Conversations */}
-        <div className="w-64 border-r border-border bg-card flex flex-col">
+        <div className={cn(
+          "border-r border-border bg-card flex flex-col shrink-0",
+          "w-full md:w-64",
+          isMobile && mobileView === "chat" && "hidden",
+          !isMobile && "flex"
+        )}>
           {/* Header */}
           <div className="p-4 border-b border-border">
           <div className="flex items-center justify-between mb-3">
@@ -852,7 +882,7 @@ export default function ChatPage() {
                   .map((channel) => (
                     <button
                       key={`channel-${channel.id}`}
-                      onClick={() => setSelectedChannel(channel)}
+                      onClick={() => selectChannel(channel)}
                       className={cn(
                         "w-full flex items-center gap-2 px-2 py-2 rounded-md hover:bg-accent transition-colors text-left group",
                         selectedChannel?.id === channel.id && "bg-accent"
@@ -887,7 +917,7 @@ export default function ChatPage() {
                     return (
                       <button
                         key={`direct-${channel.id}`}
-                        onClick={() => setSelectedChannel(channel)}
+                        onClick={() => selectChannel(channel)}
                         className={cn(
                           "w-full flex items-center gap-2 px-2 py-2 rounded-md hover:bg-accent transition-colors text-left group",
                           selectedChannel?.id === channel.id && "bg-accent"
@@ -923,7 +953,7 @@ export default function ChatPage() {
                   .map((channel) => (
                     <button
                       key={`group-${channel.id}`}
-                      onClick={() => setSelectedChannel(channel)}
+                      onClick={() => selectChannel(channel)}
                       className={cn(
                         "w-full flex items-center gap-2 px-2 py-2 rounded-md hover:bg-accent transition-colors text-left group",
                         selectedChannel?.id === channel.id && "bg-accent"
@@ -951,12 +981,28 @@ export default function ChatPage() {
         </div>
 
         {/* Main Chat Area */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className={cn(
+          "flex-1 flex flex-col min-w-0 overflow-hidden",
+          isMobile && mobileView === "list" && "hidden",
+          (!isMobile || mobileView === "chat") && "flex"
+        )}>
           {selectedChannel ? (
             <>
               {/* Chat Header */}
-              <div className="h-14 border-b border-border bg-card flex items-center justify-between px-4">
-              <div className="flex items-center gap-3">
+              <div className="h-14 border-b border-border bg-card flex items-center justify-between px-3 sm:px-4 shrink-0">
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                {isMobile && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 shrink-0"
+                    onClick={handleMobileBack}
+                    aria-label="Back to conversations"
+                  >
+                    <ArrowLeft className="h-5 w-5" />
+                  </Button>
+                )}
+                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                 {selectedChannel.channel_type === "channel" && (
                   <>
                     {selectedChannel.is_private ? (
@@ -964,7 +1010,7 @@ export default function ChatPage() {
                     ) : (
                       <Hash className="h-5 w-5 text-muted-foreground" />
                     )}
-                    <h3 className="font-semibold">{selectedChannel.name}</h3>
+                    <h3 className="font-semibold truncate">{selectedChannel.name}</h3>
                   </>
                 )}
                 {selectedChannel.channel_type === "direct" && (
@@ -974,25 +1020,26 @@ export default function ChatPage() {
                         {getChannelDisplayName(selectedChannel).charAt(0)}
                       </AvatarFallback>
                     </Avatar>
-                    <div>
-                      <h3 className="font-semibold">{getChannelDisplayName(selectedChannel)}</h3>
+                    <div className="min-w-0">
+                      <h3 className="font-semibold truncate">{getChannelDisplayName(selectedChannel)}</h3>
                       <p className="text-xs text-muted-foreground">Direct message</p>
                     </div>
                   </>
                 )}
                 {selectedChannel.channel_type === "group" && (
                   <>
-                    <Users className="h-5 w-5 text-muted-foreground" />
-                    <div>
-                      <h3 className="font-semibold">{selectedChannel.name}</h3>
+                    <Users className="h-5 w-5 text-muted-foreground shrink-0" />
+                    <div className="min-w-0">
+                      <h3 className="font-semibold truncate">{selectedChannel.name}</h3>
                       <p className="text-xs text-muted-foreground">
                         {selectedChannel.members_count} members
                       </p>
                     </div>
                   </>
                 )}
+                </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 sm:gap-2 shrink-0">
                 {/* Call/Huddle Buttons - Show appropriate button based on channel type */}
                 {selectedChannel.channel_type === "direct" ? (
                   // Direct messages: Show WebRTC call button
@@ -1041,7 +1088,7 @@ export default function ChatPage() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8"
+                    className="h-8 w-8 hidden sm:inline-flex"
                     onClick={() => {
                       const otherMember = selectedChannel.members.find((m) => m.id !== currentUser?.id)
                       if (otherMember && currentUser) {
@@ -1055,10 +1102,16 @@ export default function ChatPage() {
                     <Video className="h-4 w-4" />
                   </Button>
                 )}
-                <Button variant="ghost" size="icon" className="h-8 w-8">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 lg:hidden"
+                  onClick={() => setShowChannelInfo(true)}
+                  title="Channel info"
+                >
                   <Info className="h-4 w-4" />
                 </Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
+                <Button variant="ghost" size="icon" className="h-8 w-8 hidden sm:inline-flex">
                   <MoreVertical className="h-4 w-4" />
                 </Button>
               </div>
@@ -1143,7 +1196,7 @@ export default function ChatPage() {
                           className={cn(
                             "text-sm break-words",
                             isCurrentUser &&
-                              "bg-primary text-primary-foreground rounded-lg px-3 py-2 max-w-[70%]",
+                              "bg-primary text-primary-foreground rounded-lg px-3 py-2 max-w-[85%] sm:max-w-[70%]",
                             !isCurrentUser && "text-foreground"
                           )}
                         >
@@ -1161,7 +1214,7 @@ export default function ChatPage() {
             </ScrollArea>
 
             {/* Message Input */}
-            <div className="border-t border-border bg-card p-4">
+            <div className="border-t border-border bg-card p-3 sm:p-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] shrink-0">
               <div className="flex items-end gap-2">
                 <input
                   type="file"
@@ -1233,7 +1286,10 @@ export default function ChatPage() {
             </div>
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center">
+          <div className={cn(
+            "flex-1 flex items-center justify-center",
+            isMobile && "hidden"
+          )}>
             <div className="text-center">
               <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-semibold mb-2">Select a conversation</h3>
@@ -1245,9 +1301,9 @@ export default function ChatPage() {
         )}
         </div>
 
-        {/* Right Sidebar - Channel Info */}
+        {/* Right Sidebar - Channel Info (desktop only) */}
         {selectedChannel && (
-          <div className="w-64 border-l border-border bg-card p-4">
+          <div className="hidden lg:flex w-64 border-l border-border bg-card p-4 flex-col shrink-0 overflow-y-auto">
             <div className="space-y-6">
               <div>
                 <h4 className="font-semibold mb-3">About</h4>
@@ -1309,6 +1365,76 @@ export default function ChatPage() {
           </div>
         )}
       </div>
+
+      {/* Mobile Channel Info Sheet */}
+      <Sheet open={showChannelInfo} onOpenChange={setShowChannelInfo}>
+        <SheetContent side="right" className="w-full sm:max-w-sm overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>
+              {selectedChannel ? getChannelDisplayName(selectedChannel) : "Channel Info"}
+            </SheetTitle>
+          </SheetHeader>
+          {selectedChannel && (
+            <div className="space-y-6 mt-6">
+              <div>
+                <h4 className="font-semibold mb-3">About</h4>
+                {selectedChannel.channel_type === "channel" && (
+                  <div className="space-y-2 text-sm">
+                    <p className="text-muted-foreground">
+                      {selectedChannel.is_private ? "Private channel" : "Public channel"}
+                    </p>
+                    {selectedChannel.description && (
+                      <p className="text-muted-foreground">{selectedChannel.description}</p>
+                    )}
+                  </div>
+                )}
+                {selectedChannel.channel_type === "direct" && (
+                  <p className="text-sm text-muted-foreground">Direct message</p>
+                )}
+                {selectedChannel.channel_type === "group" && (
+                  <p className="text-sm text-muted-foreground">
+                    {selectedChannel.members_count} members
+                  </p>
+                )}
+              </div>
+
+              {(selectedChannel.channel_type === "group" ||
+                selectedChannel.channel_type === "channel") && (
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="font-semibold">Members</h4>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={() => {
+                        setShowChannelInfo(false)
+                        setShowAddMembersDialog(true)
+                      }}
+                      title="Add Members"
+                    >
+                      <UserPlus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="space-y-2">
+                    {selectedChannel.members.map((member) => (
+                      <div key={member.id} className="flex items-center gap-2">
+                        <Avatar className="h-8 w-8">
+                          <AvatarFallback>{member.name.charAt(0)}</AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{member.name}</p>
+                          <p className="text-xs text-muted-foreground truncate">{member.email}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
 
       {/* Add Members Dialog */}
       <Dialog open={showAddMembersDialog} onOpenChange={setShowAddMembersDialog}>

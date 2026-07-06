@@ -27,19 +27,20 @@ export function LoginLayout({ children }: LoginLayoutProps) {
   const isBillingPage = pathname === "/billing"
   const isRootPage = pathname === "/"
   const isCareersPage = pathname?.startsWith("/careers")
+  const isPublicPage =
+    isLoginPage ||
+    isAcceptInvitationPage ||
+    isForgotPasswordPage ||
+    isResetPasswordPage ||
+    isHomePage ||
+    isPricingPage ||
+    isSignupPage ||
+    isTermsPage ||
+    isPrivacyPage ||
+    isRootPage ||
+    isCareersPage
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto"></div>
-          <p className="mt-2 text-gray-600">Loading...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (isLoginPage || isAcceptInvitationPage || isForgotPasswordPage || isResetPasswordPage || isHomePage || isPricingPage || isSignupPage || isTermsPage || isPrivacyPage || isRootPage || isCareersPage) {
+  if (isPublicPage) {
     return <>{children}</>
   }
 
@@ -48,6 +49,33 @@ export function LoginLayout({ children }: LoginLayoutProps) {
       <AuthGuard>
         {children}
       </AuthGuard>
+    )
+  }
+
+  if (isLoading) {
+    if (dashboardLayout === "sidebar") {
+      return (
+        <SidebarLayout>
+          <div className="min-h-[50vh] flex items-center justify-center">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto" />
+              <p className="mt-2 text-gray-600">Loading...</p>
+            </div>
+          </div>
+        </SidebarLayout>
+      )
+    }
+
+    return (
+      <>
+        <TopNav />
+        <div className="pt-16 min-h-screen flex items-center justify-center bg-gray-50">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto" />
+            <p className="mt-2 text-gray-600">Loading...</p>
+          </div>
+        </div>
+      </>
     )
   }
 
@@ -65,9 +93,9 @@ export function LoginLayout({ children }: LoginLayoutProps) {
     <AuthGuard>
       <SubscriptionGuard>
         <TopNav />
-        <div className="pt-16 min-h-screen flex flex-col bg-gray-50">
+        <div className="pt-16 min-h-screen flex flex-col bg-gray-50 overflow-x-hidden">
           <TrialBanner className="sticky top-16 z-40" />
-          <main className="flex-1">{children}</main>
+          <main className="hrms-app-main">{children}</main>
         </div>
       </SubscriptionGuard>
     </AuthGuard>

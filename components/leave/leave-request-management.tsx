@@ -319,7 +319,7 @@ export function LeaveRequestManagement({ onRefresh, onError, onViewDetails }: Le
       {/* Leave Requests Table */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center justify-between">
+          <CardTitle className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <span>Leave Requests ({filteredRequests.length})</span>
             <div className="flex items-center gap-2 text-sm text-gray-500">
               <span>Pending: {leaveRequests.filter(r => r.status === 'pending').length}</span>
@@ -335,6 +335,8 @@ export function LeaveRequestManagement({ onRefresh, onError, onViewDetails }: Le
               <span className="ml-2 text-gray-500">Loading leave requests...</span>
             </div>
           ) : (
+            <>
+            <div className="hidden md:block overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -422,13 +424,87 @@ export function LeaveRequestManagement({ onRefresh, onError, onViewDetails }: Le
                 ))}
               </TableBody>
             </Table>
+            </div>
+
+            {/* Mobile card list */}
+            <div className="md:hidden space-y-3">
+              {filteredRequests.map((request) => (
+                <div key={request.id} className="border rounded-lg p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-medium truncate">{request.employee_name}</p>
+                      <p className="text-sm text-gray-500">{request.employee_department}</p>
+                    </div>
+                    <Badge className={getStatusColor(request.status)}>
+                      {request.status_label}
+                    </Badge>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge className={getLeaveTypeColor(request.leave_type)}>
+                      {request.leave_type_label}
+                    </Badge>
+                    <span className="text-sm text-gray-600">{request.days} day(s)</span>
+                  </div>
+                  <p className="text-sm">
+                    {request.formatted_start_date} – {request.formatted_end_date}
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => handleViewDetails(request)}
+                    >
+                      <Eye className="w-4 h-4 mr-1" />
+                      View
+                    </Button>
+                    {request.status === 'pending' && (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 text-green-600"
+                          onClick={() => handleApprove(request.id)}
+                          disabled={actionLoading === request.id}
+                        >
+                          Approve
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 text-red-600"
+                          onClick={() => handleReject(request.id)}
+                          disabled={actionLoading === request.id}
+                        >
+                          Reject
+                        </Button>
+                      </>
+                    )}
+                    {request.can_be_cancelled && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleCancel(request.id)}
+                        disabled={actionLoading === request.id}
+                      >
+                        Cancel
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {filteredRequests.length === 0 && (
+                <p className="text-center text-gray-500 py-8">No leave requests found</p>
+              )}
+            </div>
+            </>
           )}
         </CardContent>
       </Card>
 
       {/* Leave Request Details Modal */}
       <Dialog open={showDetails} onOpenChange={setShowDetails}>
-        <DialogContent className="sm:max-w-[600px]">
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Leave Request Details</DialogTitle>
             <DialogDescription>
@@ -437,7 +513,7 @@ export function LeaveRequestManagement({ onRefresh, onError, onViewDetails }: Le
           </DialogHeader>
           {selectedRequest && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium text-gray-600">Employee</label>
                   <p className="text-sm text-gray-900">{selectedRequest.employee_name}</p>
@@ -449,7 +525,7 @@ export function LeaveRequestManagement({ onRefresh, onError, onViewDetails }: Le
                 </div>
               </div>
               
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium text-gray-600">Leave Type</label>
                   <Badge className={getLeaveTypeColor(selectedRequest.leave_type)}>
@@ -467,7 +543,7 @@ export function LeaveRequestManagement({ onRefresh, onError, onViewDetails }: Le
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium text-gray-600">Start Date</label>
                   <p className="text-sm text-gray-900">{selectedRequest.formatted_start_date}</p>
@@ -490,7 +566,7 @@ export function LeaveRequestManagement({ onRefresh, onError, onViewDetails }: Le
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium text-gray-600">Applied On</label>
                   <p className="text-sm text-gray-900">

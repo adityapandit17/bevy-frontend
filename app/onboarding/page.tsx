@@ -689,14 +689,14 @@ export default function OnboardingPage() {
   ) : []
 
   return (
-    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6">
+    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-4 sm:space-y-6 overflow-x-hidden">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Employee Onboarding</h1>
+          <h1 className="text-2xl lg:text-2xl sm:text-3xl font-bold text-gray-900">Employee Onboarding</h1>
           <p className="text-gray-600">Manage new employee onboarding process and checklists</p>
         </div>
-        <div className="flex gap-2">
+        <div className="hrms-action-row w-full sm:w-auto">
           <Button variant="outline" size="sm">
             <Download className="w-4 h-4 mr-2" />
             Export Report
@@ -709,7 +709,7 @@ export default function OnboardingPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
         {loading ? (
           Array.from({ length: 4 }).map((_, index) => (
             <Card key={index} className="hover:shadow-md transition-shadow">
@@ -1162,7 +1162,7 @@ export default function OnboardingPage() {
                 placeholder="Enter task description"
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="category">Category</Label>
                 <Select value={taskFormData.category} onValueChange={(value) => handleTaskInputChange('category', value)}>

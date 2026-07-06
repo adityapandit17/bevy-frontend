@@ -138,7 +138,7 @@ export default function AttendanceComplianceReportPage() {
       resourceKeys={["reports", "leave_management", "attendance_records"]}
       pageName="Attendance compliance report"
     >
-      <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6">
+      <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-4 sm:space-y-6 overflow-x-hidden">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <Button variant="ghost" size="sm" asChild className="mb-2 -ml-2">
@@ -147,18 +147,18 @@ export default function AttendanceComplianceReportPage() {
                 Back to reports
               </Link>
             </Button>
-            <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Attendance & hours compliance</h1>
+            <h1 className="text-2xl lg:text-2xl sm:text-3xl font-bold text-gray-900">Attendance & hours compliance</h1>
             <p className="text-gray-600">
               Employees behind weekly hour targets ({report?.weekly_working_hours ?? 40}h/week)
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="hrms-action-row w-full sm:w-auto">
             <Button variant="outline" size="sm" onClick={downloadCsv} disabled={!report?.employees?.length}>
               <Download className="w-4 h-4 mr-2" />
               Download
             </Button>
             <Select value={month} onValueChange={setMonth}>
-            <SelectTrigger className="w-48">
+            <SelectTrigger className="w-full sm:w-48">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -182,7 +182,7 @@ export default function AttendanceComplianceReportPage() {
           </Card>
         ) : (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
               <Card>
                 <CardContent className="p-6 flex items-center gap-4">
                   <Users className="w-10 h-10 text-blue-600 bg-blue-50 p-2 rounded-lg" />
@@ -242,7 +242,7 @@ export default function AttendanceComplianceReportPage() {
                 <CardDescription>Worked vs required hours and compliance progress</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="rounded-md border overflow-x-auto">
+                <div className="hidden md:block rounded-md border overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -293,6 +293,41 @@ export default function AttendanceComplianceReportPage() {
                       ))}
                     </TableBody>
                   </Table>
+                </div>
+
+                <div className="md:hidden space-y-3">
+                  {report.employees.map((row) => (
+                    <div key={row.employee_id} className="border rounded-lg p-4 space-y-3 bg-white">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="font-medium truncate">{row.employee_name}</p>
+                          <p className="text-sm text-gray-500">{row.department_name || "—"}</p>
+                        </div>
+                        <span className="text-sm font-medium shrink-0">{row.compliance_percent}%</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div>
+                          <span className="text-gray-500">Worked</span>
+                          <p className="font-medium">{row.total_hours_worked}h</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Required</span>
+                          <p className="font-medium">{row.required_hours_to_date}h</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Behind</span>
+                          <p className={`font-medium ${row.hours_behind_schedule > 0 ? "text-red-600" : "text-green-600"}`}>
+                            {row.hours_behind_schedule > 0 ? `${row.hours_behind_schedule}h` : "On track"}
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Avg/day</span>
+                          <p className="font-medium">{row.average_daily_hours}h</p>
+                        </div>
+                      </div>
+                      <Progress value={Math.min(row.compliance_percent, 100)} className="h-2" />
+                    </div>
+                  ))}
                 </div>
               </CardContent>
             </Card>

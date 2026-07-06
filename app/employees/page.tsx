@@ -292,15 +292,15 @@ export default function EmployeesPage() {
 
   return (
     <ResourceGuard resourceKeys={["employees"]} pageName="Employees">
-      <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6">
+      <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-4 sm:space-y-6 overflow-x-hidden">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Employees</h1>
+          <h1 className="text-2xl lg:text-2xl sm:text-3xl font-bold text-gray-900">Employees</h1>
           <p className="text-gray-600">Manage your organization's workforce</p>
         </div>
-        <div className="flex flex-col gap-2">
-          <div className="flex gap-2">
+        <div className="flex flex-col gap-2 w-full sm:w-auto">
+          <div className="hrms-action-row flex-wrap">
             {!isEmployeeOnly && (
               <>
                 <Button
@@ -455,8 +455,8 @@ export default function EmployeesPage() {
               </div>
             ) : null}
 
-            {/* Employee Table */}
-            <div className="rounded-md border">
+            {/* Employee Table — desktop */}
+            <div className="hidden md:block rounded-md border overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -612,6 +612,147 @@ export default function EmployeesPage() {
                   )}
                 </TableBody>
               </Table>
+            </div>
+
+            {/* Employee cards — mobile */}
+            <div className="md:hidden space-y-3">
+              {loading ? (
+                <div className="text-center py-8 text-gray-500">Loading employees...</div>
+              ) : employees.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">No employees found</div>
+              ) : (
+                employees.map((employee) => {
+                  const department = departments.find(dept => dept.id === employee.department_id)
+                  const departmentName = department ? department.name : `Department ${employee.department_id}`
+                  return (
+                    <div key={employee.id} className="border rounded-lg p-4 space-y-3 bg-white">
+                      <div className="flex items-start gap-3">
+                        <Checkbox
+                          checked={selectedIds.has(employee.id)}
+                          onCheckedChange={(v) => toggleSelected(employee.id, Boolean(v))}
+                          aria-label={`Select ${employee.first_name} ${employee.last_name}`}
+                          className="mt-1"
+                        />
+                        <div className="w-10 h-10 shrink-0 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-medium text-sm">
+                          {employee.first_name?.[0]}{employee.last_name?.[0]}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              {canShow ? (
+                                <button
+                                  type="button"
+                                  onClick={() => router.push(`/employees/${employee.id}`)}
+                                  className="font-medium text-gray-900 hover:underline text-left truncate block w-full"
+                                >
+                                  {employee.first_name} {employee.last_name}
+                                </button>
+                              ) : (
+                                <p className="font-medium text-gray-900 truncate">{employee.first_name} {employee.last_name}</p>
+                              )}
+                              {employee.display_id && (
+                                <p className="text-sm text-gray-500">{employee.display_id}</p>
+                              )}
+                            </div>
+                            <Badge
+                              variant={employee.status === "active" ? "default" : "secondary"}
+                              className={`shrink-0 ${employee.status === "active" ? "bg-green-100 text-green-800" : ""}`}
+                            >
+                              {employee.status}
+                            </Badge>
+                          </div>
+                          <EmployeeBadge badgeLevel={employee.badge_level} />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-sm pl-7">
+                        <div>
+                          <span className="text-gray-500">Department</span>
+                          <p className="font-medium truncate">{departmentName}</p>
+                          <p className="text-xs text-gray-500 truncate">{employee.designation}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Join Date</span>
+                          <p className="font-medium">
+                            {employee.date_of_joining ? new Date(employee.date_of_joining).toLocaleDateString() : '-'}
+                          </p>
+                        </div>
+                        <div className="col-span-2">
+                          <span className="text-gray-500">Email</span>
+                          <p className="font-medium truncate">{employee.email}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Phone</span>
+                          <p className="font-medium">{employee.phone || '-'}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Location</span>
+                          <p className="font-medium truncate">{employee.location || '-'}</p>
+                        </div>
+                      </div>
+                      {hasAnyEmployeeActions && (
+                        <div className="flex items-center gap-2 pt-1 pl-7">
+                          {canShow && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1"
+                              onClick={() => router.push(`/employees/${employee.id}`)}
+                            >
+                              View Profile
+                            </Button>
+                          )}
+                          {canUpdate && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1"
+                              onClick={() => handleEditEmployee(employee)}
+                            >
+                              Edit
+                            </Button>
+                          )}
+                          {hasAnyEmployeeActions && (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm">
+                                  <MoreHorizontal className="w-4 h-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                {canUpdate && (
+                                  <DropdownMenuItem onClick={() => handleEditEmployee(employee)}>Edit Details</DropdownMenuItem>
+                                )}
+                                {canShow && (
+                                  <DropdownMenuItem onClick={() => router.push(`/employees/${employee.id}`)}>
+                                    View Profile
+                                  </DropdownMenuItem>
+                                )}
+                                {canViewPayroll && canShow && (
+                                  <DropdownMenuItem onClick={() => router.push(`/employees/${employee.id}/payroll`)}>
+                                    View Payroll
+                                  </DropdownMenuItem>
+                                )}
+                                {canUpdate && (
+                                  <>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      onClick={() => handleToggleEmployeeStatus(employee)}
+                                      className={employee.status === "active" ? "text-red-600" : "text-green-600"}
+                                    >
+                                      {employee.status === "active" ? "Deactivate" : "Activate"}
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })
+              )}
             </div>
 
             {/* Pagination */}

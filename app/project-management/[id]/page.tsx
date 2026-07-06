@@ -177,30 +177,30 @@ export default function ProjectDetail() {
   const totalTasks = project.tasks_total
 
   return (
-    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6">
+    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-4 sm:space-y-6 overflow-x-hidden">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 min-w-0">
           <Button variant="ghost" size="sm" onClick={() => router.back()}>
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back
           </Button>
-          <div>
-            <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">{project.name}</h1>
-            {project.description && <p className="text-gray-600">{project.description}</p>}
+          <div className="min-w-0">
+            <h1 className="text-2xl lg:text-2xl sm:text-3xl font-bold text-gray-900 truncate">{project.name}</h1>
+            {project.description && <p className="text-gray-600 line-clamp-2">{project.description}</p>}
           </div>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm">
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          <Button variant="outline" size="sm" className="w-full sm:w-auto">
             <Edit className="w-4 h-4 mr-2" />
             Edit Project
           </Button>
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" className="w-full sm:w-auto">
             <MoreHorizontal className="w-4 h-4" />
           </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
         <Card className="hover:shadow-md transition-shadow">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
@@ -267,7 +267,7 @@ export default function ProjectDetail() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="hrms-tabs-scroll">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="tasks">Tasks</TabsTrigger>
           <TabsTrigger value="team">Team</TabsTrigger>
@@ -283,7 +283,7 @@ export default function ProjectDetail() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm font-medium text-gray-600">Status</p>
                     <Badge className={getStatusColor(project.status)}>{formatStatus(project.status)}</Badge>
@@ -353,12 +353,12 @@ export default function ProjectDetail() {
         <TabsContent value="tasks" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center justify-between">
+              <CardTitle className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div className="flex items-center gap-2">
                   <CheckCircle className="w-5 h-5" />
                   Project Tasks
                 </div>
-                <Button size="sm">
+                <Button size="sm" className="w-full sm:w-auto">
                   <Plus className="w-4 h-4 mr-2" />
                   Add Task
                 </Button>
@@ -373,21 +373,23 @@ export default function ProjectDetail() {
               ) : (
                 <div className="space-y-3">
                   {tasks.map((task) => (
-                    <div key={task.id} className="flex items-center gap-4 p-4 border rounded-lg hover:bg-gray-50">
-                      <div className="flex-shrink-0">{getTaskStatusIcon(task.status)}</div>
-                      <div className="flex-1">
-                        <h4 className="font-medium text-gray-900">{task.title}</h4>
-                        <div className="flex items-center gap-4 mt-1 flex-wrap">
-                          <span className="text-sm text-gray-600">Assigned to: {task.assignee}</span>
-                          {task.due_date && (
-                            <span className="text-sm text-gray-600">Due: {formatDate(task.due_date)}</span>
-                          )}
-                          {task.story_points != null && (
-                            <span className="text-sm text-gray-600">{task.story_points} pts</span>
-                          )}
+                    <div key={task.id} className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 p-4 border rounded-lg hover:bg-gray-50">
+                      <div className="flex items-start gap-3 flex-1 min-w-0">
+                        <div className="flex-shrink-0">{getTaskStatusIcon(task.status)}</div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-medium text-gray-900">{task.title}</h4>
+                          <div className="flex items-center gap-4 mt-1 flex-wrap">
+                            <span className="text-sm text-gray-600">Assigned to: {task.assignee}</span>
+                            {task.due_date && (
+                              <span className="text-sm text-gray-600">Due: {formatDate(task.due_date)}</span>
+                            )}
+                            {task.story_points != null && (
+                              <span className="text-sm text-gray-600">{task.story_points} pts</span>
+                            )}
+                          </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-shrink-0">
                         <Badge className={getPriorityColor(task.priority)}>{task.priority}</Badge>
                         <Badge className={getStatusColor(task.status)}>{formatStatus(task.status)}</Badge>
                       </div>

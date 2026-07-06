@@ -244,3 +244,47 @@ body {
   background-color: hsl(var(--accent));
   color: hsl(var(--accent-foreground));
 }
+
+/* ── Mobile-friendly app utilities (mobile-only overrides; desktop unchanged) ── */
+@layer components {
+  .hrms-app-main {
+    @apply min-h-0 flex-1 overflow-x-hidden;
+  }
+
+  /* Scrollable tab row — use on TabsList when many tabs */
+  .hrms-tabs-scroll {
+    @apply flex h-auto w-full max-w-full flex-nowrap justify-start gap-1 overflow-x-auto p-1;
+  }
+
+  .hrms-tabs-scroll [data-state] {
+    @apply shrink-0 whitespace-nowrap text-xs sm:text-sm px-3;
+  }
+
+  /* Tighter form grids on small screens */
+  .hrms-form-grid {
+    @apply grid grid-cols-1 sm:grid-cols-2 gap-4;
+  }
+
+  .hrms-detail-grid {
+    @apply grid grid-cols-1 sm:grid-cols-2 gap-4;
+  }
+
+  /* Full-width primary actions on mobile */
+  .hrms-action-row {
+    @apply flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2;
+  }
+
+  .hrms-action-row > button,
+  .hrms-action-row > a[role="button"] {
+    @apply w-full sm:w-auto;
+  }
+}
+
+@media (max-width: 767px) {
+  /* Prevent iOS zoom on focus for inputs inside the app */
+  .hrms-app-main input,
+  .hrms-app-main select,
+  .hrms-app-main textarea {
+    font-size: 16px;
+  }
+}

@@ -106,7 +106,7 @@ export default function InterviewDemoPage() {
 
       {/* Demo Tabs */}
       <Tabs defaultValue="management" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="hrms-tabs-scroll">
           <TabsTrigger value="management">Interview Management</TabsTrigger>
           <TabsTrigger value="candidates">Candidates</TabsTrigger>
           <TabsTrigger value="scheduling">Scheduling Demo</TabsTrigger>
