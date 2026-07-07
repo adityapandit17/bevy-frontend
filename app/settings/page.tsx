@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import Image from "next/image"
-import { Building2, Users, Shield, Bell, Database, Globe, Save, Download, Calendar, Upload, Trash2, LayoutPanelLeft } from "lucide-react"
+import { Building2, Users, Shield, Bell, Database, Globe, Save, Download, Calendar, Upload, Trash2, LayoutPanelLeft, Plus, PartyPopper } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { TimePicker } from "@/components/ui/time-picker"
 import { useEffect, useState, Suspense } from "react"
@@ -18,7 +18,7 @@ import { useSearchParams, useRouter } from "next/navigation"
 import { IntegrationsTab } from "@/components/settings/integrations-tab"
 import { DepartmentsTab } from "@/components/settings/departments-tab"
 import { BillingTab } from "@/components/settings/billing-tab"
-import { apiRequest, apiFormRequest, getEndpointUrl } from "@/lib/api"
+import { apiRequest, apiFormRequest, getEndpointUrl, getApiUrl } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { ResourceGuard } from "@/lib/auth/auth.guards"
 import { AUTH_CONFIG } from "@/config/auth.config"
@@ -269,6 +269,240 @@ function LeavePoliciesTab() {
   )
 }
 
+interface HolidayItem {
+  id: number
+  date: string
+  name: string
+  reason?: string
+}
+
+function HolidayCalendarTab() {
+  const [holidays, setHolidays] = useState<HolidayItem[]>([])
+  const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
+  const [formData, setFormData] = useState({
+    date: "",
+    name: "",
+    reason: "",
+  })
+  const [editingId, setEditingId] = useState<number | null>(null)
+
+  const fetchHolidays = async () => {
+    setLoading(true)
+    try {
+      const url = `${getEndpointUrl("HOLIDAYS")}?year=${selectedYear}`
+      const data = await apiRequest<HolidayItem[]>(url, { suppressToast: true })
+      setHolidays(Array.isArray(data) ? data : [])
+    } catch (err) {
+      console.error("Error fetching holidays:", err)
+      setHolidays([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchHolidays()
+  }, [selectedYear])
+
+  const resetForm = () => {
+    setFormData({ date: "", name: "", reason: "" })
+    setEditingId(null)
+  }
+
+  const handleSave = async () => {
+    if (!formData.date || !formData.name.trim()) {
+      toast({
+        title: "Missing fields",
+        description: "Please provide a date and holiday name.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setSaving(true)
+    try {
+      const payload = {
+        holiday: {
+          date: formData.date,
+          name: formData.name.trim(),
+          reason: formData.reason.trim() || undefined,
+        },
+      }
+
+      if (editingId) {
+        await apiRequest(getEndpointUrl("HOLIDAY").replace("{id}", String(editingId)), {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        })
+        toast({ title: "Holiday updated" })
+      } else {
+        await apiRequest(getEndpointUrl("HOLIDAYS"), {
+          method: "POST",
+          body: JSON.stringify(payload),
+        })
+        toast({ title: "Holiday added" })
+      }
+
+      resetForm()
+      await fetchHolidays()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to save holiday"
+      toast({ title: "Error", description: message, variant: "destructive" })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleEdit = (holiday: HolidayItem) => {
+    setEditingId(holiday.id)
+    setFormData({
+      date: holiday.date,
+      name: holiday.name,
+      reason: holiday.reason || "",
+    })
+  }
+
+  const handleDelete = async (id: number) => {
+    if (!confirm("Remove this holiday from the calendar?")) return
+    try {
+      await apiRequest(getEndpointUrl("HOLIDAY").replace("{id}", String(id)), {
+        method: "DELETE",
+      })
+      toast({ title: "Holiday removed" })
+      if (editingId === id) resetForm()
+      await fetchHolidays()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to delete holiday"
+      toast({ title: "Error", description: message, variant: "destructive" })
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <PartyPopper className="w-5 h-5" />
+          Holiday Calendar
+        </CardTitle>
+        <CardDescription>
+          Configure company holidays with dates and reasons. These appear on the company calendar for all employees.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-end gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="holiday-year">Year</Label>
+            <Select
+              value={String(selectedYear)}
+              onValueChange={(value) => setSelectedYear(parseInt(value, 10))}
+            >
+              <SelectTrigger id="holiday-year" className="w-[140px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {[0, 1, 2].map((offset) => {
+                  const year = new Date().getFullYear() + offset
+                  return (
+                    <SelectItem key={year} value={String(year)}>
+                      {year}
+                    </SelectItem>
+                  )
+                })}
+              </SelectContent>
+            </Select>
+          </div>
+          <p className="text-sm text-gray-500">
+            {holidays.length} holiday{holidays.length === 1 ? "" : "s"} configured for {selectedYear}
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-lg bg-gray-50">
+          <div className="space-y-2">
+            <Label htmlFor="holiday-date">Date</Label>
+            <Input
+              id="holiday-date"
+              type="date"
+              value={formData.date}
+              onChange={(e) => setFormData((prev) => ({ ...prev, date: e.target.value }))}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="holiday-name">Holiday name</Label>
+            <Input
+              id="holiday-name"
+              value={formData.name}
+              onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
+              placeholder="e.g. Independence Day"
+            />
+          </div>
+          <div className="space-y-2 md:col-span-1">
+            <Label htmlFor="holiday-reason">Reason / description</Label>
+            <Input
+              id="holiday-reason"
+              value={formData.reason}
+              onChange={(e) => setFormData((prev) => ({ ...prev, reason: e.target.value }))}
+              placeholder="Why is this a holiday?"
+            />
+          </div>
+          <div className="md:col-span-3 flex flex-wrap gap-2">
+            <Button onClick={handleSave} disabled={saving}>
+              <Plus className="w-4 h-4 mr-2" />
+              {editingId ? "Update holiday" : "Add holiday"}
+            </Button>
+            {editingId && (
+              <Button variant="outline" onClick={resetForm} disabled={saving}>
+                Cancel edit
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {loading ? (
+          <p className="text-sm text-gray-500">Loading holidays...</p>
+        ) : holidays.length === 0 ? (
+          <p className="text-sm text-gray-500">No holidays configured for {selectedYear} yet.</p>
+        ) : (
+          <div className="space-y-2">
+            {holidays.map((holiday) => (
+              <div
+                key={holiday.id}
+                className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 border rounded-lg"
+              >
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
+                      {holiday.date}
+                    </Badge>
+                    <h4 className="font-medium text-gray-900">{holiday.name}</h4>
+                  </div>
+                  {holiday.reason && (
+                    <p className="text-sm text-gray-500 mt-1">{holiday.reason}</p>
+                  )}
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <Button variant="outline" size="sm" onClick={() => handleEdit(holiday)}>
+                    Edit
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-red-600 hover:text-red-700"
+                    onClick={() => handleDelete(holiday.id)}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 function SettingsPageContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -475,6 +709,7 @@ function SettingsPageContent() {
           <TabsTrigger value="departments">Departments</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
           <TabsTrigger value="leave-policies">Leave Policies</TabsTrigger>
+          <TabsTrigger value="holiday-calendar">Holiday Calendar</TabsTrigger>
           <TabsTrigger value="security">Security</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
           <TabsTrigger value="integrations">Integrations</TabsTrigger>
@@ -813,6 +1048,11 @@ function SettingsPageContent() {
         {/* Leave Policies */}
         <TabsContent value="leave-policies" className="space-y-6">
           <LeavePoliciesTab />
+        </TabsContent>
+
+        {/* Holiday Calendar */}
+        <TabsContent value="holiday-calendar" className="space-y-6">
+          <HolidayCalendarTab />
         </TabsContent>
 
         {/* User Management */}

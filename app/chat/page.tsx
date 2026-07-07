@@ -15,6 +15,23 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -44,7 +61,12 @@ import {
   ChevronUp,
   ChevronDown,
   X,
+  Trash2,
   ArrowLeft,
+  Pencil,
+  Globe,
+  FileText,
+  Download,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useIsMobile } from "@/components/ui/use-mobile"
@@ -56,7 +78,7 @@ import {
 } from "@/components/ui/sheet"
 import { chatApi, ChatCable, Channel, Message } from "@/lib/chat"
 import { useAuthContext } from "@/lib/auth"
-import { apiRequest, getApiUrl } from "@/lib/api"
+import { apiRequest, getApiUrl, getDocumentUrl } from "@/lib/api"
 import { toast } from "@/hooks/use-toast"
 import { useCallContext } from "@/providers/call-provider"
 
@@ -70,7 +92,7 @@ interface User {
 }
 
 export default function ChatPage() {
-  const { user: currentUser } = useAuthContext()
+  const { user: currentUser, checkRole } = useAuthContext()
   const isMobile = useIsMobile()
   const [mobileView, setMobileView] = useState<"list" | "chat">("list")
   const [showChannelInfo, setShowChannelInfo] = useState(false)
@@ -101,6 +123,17 @@ export default function ChatPage() {
   const [showAddMembersDialog, setShowAddMembersDialog] = useState(false)
   const [selectedMembersToAdd, setSelectedMembersToAdd] = useState<number[]>([])
   const [addingMembers, setAddingMembers] = useState(false)
+
+  // Delete channel dialog state
+  const [showDeleteChannelDialog, setShowDeleteChannelDialog] = useState(false)
+  const [deletingChannel, setDeletingChannel] = useState(false)
+
+  // Rename channel dialog state
+  const [showRenameDialog, setShowRenameDialog] = useState(false)
+  const [renameValue, setRenameValue] = useState("")
+  const [renamingChannel, setRenamingChannel] = useState(false)
+  const [togglingPrivacy, setTogglingPrivacy] = useState(false)
+  const [uploadingFile, setUploadingFile] = useState(false)
 
   // Emoji picker state
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
@@ -533,24 +566,178 @@ export default function ChatPage() {
     }
   }
 
+  const canManageSelectedChannel =
+    selectedChannel &&
+    selectedChannel.channel_type !== "direct" &&
+    (selectedChannel.created_by.id === currentUser?.id || checkRole("Super Admin"))
+
+  const updateChannelInState = (updated: Channel) => {
+    setChannels((prev) => prev.map((ch) => (ch.id === updated.id ? updated : ch)))
+    setSelectedChannel(updated)
+  }
+
+  const handleRenameChannel = async () => {
+    if (!selectedChannel || !renameValue.trim() || renamingChannel) return
+
+    try {
+      setRenamingChannel(true)
+      const updated = await chatApi.updateChannel(selectedChannel.id, {
+        name: renameValue.trim(),
+      })
+      updateChannelInState(updated)
+      setShowRenameDialog(false)
+      toast({
+        title: "Renamed",
+        description: `Channel is now "${updated.name}".`,
+      })
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to rename channel"
+      toast({ title: "Error", description: message, variant: "destructive" })
+    } finally {
+      setRenamingChannel(false)
+    }
+  }
+
+  const handleTogglePrivacy = async () => {
+    if (!selectedChannel || selectedChannel.channel_type !== "channel" || togglingPrivacy) return
+
+    try {
+      setTogglingPrivacy(true)
+      const updated = await chatApi.updateChannel(selectedChannel.id, {
+        is_private: !selectedChannel.is_private,
+      })
+      updateChannelInState(updated)
+      toast({
+        title: updated.is_private ? "Channel is now private" : "Channel is now public",
+        description: updated.is_private
+          ? "Only invited members can see this channel."
+          : "All workspace members can discover this channel.",
+      })
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to update channel privacy"
+      toast({ title: "Error", description: message, variant: "destructive" })
+    } finally {
+      setTogglingPrivacy(false)
+    }
+  }
+
+  const handleDeleteChannel = async () => {
+    if (!selectedChannel || deletingChannel) return
+
+    try {
+      setDeletingChannel(true)
+      await chatApi.deleteChannel(selectedChannel.id)
+      setChannels((prev) => prev.filter((ch) => ch.id !== selectedChannel.id))
+      setSelectedChannel(null)
+      setMessages([])
+      if (isMobile) setMobileView("list")
+      setShowDeleteChannelDialog(false)
+      toast({
+        title: "Channel deleted",
+        description: `"${selectedChannel.name}" has been removed.`,
+      })
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to delete channel"
+      toast({
+        title: "Error",
+        description: message,
+        variant: "destructive",
+      })
+    } finally {
+      setDeletingChannel(false)
+    }
+  }
+
   const insertEmoji = (emoji: string) => {
     setMessageInput((prev) => prev + emoji)
     setShowEmojiPicker(false)
   }
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files
-    if (files && files.length > 0) {
-      // For now, just show a toast - file upload will be implemented later
-      toast({
-        title: "File Attachment",
-        description: `Selected ${files.length} file(s). File upload will be available soon.`,
-      })
-      // Reset file input
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ""
-      }
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ""
     }
+    if (!file || !selectedChannel || uploadingFile || sending) return
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "File too large",
+        description: "Maximum file size is 5MB.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      setUploadingFile(true)
+      const upload = await chatApi.uploadFile(file)
+      const caption = messageInput.trim()
+      const sent = await chatApi.sendMessage(selectedChannel.id, caption, {
+        attachment_path: upload.path,
+        attachment_filename: upload.filename,
+        attachment_content_type: upload.content_type,
+      })
+      setMessageInput("")
+      appendMessage(sent)
+      toast({
+        title: "File shared",
+        description: upload.filename,
+      })
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to upload file"
+      toast({
+        title: "Upload failed",
+        description: message,
+        variant: "destructive",
+      })
+    } finally {
+      setUploadingFile(false)
+    }
+  }
+
+  const renderMessageBody = (message: Message, isCurrentUser: boolean) => {
+    const isImage = message.attachment_content_type?.startsWith("image/")
+    const fileUrl = message.attachment_path ? getDocumentUrl(message.attachment_path) : ""
+
+    return (
+      <div className="space-y-2">
+        {message.content?.trim() && (
+          <div>{message.content}</div>
+        )}
+        {message.attachment_path && (
+          <div className={cn(isCurrentUser ? "text-primary-foreground" : "text-foreground")}>
+            {isImage ? (
+              <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="block">
+                <img
+                  src={fileUrl}
+                  alt={message.attachment_filename || "Attachment"}
+                  className="max-w-full sm:max-w-xs rounded-md border border-border/50"
+                />
+              </a>
+            ) : (
+              <a
+                href={getDocumentUrl(message.attachment_path, true)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={cn(
+                  "inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:opacity-90",
+                  isCurrentUser
+                    ? "border-primary-foreground/30 bg-primary-foreground/10"
+                    : "border-border bg-muted"
+                )}
+              >
+                <FileText className="h-4 w-4 shrink-0" />
+                <span className="truncate max-w-[200px]">
+                  {message.attachment_filename || "Download file"}
+                </span>
+                <Download className="h-4 w-4 shrink-0" />
+              </a>
+            )}
+          </div>
+        )}
+      </div>
+    )
   }
 
   // Huddle functions
@@ -1111,9 +1298,52 @@ export default function ChatPage() {
                 >
                   <Info className="h-4 w-4" />
                 </Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8 hidden sm:inline-flex">
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
+                {canManageSelectedChannel && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" title="Channel options">
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        onClick={() => {
+                          setRenameValue(selectedChannel.name)
+                          setShowRenameDialog(true)
+                        }}
+                      >
+                        <Pencil className="h-4 w-4 mr-2" />
+                        Rename {selectedChannel.channel_type === "group" ? "group" : "channel"}
+                      </DropdownMenuItem>
+                      {selectedChannel.channel_type === "channel" && (
+                        <DropdownMenuItem
+                          onClick={handleTogglePrivacy}
+                          disabled={togglingPrivacy}
+                        >
+                          {selectedChannel.is_private ? (
+                            <>
+                              <Globe className="h-4 w-4 mr-2" />
+                              Make public
+                            </>
+                          ) : (
+                            <>
+                              <Lock className="h-4 w-4 mr-2" />
+                              Make private
+                            </>
+                          )}
+                        </DropdownMenuItem>
+                      )}
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="text-red-600 focus:text-red-600"
+                        onClick={() => setShowDeleteChannelDialog(true)}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete {selectedChannel.channel_type === "group" ? "group" : "channel"}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
               </div>
             </div>
 
@@ -1121,8 +1351,8 @@ export default function ChatPage() {
             <ScrollArea className="flex-1" ref={messagesContainerRef}>
               <div className="p-4 space-y-4">
                 {messages.map((message, index) => {
-                  // Ensure both are numbers for comparison
-                  if (!message.id || message.content == null) return null
+                  if (!message.id) return null
+                  if (!message.content?.trim() && !message.attachment_path) return null
 
                   const currentUserId = currentUser?.id != null ? Number(currentUser.id) : null
                   const messageUserId = message.user_id != null ? Number(message.user_id) : null
@@ -1200,7 +1430,7 @@ export default function ChatPage() {
                             !isCurrentUser && "text-foreground"
                           )}
                         >
-                          {message.content || ""}
+                          {renderMessageBody(message, isCurrentUser)}
                         </div>
                         {message.edited_at && (
                           <span className="text-xs text-muted-foreground mt-1">(edited)</span>
@@ -1221,15 +1451,21 @@ export default function ChatPage() {
                   ref={fileInputRef}
                   onChange={handleFileSelect}
                   className="hidden"
-                  multiple
+                  accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
                 />
                 <Button
                   variant="ghost"
                   size="icon"
                   className="h-9 w-9 shrink-0"
                   onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadingFile || sending || !selectedChannel}
+                  title="Attach file"
                 >
-                  <Paperclip className="h-4 w-4" />
+                  {uploadingFile ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Paperclip className="h-4 w-4" />
+                  )}
                 </Button>
                 <div className="flex-1 relative">
                   <Input
@@ -1243,7 +1479,7 @@ export default function ChatPage() {
                       }
                     }}
                     className="pr-10"
-                    disabled={sending}
+                    disabled={sending || uploadingFile}
                   />
                   <Popover open={showEmojiPicker} onOpenChange={setShowEmojiPicker}>
                     <PopoverTrigger asChild>
@@ -1941,6 +2177,67 @@ export default function ChatPage() {
           )}
         </div>
       )}
+
+      <Dialog open={showRenameDialog} onOpenChange={setShowRenameDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              Rename {selectedChannel?.channel_type === "group" ? "group" : "channel"}
+            </DialogTitle>
+            <DialogDescription>
+              Choose a new name for &quot;{selectedChannel?.name}&quot;.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <Label htmlFor="rename-channel">Name</Label>
+            <Input
+              id="rename-channel"
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              placeholder="Enter channel name"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault()
+                  handleRenameChannel()
+                }
+              }}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowRenameDialog(false)} disabled={renamingChannel}>
+              Cancel
+            </Button>
+            <Button onClick={handleRenameChannel} disabled={renamingChannel || !renameValue.trim()}>
+              {renamingChannel ? "Saving..." : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={showDeleteChannelDialog} onOpenChange={setShowDeleteChannelDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete channel?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete &quot;{selectedChannel?.name}&quot; and all of its messages.
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingChannel}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault()
+                handleDeleteChannel()
+              }}
+              disabled={deletingChannel}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {deletingChannel ? "Deleting..." : "Delete channel"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

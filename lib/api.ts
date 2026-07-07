@@ -377,6 +377,10 @@ export const API_ENDPOINTS = {
   // File Upload
   UPLOAD: '/uploads',
 
+  // Holidays
+  HOLIDAYS: '/holidays',
+  HOLIDAY: '/holidays/{id}',
+
   // Assets - moved to /api/assets to avoid Propshaft conflict
   ASSETS: '/api/assets',
 

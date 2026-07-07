@@ -226,7 +226,32 @@ export function useAuth() {
 
     if (typeof window !== 'undefined') {
       window.addEventListener('storage', handleStorageChange);
-      return () => window.removeEventListener('storage', handleStorageChange);
+
+      const handleUserUpdated = () => {
+        const userData = localStorage.getItem(AUTH_CONFIG.userKey);
+        if (!userData) return;
+        try {
+          const user = JSON.parse(userData);
+          const transformedRoles = (user.roles || []).map((r: any) =>
+            typeof r === 'string' ? { id: 0, name: r, description: '' } : r
+          );
+          setState(prev => ({
+            ...prev,
+            user,
+            roles: transformedRoles,
+            permissions: user.permissions || [],
+          }));
+        } catch (error) {
+          console.error('Error parsing updated user data:', error);
+        }
+      };
+
+      window.addEventListener('hrms:user-updated', handleUserUpdated);
+
+      return () => {
+        window.removeEventListener('storage', handleStorageChange);
+        window.removeEventListener('hrms:user-updated', handleUserUpdated);
+      };
     }
   }, []);
 

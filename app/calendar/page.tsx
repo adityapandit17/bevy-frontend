@@ -70,10 +70,18 @@ interface Employee {
   email: string
 }
 
+interface Holiday {
+  id: number
+  date: string
+  name: string
+  reason?: string
+}
+
 export default function CalendarPage() {
   const { user, checkRole } = useAuth()
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date())
   const [events, setEvents] = useState<Event[]>([])
+  const [holidays, setHolidays] = useState<Holiday[]>([])
   const [loading, setLoading] = useState(false)
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null)
   const [showEventDialog, setShowEventDialog] = useState(false)
@@ -94,6 +102,7 @@ export default function CalendarPage() {
 
   useEffect(() => {
     fetchEvents()
+    fetchHolidays()
   }, [currentMonth])
 
   useEffect(() => {
@@ -272,6 +281,23 @@ export default function CalendarPage() {
     }
   }
 
+  const fetchHolidays = async () => {
+    try {
+      const startDate = startOfMonth(currentMonth)
+      const endDate = endOfMonth(currentMonth)
+      const params = new URLSearchParams({
+        start_date: format(startDate, 'yyyy-MM-dd'),
+        end_date: format(endDate, 'yyyy-MM-dd'),
+      })
+      const url = `${getEndpointUrl('HOLIDAYS')}?${params.toString()}`
+      const response = await apiRequest<Holiday[]>(url, { suppressToast: true })
+      setHolidays(Array.isArray(response) ? response : [])
+    } catch (error) {
+      console.error('Error fetching holidays:', error)
+      setHolidays([])
+    }
+  }
+
   // Group events by date
   const eventsByDate = events.reduce((acc, event) => {
     const date = format(parseISO(event.start_time), 'yyyy-MM-dd')
@@ -288,8 +314,15 @@ export default function CalendarPage() {
     return eventsByDate[dateStr] || []
   }
 
+  // Get holidays for a specific date
+  const getHolidaysForDate = (date: Date) => {
+    const dateStr = format(date, 'yyyy-MM-dd')
+    return holidays.filter((h) => h.date === dateStr)
+  }
+
   // Check if date has holiday
   const hasHoliday = (date: Date) => {
+    if (getHolidaysForDate(date).length > 0) return true
     const dateEvents = getEventsForDate(date)
     return dateEvents.some(e => 
       e.event_type === 'holiday' || 
@@ -425,6 +458,7 @@ export default function CalendarPage() {
               {/* Calendar Days */}
               {calendarDays.map((day, dayIdx) => {
                 const dayEvents = getEventsForDate(day)
+                const dayHolidays = getHolidaysForDate(day)
                 const isCurrentMonth = isSameMonth(day, currentMonth)
                 const isToday = isSameDay(day, new Date())
                 const isSelected = selectedDate && isSameDay(day, selectedDate)
@@ -454,16 +488,31 @@ export default function CalendarPage() {
                       >
                         {format(day, 'd')}
                       </span>
-                      {dayEvents.length > 0 && (
+                      {dayEvents.length + dayHolidays.length > 0 && (
                         <Badge variant="secondary" className="text-xs h-5 px-1.5">
-                          {dayEvents.length}
+                          {dayEvents.length + dayHolidays.length}
                         </Badge>
                       )}
                     </div>
 
                     {/* Events List */}
                     <div className="flex-1 overflow-y-auto space-y-1">
-                      {dayEvents.slice(0, 4).map((event) => (
+                      {dayHolidays.map((holiday) => (
+                        <div
+                          key={`holiday-${holiday.id}`}
+                          className="text-xs p-1.5 rounded border cursor-default bg-red-100 text-red-800 border-red-300 truncate"
+                          title={holiday.reason || holiday.name}
+                        >
+                          <div className="flex items-center gap-1">
+                            <PartyPopper className="h-3 w-3" />
+                            <span className="font-semibold truncate">{holiday.name}</span>
+                          </div>
+                          {holiday.reason && (
+                            <div className="truncate text-red-700/80 mt-0.5">{holiday.reason}</div>
+                          )}
+                        </div>
+                      ))}
+                      {dayEvents.slice(0, Math.max(0, 4 - dayHolidays.length)).map((event) => (
                         <div
                           key={event.id}
                           className={cn(
@@ -488,9 +537,9 @@ export default function CalendarPage() {
                           </div>
                         </div>
                       ))}
-                      {dayEvents.length > 4 && (
+                      {dayEvents.length + dayHolidays.length > 4 && (
                         <div className="text-xs text-gray-500 font-medium px-1.5">
-                          +{dayEvents.length - 4} more
+                          +{dayEvents.length + dayHolidays.length - 4} more
                         </div>
                       )}
                     </div>
@@ -534,7 +583,22 @@ export default function CalendarPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              {getEventsForDate(selectedDate).length === 0 ? (
+              {getHolidaysForDate(selectedDate).map((holiday) => (
+                <div
+                  key={holiday.id}
+                  className="w-full text-left p-3 rounded-lg border bg-red-100 text-red-800 border-red-300"
+                >
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <PartyPopper className="h-4 w-4" />
+                    Holiday
+                  </div>
+                  <p className="font-semibold mt-1">{holiday.name}</p>
+                  {holiday.reason && (
+                    <p className="text-xs mt-1 opacity-80">{holiday.reason}</p>
+                  )}
+                </div>
+              ))}
+              {getEventsForDate(selectedDate).length === 0 && getHolidaysForDate(selectedDate).length === 0 ? (
                 <p className="text-sm text-gray-500">No events on this day</p>
               ) : (
                 getEventsForDate(selectedDate).map((event) => (

@@ -1,4 +1,4 @@
-import { apiRequest, getApiUrl } from './api';
+import { apiRequest, apiFormRequest, getApiUrl, getEndpointUrl } from './api';
 import { AUTH_CONFIG } from '@/config/auth.config';
 import { getActionCableUrl } from '@/lib/action-cable-url';
 
@@ -31,10 +31,26 @@ export interface Message {
   user_id: number;
   user_name?: string;
   user_email?: string;
-  content: string;
+  content: string | null;
+  attachment_path?: string;
+  attachment_filename?: string;
+  attachment_content_type?: string;
   edited_at?: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface SendMessageParams {
+  content?: string;
+  attachment_path?: string;
+  attachment_filename?: string;
+  attachment_content_type?: string;
+}
+
+export interface UpdateChannelParams {
+  name?: string;
+  description?: string;
+  is_private?: boolean;
 }
 
 export interface CreateChannelParams {
@@ -113,13 +129,44 @@ export const chatApi = {
   },
 
   // Send a message
-  sendMessage: async (channelId: number, content: string): Promise<Message> => {
+  sendMessage: async (
+    channelId: number,
+    content?: string,
+    attachment?: Omit<SendMessageParams, 'content'>
+  ): Promise<Message> => {
     const url = getApiUrl(`api/v1/channels/${channelId}/messages`);
     const response = await apiRequest<{ success: boolean; message: Message }>(url, {
       method: 'POST',
-      body: JSON.stringify({ message: { content } }),
+      body: JSON.stringify({
+        message: {
+          content: content?.trim() || '',
+          ...attachment,
+        },
+      }),
     });
     return response.message;
+  },
+
+  // Upload a file for chat attachments
+  uploadFile: async (file: File): Promise<{
+    path: string;
+    url: string;
+    filename: string;
+    content_type: string;
+  }> => {
+    const form = new FormData();
+    form.append('file', file);
+    return apiFormRequest(getEndpointUrl('UPLOAD'), form);
+  },
+
+  // Update a channel
+  updateChannel: async (channelId: number, params: UpdateChannelParams): Promise<Channel> => {
+    const url = getApiUrl(`api/v1/channels/${channelId}`);
+    const response = await apiRequest<{ success: boolean; channel: Channel }>(url, {
+      method: 'PATCH',
+      body: JSON.stringify({ channel: params }),
+    });
+    return response.channel;
   },
 
   // Update a message
@@ -170,6 +217,14 @@ export const chatApi = {
       body: JSON.stringify({ user_ids: userIds }),
     });
     return response.channel;
+  },
+
+  // Delete a channel
+  deleteChannel: async (channelId: number): Promise<void> => {
+    const url = getApiUrl(`api/v1/channels/${channelId}`);
+    await apiRequest<{ success: boolean; message?: string }>(url, {
+      method: 'DELETE',
+    });
   },
 };
 

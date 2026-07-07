@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useAuthContext } from "@/lib/auth"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { 
   User, 
   Bell, 
@@ -20,19 +21,28 @@ import {
   Shield,
   Save,
   Eye,
-  EyeOff
+  EyeOff,
+  Camera,
+  Upload,
+  Trash2
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import { apiRequest, getApiUrl, getEndpointUrl } from "@/lib/api"
+import { apiRequest, apiFormRequest, getApiUrl, getEndpointUrl } from "@/lib/api"
+import { AUTH_CONFIG } from "@/config/auth.config"
 
 export default function UserSettingsPage() {
   const { user, token } = useAuthContext()
   const { toast } = useToast()
+  const avatarInputRef = useRef<HTMLInputElement>(null)
   
   // Account Settings
   const [name, setName] = useState(user?.name || "")
   const [email, setEmail] = useState(user?.email || "")
   const [phone, setPhone] = useState("")
+  const [avatarUrl, setAvatarUrl] = useState((user as { avatar_url?: string })?.avatar_url || "")
+  const [pendingAvatarFile, setPendingAvatarFile] = useState<File | null>(null)
+  const [pendingAvatarPreview, setPendingAvatarPreview] = useState<string | null>(null)
+  const [removeAvatarOnSave, setRemoveAvatarOnSave] = useState(false)
   
   // Password Settings
   const [currentPassword, setCurrentPassword] = useState("")
@@ -89,6 +99,54 @@ export default function UserSettingsPage() {
     loadPreferences()
   }, [user?.id])
 
+  useEffect(() => {
+    if (user) {
+      setName(user.name || "")
+      setEmail(user.email || "")
+      setAvatarUrl((user as { avatar_url?: string }).avatar_url || "")
+    }
+  }, [user])
+
+  const clearPendingAvatar = () => {
+    if (pendingAvatarPreview?.startsWith("blob:")) {
+      URL.revokeObjectURL(pendingAvatarPreview)
+    }
+    setPendingAvatarFile(null)
+    setPendingAvatarPreview(null)
+    setRemoveAvatarOnSave(false)
+  }
+
+  const handleAvatarSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ""
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "Invalid file", description: "Please select an image file.", variant: "destructive" })
+      return
+    }
+    if (pendingAvatarPreview?.startsWith("blob:")) {
+      URL.revokeObjectURL(pendingAvatarPreview)
+    }
+    setPendingAvatarFile(file)
+    setPendingAvatarPreview(URL.createObjectURL(file))
+    setRemoveAvatarOnSave(false)
+  }
+
+  const handleAvatarRemove = () => {
+    clearPendingAvatar()
+    setRemoveAvatarOnSave(true)
+    setAvatarUrl("")
+  }
+
+  const updateStoredUser = (updatedUser: Record<string, unknown>) => {
+    if (typeof window === "undefined") return
+    const stored = localStorage.getItem(AUTH_CONFIG.userKey)
+    const current = stored ? JSON.parse(stored) : {}
+    const merged = { ...current, ...updatedUser }
+    localStorage.setItem(AUTH_CONFIG.userKey, JSON.stringify(merged))
+    window.dispatchEvent(new Event("hrms:user-updated"))
+  }
+
   const handleSaveAccount = async () => {
     if (!user?.id) return
     setSavingAccount(true)
@@ -97,10 +155,30 @@ export default function UserSettingsPage() {
       const first_name = parts[0] || ""
       const last_name = parts.slice(1).join(" ") || ""
       const url = getEndpointUrl("USER_UPDATE_PROFILE").replace("{id}", String(user.id))
-      await apiRequest(url, {
-        method: "PATCH",
-        body: JSON.stringify({ user: { first_name, last_name } }),
-      })
+      const useMultipart = Boolean(pendingAvatarFile || removeAvatarOnSave)
+
+      let response: { user?: { avatar_url?: string; name?: string } }
+
+      if (useMultipart) {
+        const form = new FormData()
+        form.append("user[first_name]", first_name)
+        form.append("user[last_name]", last_name)
+        if (pendingAvatarFile) form.append("avatar", pendingAvatarFile)
+        if (removeAvatarOnSave) form.append("remove_avatar", "true")
+        response = await apiFormRequest(url, form, { method: "PATCH" })
+      } else {
+        response = await apiRequest(url, {
+          method: "PATCH",
+          body: JSON.stringify({ user: { first_name, last_name } }),
+        })
+      }
+
+      if (response.user) {
+        setAvatarUrl(response.user.avatar_url || "")
+        updateStoredUser(response.user)
+      }
+
+      clearPendingAvatar()
       toast({
         title: "Account updated",
         description: "Your account information has been saved successfully.",
@@ -333,6 +411,49 @@ export default function UserSettingsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="p-4 sm:p-6 space-y-6">
+              <div className="flex flex-col sm:flex-row items-center gap-4">
+                <Avatar className="w-24 h-24">
+                  <AvatarImage
+                    src={removeAvatarOnSave ? undefined : (pendingAvatarPreview || avatarUrl || undefined)}
+                    alt={name || "Profile"}
+                  />
+                  <AvatarFallback className="bg-gradient-to-br from-green-500 to-emerald-600 text-white text-2xl">
+                    {(name || "U").split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex flex-col gap-2">
+                  <input
+                    ref={avatarInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/jpg,image/webp"
+                    className="hidden"
+                    onChange={handleAvatarSelect}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => avatarInputRef.current?.click()}
+                  >
+                    <Upload className="w-4 h-4 mr-2" />
+                    Upload photo
+                  </Button>
+                  {(avatarUrl || pendingAvatarPreview) && !removeAvatarOnSave && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="text-red-600 hover:text-red-700"
+                      onClick={handleAvatarRemove}
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Remove photo
+                    </Button>
+                  )}
+                  <p className="text-xs text-gray-500">PNG, JPG or WEBP. Max 2MB.</p>
+                </div>
+              </div>
+              <Separator />
               <div className="space-y-2">
                 <Label htmlFor="name">Full Name</Label>
                 <Input
