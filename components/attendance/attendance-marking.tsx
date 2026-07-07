@@ -131,11 +131,8 @@ export function AttendanceMarking({ isOpen, onClose, onSuccess }: AttendanceMark
     setSuccess(null)
 
     try {
-      const response = await fetch(getEndpointUrl('ATTENDANCE_RECORDS'), {
+      await apiRequest(getEndpointUrl('ATTENDANCE_RECORDS'), {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({
           attendance_record: {
             employee_id: parseInt(selectedEmployee),
@@ -144,31 +141,23 @@ export function AttendanceMarking({ isOpen, onClose, onSuccess }: AttendanceMark
             check_out: checkOutTime ? `${attendanceDate}T${checkOutTime}:00` : null,
             status: status
           }
-        })
+        }),
       })
 
-      if (response.ok) {
-        setSuccess('Attendance marked successfully!')
-        // Reset form
-        setSelectedEmployee("")
-        setCheckInTime("")
-        setCheckOutTime("")
-        setStatus("present")
-        // Call success callback
-        if (onSuccess) {
-          onSuccess()
-        }
-        // Close modal after 2 seconds
-        setTimeout(() => {
-          onClose()
-        }, 2000)
-      } else {
-        const errorData = await response.json()
-        setError(errorData.errors?.join(', ') || 'Failed to mark attendance')
+      setSuccess('Attendance marked successfully!')
+      setSelectedEmployee("")
+      setCheckInTime("")
+      setCheckOutTime("")
+      setStatus("present")
+      if (onSuccess) {
+        onSuccess()
       }
+      setTimeout(() => {
+        onClose()
+      }, 2000)
     } catch (error) {
       console.error('Error marking attendance:', error)
-      setError('Network error. Please try again.')
+      setError(error instanceof Error ? error.message : 'Network error. Please try again.')
     } finally {
       setLoading(false)
     }

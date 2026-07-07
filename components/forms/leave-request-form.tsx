@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { DatePicker } from "@/components/ui/date-picker"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { X, Calendar, User } from "lucide-react"
-import { getApiUrl, getEndpointUrl } from "@/lib/api"
+import { getApiUrl, getEndpointUrl, apiRequest } from "@/lib/api"
 
 interface LeaveRequestFormProps {
   onClose: () => void
@@ -81,29 +81,25 @@ export function LeaveRequestForm({
   const fetchLeaveBalance = async (empId: number) => {
     setLoadingBalance(true)
     try {
-      const response = await fetch(getApiUrl(`/leave_requests/balance?employee_id=${empId}`))
-      if (response.ok) {
-        const data = await response.json()
-        // Transform backend data to frontend format
-        const balance: typeof leaveBalance = {
-          annual: { total: 0, used: 0, remaining: 0 },
-          sick: { total: 0, used: 0, remaining: 0 },
-          personal: { total: 0, used: 0, remaining: 0 },
-        }
-        
-        data.forEach((item: any) => {
-          const type = item.leave_type || item.leave_type_label?.toLowerCase()
-          if (type === 'annual' || type === 'annual leave') {
-            balance.annual = { total: item.total || 0, used: item.used || 0, remaining: item.remaining || 0 }
-          } else if (type === 'sick' || type === 'sick leave') {
-            balance.sick = { total: item.total || 0, used: item.used || 0, remaining: item.remaining || 0 }
-          } else if (type === 'personal' || type === 'personal leave') {
-            balance.personal = { total: item.total || 0, used: item.used || 0, remaining: item.remaining || 0 }
-          }
-        })
-        
-        setLeaveBalance(balance)
+      const data = await apiRequest<any[]>(getApiUrl(`/leave_requests/balance?employee_id=${empId}`))
+      const balance: typeof leaveBalance = {
+        annual: { total: 0, used: 0, remaining: 0 },
+        sick: { total: 0, used: 0, remaining: 0 },
+        personal: { total: 0, used: 0, remaining: 0 },
       }
+
+      data.forEach((item: any) => {
+        const type = item.leave_type || item.leave_type_label?.toLowerCase()
+        if (type === 'annual' || type === 'annual leave') {
+          balance.annual = { total: item.total || 0, used: item.used || 0, remaining: item.remaining || 0 }
+        } else if (type === 'sick' || type === 'sick leave') {
+          balance.sick = { total: item.total || 0, used: item.used || 0, remaining: item.remaining || 0 }
+        } else if (type === 'personal' || type === 'personal leave') {
+          balance.personal = { total: item.total || 0, used: item.used || 0, remaining: item.remaining || 0 }
+        }
+      })
+
+      setLeaveBalance(balance)
     } catch (error) {
       console.error('Error fetching leave balance:', error)
     } finally {

@@ -1,6 +1,7 @@
 "use client"
 
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, Suspense } from "react"
+import { useSearchParams } from "next/navigation"
 import { getApiUrl, getEndpointUrl, API_ENDPOINTS, apiRequest } from "@/lib/api"
 import { mapLeaveRequestToBackend } from "@/lib/leave-request-mapper"
 import { useAuth } from "@/lib/auth/auth.hooks"
@@ -56,6 +57,8 @@ import { LeaveRequestForm } from "@/components/forms/leave-request-form"
 import { AttendanceMarking } from "@/components/attendance/attendance-marking"
 import { LeaveRequestManagement } from "@/components/leave/leave-request-management"
 import { LeaveRequestDetails } from "@/components/leave/leave-request-details"
+import { useEmployeeMobileExperience } from "@/lib/auth/use-employee-mobile"
+import { cn } from "@/lib/utils"
 
 // Types
 interface AttendanceRecord {
@@ -126,6 +129,16 @@ interface LeaveBalance {
 }
 
 export default function AttendancePage() {
+  return (
+    <Suspense fallback={<div className="p-4 text-muted-foreground">Loading…</div>}>
+      <AttendancePageContent />
+    </Suspense>
+  )
+}
+
+function AttendancePageContent() {
+  const searchParams = useSearchParams()
+  const { isEmployeeMobile } = useEmployeeMobileExperience()
   const { user, isAuthenticated, checkRole, checkPermission, roles, permissions } = useAuth()
   
   // Check if user is HR Manager, HR, or Super Admin
@@ -210,6 +223,12 @@ export default function AttendancePage() {
     fetchAttendanceStats()
     fetchTodayAttendance()
   }, [])
+
+  useEffect(() => {
+    const tab = searchParams.get("tab")
+    if (tab) setActiveTab(tab)
+    if (searchParams.get("apply") === "leave") setShowLeaveForm(true)
+  }, [searchParams])
 
   // Fetch leave balance after user data is loaded
   useEffect(() => {
@@ -459,11 +478,27 @@ export default function AttendancePage() {
   }))
 
   return (
-    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-4 sm:space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-xl sm:text-2xl lg:text-2xl sm:text-3xl font-bold text-gray-900">Attendance & Leave</h1>
+    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-4 sm:space-y-6 overflow-x-hidden min-w-0">
+      {isEmployeeMobile && (
+        <div className="md:hidden flex items-center justify-between gap-3 min-w-0">
+          <div className="min-w-0">
+            <h1 className="text-xl font-semibold text-gray-900 truncate">Time & leave</h1>
+            <p className="text-sm text-muted-foreground">Your attendance and requests</p>
+          </div>
+          <Button size="sm" className="shrink-0" onClick={() => setShowLeaveForm(true)}>
+            <Plus className="w-4 h-4 mr-1.5" />
+            Apply
+          </Button>
+        </div>
+      )}
+
+      {/* Header — desktop / managers */}
+      <div className={cn(
+        "flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4",
+        isEmployeeMobile && "hidden md:flex"
+      )}>
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">Attendance & Leave</h1>
           <p className="text-sm sm:text-base text-gray-600">Track attendance and manage leave requests</p>
         </div>
         <div className="flex gap-2 w-full sm:w-auto">
@@ -536,8 +571,11 @@ export default function AttendancePage() {
         </Card>
       )}
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
+      {/* Stats Cards — managers only on mobile */}
+      <div className={cn(
+        "grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6",
+        isEmployeeMobile && "hidden md:grid"
+      )}>
         <Card>
           <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
@@ -597,12 +635,14 @@ export default function AttendancePage() {
 
       {/* Main Content Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="hrms-tabs-scroll">
+        <TabsList className={cn("hrms-tabs-scroll", isEmployeeMobile && "md:hrms-tabs-scroll")}>
           <TabsTrigger value="attendance" className="text-xs sm:text-sm whitespace-nowrap flex-shrink-0 px-3">Attendance</TabsTrigger>
-          <TabsTrigger value="leave-requests" className="text-xs sm:text-sm whitespace-nowrap flex-shrink-0 px-3">Leave Requests</TabsTrigger>
-          <TabsTrigger value="leave-balance" className="text-xs sm:text-sm whitespace-nowrap flex-shrink-0 px-3">Leave Balance</TabsTrigger>
-          <TabsTrigger value="calendar" className="text-xs sm:text-sm whitespace-nowrap flex-shrink-0 px-3">Calendar</TabsTrigger>
-          {hasLeaveManagementPermission && (
+          <TabsTrigger value="leave-requests" className="text-xs sm:text-sm whitespace-nowrap flex-shrink-0 px-3">My Leave</TabsTrigger>
+          <TabsTrigger value="leave-balance" className="text-xs sm:text-sm whitespace-nowrap flex-shrink-0 px-3">Balance</TabsTrigger>
+          {!isEmployeeMobile && (
+            <TabsTrigger value="calendar" className="text-xs sm:text-sm whitespace-nowrap flex-shrink-0 px-3">Calendar</TabsTrigger>
+          )}
+          {hasLeaveManagementPermission && !isEmployeeMobile && (
             <TabsTrigger value="leave-management" className="text-xs sm:text-sm whitespace-nowrap flex-shrink-0 px-3">Management</TabsTrigger>
           )}
         </TabsList>
@@ -625,8 +665,8 @@ export default function AttendancePage() {
             </div>
           )}
           
-          {/* Filters */}
-          <div className="flex flex-col sm:flex-row gap-4">
+          {/* Filters — hide org-wide filters for employees on mobile */}
+          <div className={cn("flex flex-col sm:flex-row gap-4", isEmployeeMobile && "hidden md:flex")}>
             <div className="flex-1">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
@@ -668,7 +708,7 @@ export default function AttendancePage() {
 
           {/* Attendance Table */}
           {checkPermission('attendance_records.index') ? (
-            <Card>
+            <Card className={cn(isEmployeeMobile && "hidden md:block")}>
               <CardHeader>
                 <CardTitle>Attendance Records</CardTitle>
                 <CardDescription>Recent attendance records for all employees</CardDescription>
@@ -1085,7 +1125,7 @@ export default function AttendancePage() {
       )}
       
       {/* Debug info - remove in production */}
-      {process.env.NODE_ENV === 'development' && (
+      {process.env.NODE_ENV === 'development' && !isEmployeeMobile && (
         <div className="hidden md:block fixed bottom-4 right-4 bg-gray-800 text-white p-2 text-xs rounded z-50 max-w-xs">
           <div>canSelectEmployee: {canSelectEmployee ? 'true' : 'false'}</div>
           <div>employees: {employees.length}</div>

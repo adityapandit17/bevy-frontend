@@ -57,11 +57,10 @@ import {
   Loader2
 } from "lucide-react"
 import { useAuth } from "@/lib/auth/auth.hooks"
-import { apiRequest, getApiUrl, getDocumentUrl, getEndpointUrl } from "@/lib/api"
+import { apiRequest, getApiUrl, getDocumentUrl, getEndpointUrl, apiFormRequest, getAuthHeaders } from "@/lib/api"
 import { DocumentPreview } from "@/components/ui/document-preview"
 import { DocumentSignDialog } from "@/components/documents/document-sign-dialog"
 import { toast } from "@/hooks/use-toast"
-import { AUTH_CONFIG } from "@/config/auth.config"
 
 interface PolicyDocument {
   id: number
@@ -413,16 +412,8 @@ export default function DocumentsPage() {
     try {
       const downloadUrl = getApiUrl(`policy_documents/${doc.id}/download`)
       
-      // Get token from localStorage
-      const token = localStorage.getItem(AUTH_CONFIG.tokenKey)
-      if (!token) {
-        throw new Error("No authentication token found. Please login again.")
-      }
-      
       const response = await fetch(downloadUrl, {
-        headers: {
-          "Authorization": `Bearer ${token}`,
-        },
+        headers: getAuthHeaders(),
       })
 
       if (!response.ok) {
@@ -485,19 +476,9 @@ export default function DocumentsPage() {
 
     try {
       setIsSaving(true)
-      
-      const token = localStorage.getItem(AUTH_CONFIG.tokenKey)
-      if (!token) {
-        throw new Error("No authentication token found. Please login again.")
-      }
 
-      const response = await fetch(getApiUrl(`policy_documents/${selectedDocument.id}.json`), {
+      await apiRequest(getApiUrl(`policy_documents/${selectedDocument.id}.json`), {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          "Accept": "application/json",
-          "Authorization": `Bearer ${token}`,
-        },
         body: JSON.stringify({
           policy_document: {
             title: editFormData.title,
@@ -509,13 +490,6 @@ export default function DocumentsPage() {
           }
         }),
       })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: "Request failed" }))
-        throw new Error(errorData.error || errorData.message || "Failed to update policy document")
-      }
-
-      await response.json()
 
       toast({
         title: "Success",
@@ -543,25 +517,10 @@ export default function DocumentsPage() {
 
     try {
       setIsDeleting(true)
-      
-      const token = localStorage.getItem(AUTH_CONFIG.tokenKey)
-      if (!token) {
-        throw new Error("No authentication token found. Please login again.")
-      }
 
-      const response = await fetch(getApiUrl(`policy_documents/${selectedDocument.id}.json`), {
+      await apiRequest(getApiUrl(`policy_documents/${selectedDocument.id}.json`), {
         method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-          "Accept": "application/json",
-          "Authorization": `Bearer ${token}`,
-        },
       })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: "Request failed" }))
-        throw new Error(errorData.error || errorData.message || "Failed to delete policy document")
-      }
 
       toast({
         title: "Success",
@@ -611,16 +570,8 @@ export default function DocumentsPage() {
 
       const downloadUrl = getDocumentUrl(doc.file_path, true)
       
-      // Get token from localStorage
-      const token = localStorage.getItem(AUTH_CONFIG.tokenKey)
-      if (!token) {
-        throw new Error("No authentication token found. Please login again.")
-      }
-      
       const response = await fetch(downloadUrl, {
-        headers: {
-          "Authorization": `Bearer ${token}`,
-        },
+        headers: getAuthHeaders(),
       })
 
       if (!response.ok) {
@@ -662,19 +613,9 @@ export default function DocumentsPage() {
   const handleVerifyEmployeeDoc = async (doc: EmployeeDocument) => {
     try {
       setIsVerifyingEmployeeDoc(true)
-      
-      const token = localStorage.getItem(AUTH_CONFIG.tokenKey)
-      if (!token) {
-        throw new Error("No authentication token found. Please login again.")
-      }
 
-      const response = await fetch(getApiUrl(`employee_documents/${doc.id}.json`), {
+      await apiRequest(getApiUrl(`employee_documents/${doc.id}.json`), {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          "Accept": "application/json",
-          "Authorization": `Bearer ${token}`,
-        },
         body: JSON.stringify({
           employee_document: {
             status: "active",
@@ -682,11 +623,6 @@ export default function DocumentsPage() {
           }
         }),
       })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: "Request failed" }))
-        throw new Error(errorData.error || errorData.message || "Failed to verify document")
-      }
 
       toast({
         title: "Success",
@@ -712,25 +648,10 @@ export default function DocumentsPage() {
 
     try {
       setIsDeletingEmployeeDoc(true)
-      
-      const token = localStorage.getItem(AUTH_CONFIG.tokenKey)
-      if (!token) {
-        throw new Error("No authentication token found. Please login again.")
-      }
 
-      const response = await fetch(getApiUrl(`employee_documents/${selectedEmployeeDoc.id}.json`), {
+      await apiRequest(getApiUrl(`employee_documents/${selectedEmployeeDoc.id}.json`), {
         method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-          "Accept": "application/json",
-          "Authorization": `Bearer ${token}`,
-        },
       })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: "Request failed" }))
-        throw new Error(errorData.error || errorData.message || "Failed to delete employee document")
-      }
 
       toast({
         title: "Success",
@@ -821,38 +742,15 @@ export default function DocumentsPage() {
     try {
       setIsCreating(true)
 
-      // First, upload the file
       const formData = new FormData()
       formData.append('file', uploadedFile)
-      
-      const token = localStorage.getItem(AUTH_CONFIG.tokenKey)
-      const uploadResponse = await fetch(getApiUrl("uploads"), {
+      const uploadData = await apiFormRequest<{ path?: string; url?: string; size?: number }>(
+        getApiUrl("uploads"),
+        formData
+      )
+
+      await apiRequest(getApiUrl("policy_documents.json"), {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token || ""}`,
-        },
-        body: formData,
-      })
-
-      if (!uploadResponse.ok) {
-        throw new Error("File upload failed")
-      }
-
-      const uploadData = await uploadResponse.json()
-
-      // Then create the policy document
-      // Convert camelCase to snake_case for backend
-      if (!token) {
-        throw new Error("No authentication token found. Please login again.")
-      }
-
-      const response = await fetch(getApiUrl("policy_documents.json"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Accept": "application/json",
-          "Authorization": `Bearer ${token}`,
-        },
         body: JSON.stringify({
           policy_document: {
             title: createFormData.title,
@@ -866,13 +764,6 @@ export default function DocumentsPage() {
           }
         }),
       })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: "Request failed" }))
-        throw new Error(errorData.error || errorData.message || "Failed to create policy document")
-      }
-
-      await response.json()
 
       toast({
         title: "Success",
@@ -928,30 +819,10 @@ export default function DocumentsPage() {
   const uploadFileToServer = async (file: File): Promise<string> => {
     const formData = new FormData()
     formData.append('file', file)
-    
-    const token = localStorage.getItem(AUTH_CONFIG.tokenKey)
-    if (!token) {
-      throw new Error("No authentication token found")
-    }
-    
-    const headers: HeadersInit = {
-      'Authorization': `Bearer ${token}`
-    }
-    
+
     try {
-      const response = await fetch(getApiUrl("uploads"), {
-        method: 'POST',
-        headers,
-        body: formData,
-      })
-      
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Upload failed')
-      }
-      
-      const result = await response.json()
-      return result.url || result.path
+      const result = await apiFormRequest<{ url?: string; path?: string }>(getApiUrl("uploads"), formData)
+      return result.url || result.path || ''
     } catch (error) {
       console.error('File upload error:', error)
       throw error
@@ -1025,23 +896,11 @@ export default function DocumentsPage() {
     setIsUploading(true)
     
     try {
-      const token = localStorage.getItem(AUTH_CONFIG.tokenKey)
-      if (!token) {
-        throw new Error("No authentication token found")
-      }
-
-      // Upload all files and create documents
       for (const file of uploadFiles) {
         const filePath = await uploadFileToServer(file)
-        
-        // Create employee document
-        const response = await fetch(getApiUrl("employee_documents.json"), {
+
+        await apiRequest(getApiUrl("employee_documents.json"), {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-            "Authorization": `Bearer ${token}`,
-          },
           body: JSON.stringify({
             employee_document: {
               employee_id: parseInt(uploadFormData.employeeId),
@@ -1056,11 +915,6 @@ export default function DocumentsPage() {
             }
           }),
         })
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: "Request failed" }))
-          throw new Error(errorData.error || errorData.message || "Failed to create employee document")
-        }
       }
 
       toast({

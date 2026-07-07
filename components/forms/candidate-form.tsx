@@ -10,9 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { X, Plus, Save, UserPlus, Upload, FileText, Trash2, Eye } from "lucide-react"
-import { getApiUrl, getEndpointUrl, getDocumentUrl, getFileType } from "@/lib/api"
+import { getApiUrl, getEndpointUrl, getDocumentUrl, getFileType, apiFormRequest } from "@/lib/api"
 import { DocumentPreview } from "@/components/ui/document-preview"
-import { AUTH_CONFIG } from "@/config/auth.config"
 
 interface Candidate {
   id?: string
@@ -256,30 +255,10 @@ export function CandidateForm({ candidate, onSave, onCancel, isLoading = false }
   const uploadFile = async (file: File): Promise<string> => {
     const formData = new FormData()
     formData.append('file', file)
-    
-    // Get authorization token
-    const token = typeof window !== 'undefined' ? localStorage.getItem(AUTH_CONFIG.tokenKey) : null
-    
-    // Prepare headers - don't set Content-Type for FormData (browser will set it with boundary)
-    const headers: HeadersInit = {}
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`
-    }
-    
+
     try {
-      const response = await fetch(getEndpointUrl('UPLOAD'), {
-        method: 'POST',
-        headers,
-        body: formData,
-      })
-      
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Upload failed')
-      }
-      
-      const result = await response.json()
-      return result.url || result.path
+      const result = await apiFormRequest<{ url?: string; path?: string }>(getEndpointUrl('UPLOAD'), formData)
+      return result.url || result.path || ''
     } catch (error) {
       console.error('File upload error:', error)
       throw error

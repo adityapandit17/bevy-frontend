@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { getApiUrl, getEndpointUrl } from "@/lib/api"
+import { getApiUrl, getEndpointUrl, apiRequest } from "@/lib/api"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -101,11 +101,8 @@ export function InterviewManagement({ onScheduleInterview }: InterviewManagement
 
   const fetchInterviews = async () => {
     try {
-      const response = await fetch(getEndpointUrl('INTERVIEWS'))
-      if (response.ok) {
-        const data = await response.json()
-        setInterviews(data)
-      }
+      const data = await apiRequest<Interview[]>(getEndpointUrl('INTERVIEWS'))
+      setInterviews(data)
     } catch (error) {
       console.error("Error fetching interviews:", error)
     } finally {
@@ -115,11 +112,8 @@ export function InterviewManagement({ onScheduleInterview }: InterviewManagement
 
   const fetchStats = async () => {
     try {
-      const response = await fetch(getEndpointUrl('INTERVIEWS_STATS'))
-      if (response.ok) {
-        const data = await response.json()
-        setStats(data)
-      }
+      const data = await apiRequest<any>(getEndpointUrl('INTERVIEWS_STATS'))
+      setStats(data)
     } catch (error) {
       console.error("Error fetching stats:", error)
     }
@@ -127,28 +121,16 @@ export function InterviewManagement({ onScheduleInterview }: InterviewManagement
 
   const handleStatusChange = async (interviewId: string, newStatus: string, notes?: string) => {
     try {
-      const response = await fetch(getApiUrl(`interviews/${interviewId}/${newStatus}`), {
+      await apiRequest(getApiUrl(`interviews/${interviewId}/${newStatus}`), {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          "Accept": "application/json"
-        },
-        body: JSON.stringify({ notes })
+        body: JSON.stringify({ notes }),
       })
 
-      if (response.ok) {
-        toast({
-          title: "Status Updated",
-          description: `Interview status updated to ${newStatus}`
-        })
-        fetchInterviews()
-      } else {
-        toast({
-          title: "Error",
-          description: "Failed to update interview status",
-          variant: "destructive"
-        })
-      }
+      toast({
+        title: "Status Updated",
+        description: `Interview status updated to ${newStatus}`
+      })
+      fetchInterviews()
     } catch (error) {
       toast({
         title: "Error",
@@ -162,23 +144,15 @@ export function InterviewManagement({ onScheduleInterview }: InterviewManagement
     if (!confirm("Are you sure you want to delete this interview?")) return
 
     try {
-      const response = await fetch(getApiUrl(`interviews/${interviewId}`), {
-        method: "DELETE"
+      await apiRequest(getApiUrl(`interviews/${interviewId}`), {
+        method: "DELETE",
       })
 
-      if (response.ok) {
-        toast({
-          title: "Interview Deleted",
-          description: "Interview has been deleted successfully"
-        })
-        fetchInterviews()
-      } else {
-        toast({
-          title: "Error",
-          description: "Failed to delete interview",
-          variant: "destructive"
-        })
-      }
+      toast({
+        title: "Interview Deleted",
+        description: "Interview has been deleted successfully"
+      })
+      fetchInterviews()
     } catch (error) {
       toast({
         title: "Error",
@@ -192,33 +166,21 @@ export function InterviewManagement({ onScheduleInterview }: InterviewManagement
     if (!selectedInterview) return
 
     try {
-      const response = await fetch(getApiUrl(`interviews/${selectedInterview.id}/complete`), {
+      await apiRequest(getApiUrl(`interviews/${selectedInterview.id}/complete`), {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          "Accept": "application/json"
-        },
         body: JSON.stringify({
           feedback: feedbackData.feedback,
           rating: parseInt(feedbackData.rating)
-        })
+        }),
       })
 
-      if (response.ok) {
-        toast({
-          title: "Feedback Submitted",
-          description: "Interview feedback has been submitted successfully"
-        })
-        setShowFeedbackDialog(false)
-        setFeedbackData({ feedback: "", rating: "" })
-        fetchInterviews()
-      } else {
-        toast({
-          title: "Error",
-          description: "Failed to submit feedback",
-          variant: "destructive"
-        })
-      }
+      toast({
+        title: "Feedback Submitted",
+        description: "Interview feedback has been submitted successfully"
+      })
+      setShowFeedbackDialog(false)
+      setFeedbackData({ feedback: "", rating: "" })
+      fetchInterviews()
     } catch (error) {
       toast({
         title: "Error",

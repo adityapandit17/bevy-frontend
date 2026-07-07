@@ -113,10 +113,7 @@ export function SalaryStructureForm({ onClose, onSubmit, employees = [], departm
 
   const fetchDepartments = async () => {
     try {
-      const res = await fetch(getEndpointUrl('DEPARTMENTS'), {
-        headers: { "Accept": "application/json" }
-      })
-      const data = await res.json()
+      const data = await apiRequest<any[]>(getEndpointUrl('DEPARTMENTS'))
       setDepartmentOptions(Array.isArray(data) ? data : [])
     } catch {
       setDepartmentOptions([])

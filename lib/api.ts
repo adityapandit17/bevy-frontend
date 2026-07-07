@@ -563,7 +563,24 @@ export const getEndpointUrl = (endpoint: keyof typeof API_ENDPOINTS): string => 
 };
 
 /**
- * Get document URL for uploaded files
+ * Headers for authenticated fetch calls that cannot use apiRequest (blobs, FormData, etc.)
+ */
+export const getAuthHeaders = (extra: Record<string, string> = {}): Record<string, string> => {
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    ...extra,
+  }
+
+  const token = getToken()
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+
+  return headers
+}
+
+/**
+ * Build a URL for an uploaded document
  * @param documentPath - The document path from the database
  * @param download - Whether to force download (adds download=true parameter)
  * @returns The complete URL for accessing the document
@@ -626,6 +643,7 @@ export default {
   apiRequest,
   publicApiRequest,
   publicApiFormRequest,
+  getAuthHeaders,
   getPublicJobUrl,
   getDocumentUrl,
   getFileType,

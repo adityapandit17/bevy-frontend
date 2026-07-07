@@ -410,7 +410,7 @@ export default function CalendarPage() {
             </div>
           </CardHeader>
           <CardContent className="p-4 sm:p-6">
-            <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
+            <div className="overflow-x-auto sm:mx-0">
             {/* Weekday Headers */}
             <div className="grid grid-cols-7 gap-px bg-gray-200 border border-gray-200 rounded-lg overflow-hidden min-w-[560px]">
               {weekDays.map((day) => (

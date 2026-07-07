@@ -118,40 +118,23 @@ export default function CandidateProfilePage() {
   const handleSaveCandidate = async (candidateData: any) => {
     setIsSaving(true)
     try {
-      const url = getApiUrl(`candidates/${candidateId}`)
-      
-      const response = await fetch(url, {
+      const savedCandidate = await apiRequest<any>(getApiUrl(`candidates/${candidateId}`), {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
         body: JSON.stringify({ candidate: candidateData }),
       })
+      setCandidate(savedCandidate)
 
-      if (response.ok) {
-        const savedCandidate = await response.json()
-        setCandidate(savedCandidate)
-        
-        toast({
-          title: "Candidate Updated",
-          description: "Candidate information has been updated successfully.",
-        })
-        
-        setShowEditCandidate(false)
-      } else {
-        const errorData = await response.json()
-        toast({
-          title: "Error",
-          description: errorData.errors?.join(", ") || "Failed to update candidate",
-          variant: "destructive"
-        })
-      }
-    } catch (error) {
+      toast({
+        title: "Candidate Updated",
+        description: "Candidate information has been updated successfully.",
+      })
+
+      setShowEditCandidate(false)
+    } catch (error: any) {
       console.error('Error saving candidate:', error)
       toast({
         title: "Error",
-        description: "Failed to update candidate. Please try again.",
+        description: error?.errors?.join(", ") || error?.message || "Failed to update candidate",
         variant: "destructive"
       })
     } finally {

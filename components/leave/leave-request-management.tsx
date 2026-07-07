@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
-import { getApiUrl, getEndpointUrl } from "@/lib/api"
+import { getApiUrl, getEndpointUrl, apiRequest } from "@/lib/api"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -126,15 +126,11 @@ export function LeaveRequestManagement({ onRefresh, onError, onViewDetails }: Le
     setLoading(true)
     try {
       let url = getEndpointUrl('LEAVE_REQUESTS')
-      // For regular employees, filter by their employee_id
       if (!canViewAllRequests && user?.employee?.id) {
         url = `${url}?employee_id=${user.employee.id}`
       }
-      const response = await fetch(url)
-      if (response.ok) {
-        const data = await response.json()
-        setLeaveRequests(data)
-      }
+      const data = await apiRequest<LeaveRequest[]>(url, { method: "GET" })
+      setLeaveRequests(data)
     } catch (error) {
       console.error('Error fetching leave requests:', error)
     } finally {
@@ -145,24 +141,15 @@ export function LeaveRequestManagement({ onRefresh, onError, onViewDetails }: Le
   const handleApprove = async (requestId: number) => {
     setActionLoading(requestId)
     try {
-      const response = await fetch(getApiUrl(`/leave_requests/${requestId}/approve`), {
+      await apiRequest(getApiUrl(`/leave_requests/${requestId}/approve`), {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' }
       })
-
-      if (response.ok) {
-        await fetchLeaveRequests()
-        if (onRefresh) onRefresh()
-      } else {
-        const errorData = await response.json()
-        const errorMessage = errorData.errors?.join(', ') || errorData.message || 'Failed to approve leave request'
-        if (onError) onError(errorMessage)
-        console.error('Error approving leave request:', errorMessage)
-      }
+      await fetchLeaveRequests()
+      if (onRefresh) onRefresh()
     } catch (error) {
-      const errorMessage = `Network error: ${error instanceof Error ? error.message : 'Unknown error'}`
+      const errorMessage = error instanceof Error ? error.message : 'Failed to approve leave request'
       if (onError) onError(errorMessage)
-      console.error('Error approving leave request:', error)
+      console.error('Error approving leave request:', errorMessage)
     } finally {
       setActionLoading(null)
     }
@@ -171,24 +158,15 @@ export function LeaveRequestManagement({ onRefresh, onError, onViewDetails }: Le
   const handleReject = async (requestId: number) => {
     setActionLoading(requestId)
     try {
-      const response = await fetch(getApiUrl(`/leave_requests/${requestId}/reject`), {
+      await apiRequest(getApiUrl(`/leave_requests/${requestId}/reject`), {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' }
       })
-
-      if (response.ok) {
-        await fetchLeaveRequests()
-        if (onRefresh) onRefresh()
-      } else {
-        const errorData = await response.json()
-        const errorMessage = errorData.errors?.join(', ') || errorData.message || 'Failed to reject leave request'
-        if (onError) onError(errorMessage)
-        console.error('Error rejecting leave request:', errorMessage)
-      }
+      await fetchLeaveRequests()
+      if (onRefresh) onRefresh()
     } catch (error) {
-      const errorMessage = `Network error: ${error instanceof Error ? error.message : 'Unknown error'}`
+      const errorMessage = error instanceof Error ? error.message : 'Failed to reject leave request'
       if (onError) onError(errorMessage)
-      console.error('Error rejecting leave request:', error)
+      console.error('Error rejecting leave request:', errorMessage)
     } finally {
       setActionLoading(null)
     }
@@ -197,24 +175,15 @@ export function LeaveRequestManagement({ onRefresh, onError, onViewDetails }: Le
   const handleCancel = async (requestId: number) => {
     setActionLoading(requestId)
     try {
-      const response = await fetch(getApiUrl(`/leave_requests/${requestId}/cancel`), {
+      await apiRequest(getApiUrl(`/leave_requests/${requestId}/cancel`), {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' }
       })
-
-      if (response.ok) {
-        await fetchLeaveRequests()
-        if (onRefresh) onRefresh()
-      } else {
-        const errorData = await response.json()
-        const errorMessage = errorData.errors?.join(', ') || errorData.message || 'Failed to cancel leave request'
-        if (onError) onError(errorMessage)
-        console.error('Error cancelling leave request:', errorMessage)
-      }
+      await fetchLeaveRequests()
+      if (onRefresh) onRefresh()
     } catch (error) {
-      const errorMessage = `Network error: ${error instanceof Error ? error.message : 'Unknown error'}`
+      const errorMessage = error instanceof Error ? error.message : 'Failed to cancel leave request'
       if (onError) onError(errorMessage)
-      console.error('Error cancelling leave request:', error)
+      console.error('Error cancelling leave request:', errorMessage)
     } finally {
       setActionLoading(null)
     }

@@ -23,7 +23,7 @@ export function PageContainer({
   return (
     <div
       className={cn(
-        "mx-auto w-full overflow-x-hidden p-4 sm:p-5 lg:p-6 space-y-4 sm:space-y-5 lg:space-y-6",
+        "mx-auto w-full min-w-0 overflow-x-hidden p-4 sm:p-5 lg:p-6 space-y-4 sm:space-y-5 lg:space-y-6",
         sizeClasses[size],
         className
       )}

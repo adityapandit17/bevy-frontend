@@ -13,6 +13,8 @@ import {
 } from "@/components/ui/dialog"
 import { useRouter } from "next/navigation"
 import { useAuthContext } from "@/lib/auth"
+import { useEmployeeMobileExperience } from "@/lib/auth/use-employee-mobile"
+import { EmployeeMobileDashboard } from "@/components/dashboard/employee-mobile-dashboard"
 import {
   Users,
   UserCheck,
@@ -38,7 +40,7 @@ import {
 } from "lucide-react"
 import { getApiUrl, getEndpointUrl } from "@/lib/api"
 import { apiRequest } from "@/lib/api"
-import { TrialUpgradeCard } from "@/components/dashboard/trial-upgrade-card"
+import { cn } from "@/lib/utils"
 
 interface TodayAttendance {
   id?: number
@@ -65,6 +67,7 @@ interface AttendanceSession {
 export default function Dashboard() {
   const router = useRouter()
   const { checkPermission, checkRole, user } = useAuthContext()
+  const { isEmployeeMobile } = useEmployeeMobileExperience()
   
   // Attendance state
   const [todayAttendance, setTodayAttendance] = useState<TodayAttendance | null>(null)
@@ -901,19 +904,32 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-4 sm:space-y-6 overflow-x-hidden">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-600 text-sm">Welcome back! Here's what's happening at your company.</p>
+    <div className="mx-auto w-full max-w-7xl min-w-0 overflow-x-hidden p-4 sm:p-5 lg:p-8 space-y-5 sm:space-y-6 lg:space-y-8">
+      {isEmployeeMobile && user?.employee_id && (
+        <EmployeeMobileDashboard
+          userName={user.name}
+          isPunchedIn={!!currentPunchIn}
+          isOnBreak={isOnBreak}
+          punchLoading={punchLoading}
+          hoursLabel={formatDuration(displayTotalHours)}
+          punchInTime={formatTime(currentPunchIn)}
+          onPunchIn={handlePunchIn}
+          onPunchOut={handlePunchOut}
+          onBreakToggle={isOnBreak ? handleBreakEnd : handleBreakStart}
+          hasEmployeeId={!!user.employee_id}
+        />
+      )}
+
+      {/* Header — desktop / managers */}
+      <div className={isEmployeeMobile ? "hidden md:flex flex-col sm:flex-row sm:items-center justify-between gap-4" : "flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between"}>
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900 lg:text-3xl">Dashboard</h1>
+          <p className="mt-1 text-sm text-gray-600 sm:text-base">Welcome back! Here&apos;s what&apos;s happening at your company.</p>
         </div>
       </div>
 
-      <TrialUpgradeCard />
-
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5">
+      <div className={isEmployeeMobile ? "hidden md:grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5" : "grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5"}>
         {statsLoading ? (
           Array.from({ length: 4 }).map((_, index) => (
             <Card key={index} className="hover:shadow-md transition-shadow">
@@ -960,7 +976,7 @@ export default function Dashboard() {
         )}
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-5">
+      <div className={isEmployeeMobile ? "hidden md:flex flex-col lg:flex-row gap-5" : "flex flex-col lg:flex-row gap-5"}>
         {/* Recent Activities */}
         <Card className="w-full lg:w-1/2">
           <CardHeader>
@@ -1070,7 +1086,7 @@ export default function Dashboard() {
 
           {/* Attendance Punch In/Out */}
           {user?.employee_id && (
-            <Card className="flex-1 flex flex-col min-h-0">
+            <Card className={cn("flex-1 flex flex-col min-h-0", isEmployeeMobile && "hidden md:flex")}>
               <CardHeader className="flex-shrink-0">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
@@ -1308,7 +1324,7 @@ export default function Dashboard() {
         </DialogContent>
       </Dialog>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      <div className={isEmployeeMobile ? "hidden md:grid grid-cols-1 lg:grid-cols-2 gap-5" : "grid grid-cols-1 lg:grid-cols-2 gap-5"}>
         {/* Pending Tasks */}
         <Card>
           <CardHeader>

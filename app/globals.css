@@ -248,7 +248,24 @@ body {
 /* ── Mobile-friendly app utilities (mobile-only overrides; desktop unchanged) ── */
 @layer components {
   .hrms-app-main {
-    @apply min-h-0 flex-1 overflow-x-hidden;
+    @apply min-h-0 flex-1 overflow-x-hidden max-w-full;
+  }
+
+  /* Prevent flex children from blowing out containers on narrow screens */
+  .hrms-contain {
+    @apply min-w-0 max-w-full overflow-x-hidden;
+  }
+
+  .hrms-card-safe {
+    @apply min-w-0 overflow-hidden;
+  }
+
+  .hrms-truncate-row {
+    @apply flex min-w-0 items-center gap-2;
+  }
+
+  .hrms-truncate-row > :not([class*="shrink-0"]) {
+    @apply min-w-0 truncate;
   }
 
   /* Scrollable tab row — use on TabsList when many tabs */
