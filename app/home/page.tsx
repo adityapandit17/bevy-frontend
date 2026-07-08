@@ -20,6 +20,9 @@ import {
   GraduationCap,
   Briefcase,
   Network,
+  CheckCircle2,
+  Bell,
+  MessageSquare,
 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { MarketingShell } from "@/components/marketing/marketing-shell"
@@ -53,7 +56,7 @@ export default function HomePage() {
     {
       icon: Smartphone,
       title: "Mobile App",
-      description: "Native mobile apps for iOS and Android with offline capabilities",
+      description: "iOS and Android app with the same HR tools as the web — manage everything on the go",
     },
     {
       icon: Globe,
@@ -78,9 +81,9 @@ export default function HomePage() {
       rating: 5,
     },
     {
-      name: "Michael Chen",
+      name: "Amritansh",
       role: "CEO",
-      company: "StartupXYZ",
+      company: "SjuttonTech",
       content: "The mobile app is a game-changer. Our remote team loves the flexibility.",
       rating: 5,
     },
@@ -90,6 +93,40 @@ export default function HomePage() {
       company: "Global Inc",
       content: "Implementation was seamless. The support team is outstanding.",
       rating: 5,
+    },
+  ]
+
+  const mobilePoints = [
+    {
+      icon: Smartphone,
+      title: "Full HR management on mobile",
+      description:
+        "Payroll, attendance, recruitment, leave, documents, assets, and more — all available in the BevyHR mobile app.",
+    },
+    {
+      icon: Clock,
+      title: "Attendance & leave on the go",
+      description: "Clock in and out, view your calendar, apply for leave, and approve team requests from anywhere.",
+    },
+    {
+      icon: Users,
+      title: "Employees & org chart",
+      description: "Browse the directory, view profiles, check reporting lines, and manage onboarding and offboarding.",
+    },
+    {
+      icon: Briefcase,
+      title: "Recruitment & ATS",
+      description: "Track candidates, schedule interviews, and move applicants through your hiring pipeline on mobile.",
+    },
+    {
+      icon: MessageSquare,
+      title: "Team chat & collaboration",
+      description: "Stay connected with channels, direct messages, and company-wide communication from your phone.",
+    },
+    {
+      icon: Bell,
+      title: "Real-time notifications",
+      description: "Get instant alerts for leave approvals, pending tasks, interviews, and other HR updates.",
     },
   ]
 
@@ -122,10 +159,10 @@ export default function HomePage() {
             </Badge>
             <TypewriterHeadline className="mb-6" />
             <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              Streamline your HR operations with our comprehensive platform.
+              Streamline your HR operations with our comprehensive platform — on the web or in the mobile app.
             </p>
             <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
-              From recruitment to retirement, manage your entire workforce with powerful tools and insights.
+              From recruitment to retirement, manage your entire workforce with powerful tools and insights, wherever you are.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button
@@ -185,7 +222,55 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section id="modules" className="py-20 bg-white">
+      <section id="mobile" className="py-20 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+            <div>
+              <Badge className="mb-4 bg-green-100 text-green-800 border-green-200">
+                <Smartphone className="w-3 h-3 mr-1" />
+                iOS & Android
+              </Badge>
+              <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+                Manage Your Entire Workforce From Your Phone
+              </h2>
+              <p className="text-lg text-gray-600 mb-6">
+                BevyHR isn&apos;t just a desktop tool. Our mobile app puts the full HR suite in your pocket so managers
+                and employees can stay productive without being tied to a desk.
+              </p>
+              <ul className="space-y-3">
+                {[
+                  "Same role-based permissions as the web app",
+                  "Dashboard, payroll, performance, and 20+ HR modules",
+                  "Approve leaves, timesheets, and pending tasks instantly",
+                  "Works with your existing BevyHR account — no extra setup",
+                ].map((point) => (
+                  <li key={point} className="flex items-start gap-3 text-gray-700">
+                    <CheckCircle2 className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
+                    <span>{point}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {mobilePoints.map((point, index) => (
+                <Card key={index} className="border border-gray-200 hover:border-green-300 hover:shadow-md transition-all">
+                  <CardHeader className="pb-2">
+                    <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center mb-2">
+                      <point.icon className="w-5 h-5 text-green-600" />
+                    </div>
+                    <CardTitle className="text-base">{point.title}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <CardDescription className="text-sm text-gray-600">{point.description}</CardDescription>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="modules" className="py-20 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">Complete HR Suite</h2>
@@ -211,7 +296,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section id="testimonials" className="py-20 bg-gray-50">
+      <section id="testimonials" className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">Loved by HR Teams Worldwide</h2>

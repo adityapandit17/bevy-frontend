@@ -12,6 +12,7 @@ interface MarketingShellProps {
 
 const navLinks = [
   { href: "/home#features", label: "Features", match: null },
+  { href: "/home#mobile", label: "Mobile App", match: null },
   { href: "/home#modules", label: "Modules", match: null },
   { href: "/pricing", label: "Pricing", match: "/pricing" },
   { href: "/home#testimonials", label: "Reviews", match: null },
