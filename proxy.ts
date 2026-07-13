@@ -10,7 +10,7 @@ const SHELL_IN_QUERY =
 
 const PROBE_PATHS = /^\/(\.git|\.env|\.well-known\/acme-challenge)/
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname, searchParams } = request.nextUrl
 
   if (PROBE_PATHS.test(pathname) || pathname.includes("..")) {

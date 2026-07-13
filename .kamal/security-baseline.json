@@ -1,12 +1,12 @@
 {
   "description": "Minimum safe versions for production deploy. Update after security advisories.",
   "packages": {
-    "next": "15.5.19",
+    "next": "16.2.10",
     "react": "19.2.7",
     "react-dom": "19.2.7"
   },
   "requiredFiles": [
-    "middleware.ts"
+    "proxy.ts"
   ],
   "auditLevel": "high",
   "npmAuditLevel": "high"

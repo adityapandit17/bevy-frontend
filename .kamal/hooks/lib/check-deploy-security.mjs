@@ -4,7 +4,7 @@
  * Pre-deploy security gate for Kamal.
  * - Enforces minimum versions for next / react / react-dom
  * - Runs npm audit and blocks high/critical findings (moderate+ when npmAuditLevel=moderate)
- * - Verifies required security files exist (e.g. middleware.ts)
+ * - Verifies required security files exist (e.g. proxy.ts)
  */
 
 import { readFileSync, existsSync, copyFileSync, mkdtempSync, rmSync } from "node:fs"

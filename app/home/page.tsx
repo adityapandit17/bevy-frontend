@@ -26,7 +26,7 @@ import {
 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { MarketingShell } from "@/components/marketing/marketing-shell"
-import { TypewriterHeadline } from "@/components/marketing/typewriter-headline"
+import { RotatingHeadline } from "@/components/marketing/rotating-headline"
 import { BrandLogoLink } from "@/components/brand-logo-link"
 
 export default function HomePage() {
@@ -157,7 +157,7 @@ export default function HomePage() {
               <Zap className="w-3 h-3 mr-1" />
               Trusted by 100+ Companies
             </Badge>
-            <TypewriterHeadline className="mb-6" />
+            <RotatingHeadline className="mb-6" />
             <p className="text-xl text-gray-600 max-w-3xl mx-auto">
               Streamline your HR operations with our comprehensive platform — on the web or in the mobile app.
             </p>
