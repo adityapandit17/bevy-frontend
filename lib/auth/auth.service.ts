@@ -3,7 +3,7 @@
  * Handles all API calls related to authentication
  */
 
-import { LoginCredentials, AuthData, User, AcceptInvitationCredentials, ResetPasswordCredentials, DashboardLayout, TenantCompany } from '@/types/auth.types';
+import { LoginCredentials, AuthData, User, AcceptInvitationCredentials, ResetPasswordCredentials, DashboardLayout, TenantCompany, ImpersonationInfo } from '@/types/auth.types';
 import { API_ENDPOINTS, AUTH_CONFIG } from '@/config/auth.config';
 
 export class AuthServiceError extends Error {
@@ -361,10 +361,15 @@ export class AuthService {
     }
   }
 
-  public async getCurrentUser(): Promise<{ user: User; dashboardLayout: DashboardLayout; company: TenantCompany | null }> {
+  public async getCurrentUser(): Promise<{
+    user: User;
+    dashboardLayout: DashboardLayout;
+    company: TenantCompany | null;
+    impersonation: ImpersonationInfo | null;
+  }> {
     const response = await this.makeRequest<{
       success: boolean;
-      data: { user: User; company?: TenantCompany } | User;
+      data: { user: User; company?: TenantCompany; impersonation?: ImpersonationInfo } | User;
     }>(API_ENDPOINTS.ME);
 
     if (!response || !response.success) {
@@ -383,7 +388,112 @@ export class AuthService {
       user,
       company: this.parseCompany(data),
       dashboardLayout: this.parseDashboardLayout(data),
+      impersonation: this.parseImpersonation(data),
     };
+  }
+
+  public async startImpersonation(userId: number): Promise<AuthData & { dashboardLayout: DashboardLayout; impersonation: ImpersonationInfo }> {
+    const response = await this.makeRequest<{
+      success: boolean;
+      data?: {
+        token: string;
+        user: User;
+        company?: TenantCompany;
+        impersonation?: ImpersonationInfo;
+      };
+      error?: string;
+    }>(API_ENDPOINTS.IMPERSONATE, {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId }),
+    });
+
+    if (!response.success || !response.data?.token) {
+      throw new AuthServiceError(response.error || 'Failed to start impersonation');
+    }
+
+    const userRoles = response.data.user?.roles || [];
+    const transformedRoles = userRoles.map((r: any) =>
+      typeof r === 'string' ? { id: 0, name: r, description: '' } : r
+    );
+    const userPermissions = response.data.user?.permissions || [];
+    const transformedPermissions = userPermissions.map((p: any) =>
+      typeof p === 'string' ? { id: 0, name: p, display_name: p } : p
+    );
+
+    return {
+      user: {
+        ...response.data.user,
+        roles: transformedRoles,
+        permissions: transformedPermissions,
+      },
+      token: response.data.token,
+      roles: transformedRoles,
+      permissions: transformedPermissions,
+      company: this.parseCompany(response.data),
+      dashboardLayout: this.parseDashboardLayout(response.data),
+      impersonation: response.data.impersonation || { active: true },
+    };
+  }
+
+  public async stopImpersonation(): Promise<
+    | { platform: true; message: string }
+    | (AuthData & { dashboardLayout: DashboardLayout; impersonation: ImpersonationInfo })
+  > {
+    const response = await this.makeRequest<{
+      success: boolean;
+      data?: {
+        platform?: boolean;
+        message?: string;
+        token?: string;
+        user?: User;
+        company?: TenantCompany;
+        impersonation?: ImpersonationInfo;
+      };
+      error?: string;
+    }>(API_ENDPOINTS.STOP_IMPERSONATION, {
+      method: 'POST',
+    });
+
+    if (!response.success || !response.data) {
+      throw new AuthServiceError(response.error || 'Failed to stop impersonation');
+    }
+
+    if (response.data.platform) {
+      return { platform: true, message: response.data.message || 'Impersonation ended' };
+    }
+
+    if (!response.data.token || !response.data.user) {
+      throw new AuthServiceError('Invalid stop impersonation response');
+    }
+
+    const userRoles = response.data.user.roles || [];
+    const transformedRoles = userRoles.map((r: any) =>
+      typeof r === 'string' ? { id: 0, name: r, description: '' } : r
+    );
+    const userPermissions = response.data.user.permissions || [];
+    const transformedPermissions = userPermissions.map((p: any) =>
+      typeof p === 'string' ? { id: 0, name: p, display_name: p } : p
+    );
+
+    return {
+      user: {
+        ...response.data.user,
+        roles: transformedRoles,
+        permissions: transformedPermissions,
+      },
+      token: response.data.token,
+      roles: transformedRoles,
+      permissions: transformedPermissions,
+      company: this.parseCompany(response.data),
+      dashboardLayout: this.parseDashboardLayout(response.data),
+      impersonation: response.data.impersonation || { active: false },
+    };
+  }
+
+  private parseImpersonation(data: any): ImpersonationInfo | null {
+    const info = data?.impersonation;
+    if (!info || typeof info !== 'object') return null;
+    return info as ImpersonationInfo;
   }
 
   public async verifyToken(): Promise<boolean> {
@@ -398,7 +508,7 @@ export class AuthService {
         method: 'POST',
       });
       return response.success && response.data.valid;
-    } catch (error) {
+    } catch {
       return false;
     }
   }
@@ -436,6 +546,11 @@ export class AuthService {
     if (authData.company) {
       localStorage.setItem(AUTH_CONFIG.companyKey, JSON.stringify(authData.company));
     }
+    if (authData.impersonation?.active) {
+      localStorage.setItem(AUTH_CONFIG.impersonationKey, JSON.stringify(authData.impersonation));
+    } else {
+      localStorage.removeItem(AUTH_CONFIG.impersonationKey);
+    }
   }
 
   public getStoredCompany(): TenantCompany | null {
@@ -449,11 +564,22 @@ export class AuthService {
     }
   }
 
+  public getStoredImpersonation(): ImpersonationInfo | null {
+    if (typeof window === 'undefined') return null;
+    try {
+      const raw = localStorage.getItem(AUTH_CONFIG.impersonationKey);
+      return raw ? (JSON.parse(raw) as ImpersonationInfo) : null;
+    } catch {
+      return null;
+    }
+  }
+
   public clearAuthData(): void {
     if (typeof window === 'undefined') return;
     
     localStorage.removeItem(AUTH_CONFIG.tokenKey);
     localStorage.removeItem(AUTH_CONFIG.userKey);
     localStorage.removeItem(AUTH_CONFIG.companyKey);
+    localStorage.removeItem(AUTH_CONFIG.impersonationKey);
   }
 }

@@ -15,7 +15,8 @@ import {
   User,
   Role,
   Permission,
-  DashboardLayout
+  DashboardLayout,
+  ImpersonationInfo
 } from '@/types/auth.types';
 import { AuthService, AuthServiceError } from './auth.service';
 import { AUTH_CONFIG } from '@/config/auth.config';
@@ -35,6 +36,7 @@ export function useAuth() {
     error: null,
     lastActivity: 0,
     dashboardLayout: 'top_nav',
+    impersonation: null,
   });
 
   const authService = useRef(AuthService.getInstance());
@@ -44,6 +46,15 @@ export function useAuth() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
+    // Platform impersonation accept handles its own token install + hard redirect.
+    // Running bootstrap in parallel races and can wipe or overwrite the new session.
+    if (window.location.pathname === '/impersonation/accept') {
+      setState(prev => ({ ...prev, isLoading: false }));
+      return;
+    }
+
+    let cancelled = false;
+
     const bootstrapAuthState = async () => {
       try {
         const token = localStorage.getItem(AUTH_CONFIG.tokenKey);
@@ -51,7 +62,7 @@ export function useAuth() {
 
         if (!token) {
           // No token → definitely logged out
-          setState(prev => ({ ...prev, isLoading: false }));
+          if (!cancelled) setState(prev => ({ ...prev, isLoading: false }));
           return;
         }
 
@@ -65,27 +76,37 @@ export function useAuth() {
           );
 
           const storedCompany = authService.current.getStoredCompany();
+          const storedImpersonation = authService.current.getStoredImpersonation();
 
-          setState(prev => ({
-            ...prev,
-            user: storedUser,
-            roles: transformedRolesFromStorage,
-            permissions: storedUser.permissions || [],
-            token,
-            company: storedCompany,
-            isAuthenticated: true,
-            isLoading: false,
-            lastActivity: Date.now(),
-          }));
+          if (!cancelled) {
+            setState(prev => ({
+              ...prev,
+              user: storedUser,
+              roles: transformedRolesFromStorage,
+              permissions: storedUser.permissions || [],
+              token,
+              company: storedCompany,
+              impersonation: storedImpersonation?.active ? storedImpersonation : null,
+              isAuthenticated: true,
+              isLoading: false,
+              lastActivity: Date.now(),
+            }));
+          }
         } else {
           // We have a token but no cached user – still mark as loading while we fetch
-          setState(prev => ({ ...prev, isLoading: true, token }));
+          if (!cancelled) setState(prev => ({ ...prev, isLoading: true, token }));
         }
 
         // Try to fetch the latest user data from the API so that
         // any role/permission changes made after login are respected.
         try {
-          const { user: currentUser, dashboardLayout, company } = await authService.current.getCurrentUser();
+          const { user: currentUser, dashboardLayout, company, impersonation } = await authService.current.getCurrentUser();
+
+          // If another flow (impersonation) replaced the token while we were fetching, abort.
+          const tokenNow = localStorage.getItem(AUTH_CONFIG.tokenKey);
+          if (cancelled || !tokenNow || tokenNow !== token) {
+            return;
+          }
 
           // Normalize roles & permissions from API
           const transformedRoles = (currentUser.roles || []).map((r: any) =>
@@ -104,48 +125,63 @@ export function useAuth() {
               roles: transformedRoles,
               permissions: transformedPermissions,
             },
-            token,
+            token: tokenNow,
             roles: transformedRoles,
             permissions: transformedPermissions,
             company,
+            impersonation: impersonation?.active ? impersonation : null,
           });
 
-          setState(prev => ({
-            ...prev,
-            user: {
-              ...currentUser,
+          if (!cancelled) {
+            setState(prev => ({
+              ...prev,
+              user: {
+                ...currentUser,
+                roles: transformedRoles,
+                permissions: transformedPermissions,
+              },
               roles: transformedRoles,
               permissions: transformedPermissions,
-            },
-            roles: transformedRoles,
-            permissions: transformedPermissions,
-            token,
-            company,
-            isAuthenticated: true,
-            isLoading: false,
-            lastActivity: Date.now(),
-            dashboardLayout,
-          }));
+              token: tokenNow,
+              company,
+              impersonation: impersonation?.active ? impersonation : null,
+              isAuthenticated: true,
+              isLoading: false,
+              lastActivity: Date.now(),
+              dashboardLayout,
+            }));
+          }
         } catch (fetchError: any) {
           // If token is invalid/expired, clear auth; otherwise just stop loading.
           console.error('Failed to refresh current user data:', fetchError);
+
+          const tokenNow = localStorage.getItem(AUTH_CONFIG.tokenKey);
+          if (cancelled || (tokenNow && tokenNow !== token)) {
+            return;
+          }
 
           const status = (fetchError && fetchError.status) || (fetchError && fetchError.statusCode);
           if (status === 401) {
             localStorage.removeItem(AUTH_CONFIG.tokenKey);
             localStorage.removeItem(AUTH_CONFIG.userKey);
-            setState(prev => ({
-              ...prev,
-              user: null,
-              roles: [],
-              permissions: [],
-              token: null,
-              isAuthenticated: false,
-              isLoading: false,
-              lastActivity: 0,
-              dashboardLayout: 'top_nav',
-            }));
-          } else {
+            localStorage.removeItem(AUTH_CONFIG.companyKey);
+            localStorage.removeItem(AUTH_CONFIG.impersonationKey);
+            if (!cancelled) {
+              setState(prev => ({
+                ...prev,
+                user: null,
+                roles: [],
+                permissions: [],
+                token: null,
+                company: null,
+                impersonation: null,
+                isAuthenticated: false,
+                isLoading: false,
+                lastActivity: 0,
+                dashboardLayout: 'top_nav',
+              }));
+            }
+          } else if (!cancelled) {
             setState(prev => ({
               ...prev,
               isLoading: false,
@@ -156,12 +192,13 @@ export function useAuth() {
         // If parsing fails, clear and set to logged out state
         localStorage.removeItem(AUTH_CONFIG.tokenKey);
         localStorage.removeItem(AUTH_CONFIG.userKey);
-        setState(prev => ({ ...prev, isLoading: false }));
+        if (!cancelled) setState(prev => ({ ...prev, isLoading: false }));
       }
     };
 
     bootstrapAuthState().catch((err) => {
       console.error('Auth bootstrap failed:', err);
+      if (cancelled) return;
       localStorage.removeItem(AUTH_CONFIG.tokenKey);
       localStorage.removeItem(AUTH_CONFIG.userKey);
       setState(prev => ({
@@ -175,6 +212,10 @@ export function useAuth() {
         lastActivity: 0,
       }));
     });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Cross-tab synchronization
@@ -426,6 +467,8 @@ export function useAuth() {
       roles: [],
       permissions: [],
       token: null,
+      company: null,
+      impersonation: null,
       isAuthenticated: false,
       isLoading: false,
       error: null,
@@ -435,6 +478,128 @@ export function useAuth() {
     
     router.push('/home');
   }, [router]);
+
+  const applySession = useCallback((
+    authData: {
+      user: User;
+      token: string;
+      roles: any[];
+      permissions: any[];
+      company?: any;
+      dashboardLayout?: DashboardLayout;
+      impersonation?: ImpersonationInfo | null;
+    },
+    redirectTo?: string,
+    options?: { hardNavigate?: boolean }
+  ) => {
+    authService.current.storeAuthData({
+      user: authData.user,
+      token: authData.token,
+      roles: authData.roles,
+      permissions: authData.permissions,
+      company: authData.company ?? null,
+      impersonation: authData.impersonation?.active ? authData.impersonation : null,
+    });
+
+    setState(prev => ({
+      ...prev,
+      user: authData.user,
+      roles: authData.roles,
+      permissions: authData.permissions,
+      token: authData.token,
+      company: authData.company ?? prev.company,
+      impersonation: authData.impersonation?.active ? authData.impersonation : null,
+      isAuthenticated: true,
+      isLoading: false,
+      lastActivity: Date.now(),
+      dashboardLayout: authData.dashboardLayout || prev.dashboardLayout,
+      error: null,
+    }));
+
+    if (redirectTo) {
+      if (options?.hardNavigate && typeof window !== 'undefined') {
+        window.location.assign(redirectTo);
+      } else {
+        router.push(redirectTo);
+      }
+    }
+  }, [router]);
+
+  const startImpersonation = useCallback(async (userId: number) => {
+    setState(prev => ({ ...prev, isLoading: true, error: null }));
+    try {
+      const authData = await authService.current.startImpersonation(userId);
+      // Hard navigate so AuthProvider remounts cleanly with the impersonation JWT
+      // (soft client nav can leave guards stuck on a stale loading/auth race).
+      applySession(authData, '/dashboard', { hardNavigate: true });
+    } catch (error) {
+      setState(prev => ({ ...prev, isLoading: false }));
+      throw error;
+    }
+  }, [applySession]);
+
+  const stopImpersonation = useCallback(async () => {
+    setState(prev => ({ ...prev, isLoading: true, error: null }));
+    try {
+      const result = await authService.current.stopImpersonation();
+
+      if ('platform' in result && result.platform) {
+        authService.current.clearAuthData();
+        setState({
+          user: null,
+          roles: [],
+          permissions: [],
+          token: null,
+          company: null,
+          impersonation: null,
+          isAuthenticated: false,
+          isLoading: false,
+          error: null,
+          lastActivity: 0,
+          dashboardLayout: 'top_nav',
+        });
+        if (typeof window !== 'undefined') {
+          window.location.assign('/login');
+        } else {
+          router.push('/login');
+        }
+        return;
+      }
+
+      applySession(result as any, '/dashboard', { hardNavigate: true });
+    } catch (error) {
+      setState(prev => ({ ...prev, isLoading: false }));
+      throw error;
+    }
+  }, [applySession, router]);
+
+  const applyImpersonationToken = useCallback(async (token: string) => {
+    // Install token and clear stale cached identity so the next bootstrapped
+    // /auth/me fetch is authoritative for the impersonation session.
+    localStorage.setItem(AUTH_CONFIG.tokenKey, token);
+    localStorage.removeItem(AUTH_CONFIG.userKey);
+    localStorage.removeItem(AUTH_CONFIG.companyKey);
+    localStorage.removeItem(AUTH_CONFIG.impersonationKey);
+
+    const { user: currentUser, dashboardLayout, company, impersonation } = await authService.current.getCurrentUser();
+    const transformedRoles = (currentUser.roles || []).map((r: any) =>
+      typeof r === 'string' ? { id: 0, name: r, description: '' } : r
+    );
+    const transformedPermissions =
+      currentUser.permissions?.map((p: any) =>
+        typeof p === 'string' ? { id: 0, name: p, display_name: p } : p
+      ) || [];
+
+    applySession({
+      user: { ...currentUser, roles: transformedRoles, permissions: transformedPermissions },
+      token,
+      roles: transformedRoles,
+      permissions: transformedPermissions,
+      company,
+      dashboardLayout,
+      impersonation: impersonation?.active ? impersonation : { active: true, platform: true },
+    }, '/dashboard', { hardNavigate: true });
+  }, [applySession]);
 
   const clearError = useCallback(() => {
     setState(prev => ({ ...prev, error: null }));
@@ -487,7 +652,7 @@ export function useAuth() {
     const token = localStorage.getItem(AUTH_CONFIG.tokenKey);
     if (!token) return;
 
-    const { user: currentUser, dashboardLayout, company } = await authService.current.getCurrentUser();
+    const { user: currentUser, dashboardLayout, company, impersonation } = await authService.current.getCurrentUser();
     const transformedRoles = (currentUser.roles || []).map((r: any) =>
       typeof r === 'string' ? { id: 0, name: r, description: '' } : r
     );
@@ -496,12 +661,22 @@ export function useAuth() {
         typeof p === 'string' ? { id: 0, name: p, display_name: p } : p
       ) || [];
 
+    authService.current.storeAuthData({
+      user: { ...currentUser, roles: transformedRoles, permissions: transformedPermissions },
+      token,
+      roles: transformedRoles,
+      permissions: transformedPermissions,
+      company,
+      impersonation: impersonation ?? { active: false },
+    });
+
     setState(prev => ({
       ...prev,
       user: { ...currentUser, roles: transformedRoles, permissions: transformedPermissions },
       roles: transformedRoles,
       permissions: transformedPermissions,
       company,
+      impersonation: impersonation?.active ? impersonation : null,
       dashboardLayout,
       lastActivity: Date.now(),
     }));
@@ -518,6 +693,9 @@ export function useAuth() {
     checkRole,
     setDashboardLayout,
     refreshSession,
+    startImpersonation,
+    stopImpersonation,
+    applyImpersonationToken,
   };
 }
 

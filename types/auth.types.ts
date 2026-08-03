@@ -67,12 +67,24 @@ export interface ResetPasswordCredentials {
   password_confirmation: string;
 }
 
+export interface ImpersonationInfo {
+  active: boolean;
+  platform?: boolean;
+  impersonator?: {
+    id: number;
+    name: string;
+    email: string;
+    type?: string;
+  } | null;
+}
+
 export interface AuthData {
   user: User;
   token: string;
   roles: Role[];
   permissions: Permission[];
   company?: TenantCompany | null;
+  impersonation?: ImpersonationInfo | null;
 }
 
 export interface AuthState {
@@ -86,6 +98,7 @@ export interface AuthState {
   error: string | null;
   lastActivity: number;
   dashboardLayout: DashboardLayout;
+  impersonation: ImpersonationInfo | null;
 }
 
 export interface AuthContextType extends AuthState {
@@ -98,4 +111,7 @@ export interface AuthContextType extends AuthState {
   checkRole: (role: string) => boolean;
   setDashboardLayout: (layout: DashboardLayout) => void;
   refreshSession: () => Promise<void>;
+  startImpersonation: (userId: number) => Promise<void>;
+  stopImpersonation: () => Promise<void>;
+  applyImpersonationToken: (token: string) => Promise<void>;
 }

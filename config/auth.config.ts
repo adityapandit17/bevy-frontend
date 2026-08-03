@@ -14,12 +14,15 @@ export const AUTH_CONFIG = {
     ACCEPT_INVITATION: '/api/v1/auth/accept_invitation',
     FORGOT_PASSWORD: '/api/v1/auth/forgot_password',
     RESET_PASSWORD: '/api/v1/auth/reset_password',
+    IMPERSONATE: '/api/v1/auth/impersonate',
+    STOP_IMPERSONATION: '/api/v1/auth/stop_impersonation',
   },
   
   // Local storage keys
   tokenKey: 'hrms_auth_token',
   userKey: 'hrms_auth_user',
   companyKey: 'hrms_auth_company',
+  impersonationKey: 'hrms_auth_impersonation',
   
   // Token settings
   TOKEN_REFRESH_THRESHOLD: 5 * 60 * 1000, // 5 minutes
@@ -41,4 +44,6 @@ export const API_ENDPOINTS = {
   ACCEPT_INVITATION: `${AUTH_CONFIG.API_BASE_URL}${AUTH_CONFIG.ENDPOINTS.ACCEPT_INVITATION}`,
   FORGOT_PASSWORD: `${AUTH_CONFIG.API_BASE_URL}${AUTH_CONFIG.ENDPOINTS.FORGOT_PASSWORD}`,
   RESET_PASSWORD: `${AUTH_CONFIG.API_BASE_URL}${AUTH_CONFIG.ENDPOINTS.RESET_PASSWORD}`,
+  IMPERSONATE: `${AUTH_CONFIG.API_BASE_URL}${AUTH_CONFIG.ENDPOINTS.IMPERSONATE}`,
+  STOP_IMPERSONATION: `${AUTH_CONFIG.API_BASE_URL}${AUTH_CONFIG.ENDPOINTS.STOP_IMPERSONATION}`,
 } as const;

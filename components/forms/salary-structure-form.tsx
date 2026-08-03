@@ -37,6 +37,8 @@ export function SalaryStructureForm({ onClose, onSubmit, employees = [], departm
     incomeTax: "",
     effective_from: initialData?.effective_from || "",
     effective_upto: initialData?.effective_upto || "",
+    revision_type: initialData?.revision_type || "appraisal",
+    notes: initialData?.notes || "",
   })
   const [departmentOptions, setDepartmentOptions] = useState<any[]>(Array.isArray(departments) ? departments : [])
   const [employeeOptions, setEmployeeOptions] = useState<any[]>(Array.isArray(employees) ? employees : [])
@@ -106,6 +108,8 @@ export function SalaryStructureForm({ onClose, onSubmit, employees = [], departm
           incomeTax: incomeTax || prev.incomeTax,
           effective_from: initialData.effective_from || prev.effective_from,
           effective_upto: initialData.effective_upto || prev.effective_upto,
+          revision_type: initialData.revision_type || prev.revision_type || "appraisal",
+          notes: initialData.notes || prev.notes || "",
         }
       })
     }
@@ -192,6 +196,17 @@ export function SalaryStructureForm({ onClose, onSubmit, employees = [], departm
 
     // Check for overlaps with existing structures
     for (const existing of existingStructures) {
+      // Creating a new revision that starts after an open-ended structure is allowed —
+      // the backend closes the previous period automatically.
+      if (
+        !isEditMode &&
+        !existing.effective_upto &&
+        formData.effective_from &&
+        new Date(formData.effective_from) > new Date(existing.effective_from)
+      ) {
+        continue
+      }
+
       if (periodsOverlap(
         formData.effective_from,
         formData.effective_upto || null,
@@ -245,6 +260,8 @@ export function SalaryStructureForm({ onClose, onSubmit, employees = [], departm
       monthlyCtc: String(calculatedMonthlyCtc.toFixed(2)),
       effective_from: formData.effective_from,
       effective_upto: formData.effective_upto,
+      revision_type: formData.revision_type || "appraisal",
+      notes: formData.notes || "",
     }
     
     try {
@@ -400,6 +417,34 @@ export function SalaryStructureForm({ onClose, onSubmit, employees = [], departm
                     onChange={(v) => handleChange("effective_upto", v)}
                   />
                 </div>
+                <div>
+                  <Label htmlFor="revision_type">Revision Type *</Label>
+                  <Select
+                    value={formData.revision_type}
+                    onValueChange={(value) => handleChange("revision_type", value)}
+                    required
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="joining">Joining</SelectItem>
+                      <SelectItem value="appraisal">Appraisal</SelectItem>
+                      <SelectItem value="promotion">Promotion</SelectItem>
+                      <SelectItem value="correction">Correction</SelectItem>
+                      <SelectItem value="adjustment">Adjustment</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="notes">Appraisal Notes</Label>
+                <Input
+                  id="notes"
+                  value={formData.notes}
+                  onChange={(e) => handleChange("notes", e.target.value)}
+                  placeholder="e.g. Annual appraisal FY25–26, 12% hike"
+                />
               </div>
             </div>
 

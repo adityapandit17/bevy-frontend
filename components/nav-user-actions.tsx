@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Bell, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -13,10 +14,17 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { NotificationsDropdown } from "@/components/notifications-dropdown"
 import { useAuthContext } from "@/lib/auth"
+import { ImpersonateUserDialog } from "@/components/forms/impersonate-user-dialog"
 
 export function NavUserActions() {
   const router = useRouter()
-  const { user, logout } = useAuthContext()
+  const { user, logout, checkRole, company, impersonation } = useAuthContext()
+  const [impersonateOpen, setImpersonateOpen] = useState(false)
+
+  const canImpersonate =
+    checkRole("Super Admin") &&
+    company?.feature_flags?.impersonation === true &&
+    !impersonation?.active
 
   const handleLogout = async () => {
     await logout()
@@ -45,12 +53,27 @@ export function NavUserActions() {
           <DropdownMenuItem onClick={() => router.push("/profile")}>Profile</DropdownMenuItem>
           <DropdownMenuItem onClick={() => router.push("/user-settings")}>Settings</DropdownMenuItem>
           <DropdownMenuItem onClick={() => router.push("/helpdesk")}>Help & Support</DropdownMenuItem>
+          {canImpersonate && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onSelect={(e) => {
+                  e.preventDefault()
+                  setTimeout(() => setImpersonateOpen(true), 0)
+                }}
+              >
+                Impersonate user…
+              </DropdownMenuItem>
+            </>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem className="text-red-600" onClick={handleLogout}>
             Sign out
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <ImpersonateUserDialog open={impersonateOpen} onClose={() => setImpersonateOpen(false)} />
     </div>
   )
 }

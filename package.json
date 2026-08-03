@@ -5,9 +5,9 @@
   "scripts": {
     "build": "next build",
     "analyze": "ANALYZE=true next build",
-    "dev": "next dev",
-    "dev:3001": "PORT=3001 next dev",
-    "dev:e2e": "PORT=${PORT:-3101} next dev",
+    "dev": "NEXT_TELEMETRY_DISABLED=1 next dev",
+    "dev:3001": "NEXT_TELEMETRY_DISABLED=1 PORT=3001 next dev",
+    "dev:e2e": "NEXT_TELEMETRY_DISABLED=1 PORT=${PORT:-3101} next dev",
     "lint": "eslint .",
     "start": "next start",
     "prepare": "bash bin/install-githooks",

@@ -1,6 +1,5 @@
 import type React from "react"
 import type { Metadata, Viewport } from "next"
-import { Inter } from "next/font/google"
 import "./globals.css"
 import { cn } from "@/lib/utils"
 import { LoginLayout } from "@/components/login-layout"
@@ -8,8 +7,6 @@ import { AuthProvider } from "@/lib/auth"
 import { Toaster } from "@/components/ui/toaster"
 import { ErrorSuppressor } from "@/components/error-suppressor"
 import { CallProviderRoot } from "@/components/call-provider-root"
-
-const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
   title: "BevyHR - Human Resource Management System",
@@ -37,7 +34,7 @@ export default function RootLayout({
       <head>
         <link rel="preload" as="image" href="/bevyhr-logo.webp" type="image/webp" />
       </head>
-      <body className={cn("min-h-screen font-sans antialiased", inter.className)}>
+      <body className={cn("min-h-screen font-sans antialiased")}>
         <ErrorSuppressor />
         <AuthProvider>
           <CallProviderRoot>

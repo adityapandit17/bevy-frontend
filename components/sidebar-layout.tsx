@@ -4,6 +4,7 @@ import { AppSidebar } from "@/components/sidebar"
 import { MobileNav } from "@/components/mobile-nav"
 import { NavUserActions } from "@/components/nav-user-actions"
 import { TrialBanner } from "@/components/trial-banner"
+import { ImpersonationBanner } from "@/components/impersonation-banner"
 import { EmployeeMobileShell } from "@/components/layout/employee-mobile-shell"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { useEmployeeMobileExperience } from "@/lib/auth/use-employee-mobile"
@@ -29,6 +30,7 @@ export function SidebarLayout({ children }: SidebarLayoutProps) {
           <div className="flex-1" />
           <NavUserActions />
         </header>
+        <ImpersonationBanner />
         <TrialBanner />
         <main className="hrms-app-main">
           <EmployeeMobileShell>{children}</EmployeeMobileShell>

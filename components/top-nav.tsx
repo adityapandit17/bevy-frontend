@@ -36,6 +36,7 @@ import { cn } from "@/lib/utils"
 import { useAuthContext } from "@/lib/auth"
 import { NotificationsDropdown } from "@/components/notifications-dropdown"
 import { BrandLogoLink } from "@/components/brand-logo-link"
+import { ImpersonateUserDialog } from "@/components/forms/impersonate-user-dialog"
 
 type NavItem = {
   title: string
@@ -128,7 +129,12 @@ export function TopNav() {
   const [isNavExpanded, setIsNavExpanded] = useState(false)
   const pathname = usePathname()
   const router = useRouter()
-  const { user, logout, permissions, roles } = useAuthContext()
+  const { user, logout, permissions, roles, checkRole, company, impersonation } = useAuthContext()
+  const [impersonateOpen, setImpersonateOpen] = useState(false)
+  const canImpersonate =
+    checkRole("Super Admin") &&
+    company?.feature_flags?.impersonation === true &&
+    !impersonation?.active
 
   const userResources = React.useMemo(() => {
     
@@ -262,10 +268,25 @@ export function TopNav() {
                 <DropdownMenuItem onClick={() => router.push('/helpdesk')}>
                   Help & Support
                 </DropdownMenuItem>
+                {canImpersonate && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onSelect={(e) => {
+                        e.preventDefault()
+                        setTimeout(() => setImpersonateOpen(true), 0)
+                      }}
+                    >
+                      Impersonate user…
+                    </DropdownMenuItem>
+                  </>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem className="text-red-600" onClick={handleLogout}>Sign out</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+
+            <ImpersonateUserDialog open={impersonateOpen} onClose={() => setImpersonateOpen(false)} />
 
             {/* Mobile menu button */}
             <Button

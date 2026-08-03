@@ -6,6 +6,7 @@ import { TopNav } from "@/components/top-nav"
 import { SidebarLayout } from "@/components/sidebar-layout"
 import { AuthGuard, SubscriptionGuard } from "@/lib/auth"
 import { TrialBanner } from "@/components/trial-banner"
+import { ImpersonationBanner } from "@/components/impersonation-banner"
 import { EmployeeMobileShell } from "@/components/layout/employee-mobile-shell"
 
 interface LoginLayoutProps {
@@ -28,6 +29,7 @@ export function LoginLayout({ children }: LoginLayoutProps) {
   const isBillingPage = pathname === "/billing"
   const isRootPage = pathname === "/"
   const isCareersPage = pathname?.startsWith("/careers")
+  const isImpersonationAcceptPage = pathname === "/impersonation/accept"
   const isPublicPage =
     isLoginPage ||
     isAcceptInvitationPage ||
@@ -39,7 +41,8 @@ export function LoginLayout({ children }: LoginLayoutProps) {
     isTermsPage ||
     isPrivacyPage ||
     isRootPage ||
-    isCareersPage
+    isCareersPage ||
+    isImpersonationAcceptPage
 
   if (isPublicPage) {
     return <>{children}</>
@@ -95,6 +98,7 @@ export function LoginLayout({ children }: LoginLayoutProps) {
       <SubscriptionGuard>
         <TopNav />
         <div className="pt-16 min-h-screen flex flex-col bg-gray-50 overflow-x-hidden">
+          <ImpersonationBanner />
           <TrialBanner />
           <main className="hrms-app-main">
             <EmployeeMobileShell>{children}</EmployeeMobileShell>

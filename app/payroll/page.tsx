@@ -751,6 +751,8 @@ export default function PayrollPage() {
           monthly_ctc: Number(formData.monthlyCtc || 0),
           effective_from: formData.effective_from,
           effective_upto: formData.effective_upto || null,
+          revision_type: formData.revision_type || "appraisal",
+          notes: formData.notes || null,
         }
       }
 

@@ -129,6 +129,8 @@ interface TimeOff {
 
 interface PayInfo {
   basicSalary: number
+  annualCtc?: number
+  monthlyCtc?: number
   allowances: {
     housing: number
     transport: number
@@ -150,6 +152,22 @@ interface PayInfo {
   paySchedule: string
   lastPayDate: string
   nextPayDate: string
+  salaryHistory?: {
+    id: string
+    revisionType: string
+    revisionTypeLabel: string
+    effectiveFrom: string
+    effectiveUpto: string | null
+    basic: number
+    annualCtc: number
+    monthlyCtc: number
+    previousAnnualCtc: number | null
+    changeAmount: number | null
+    changePercent: number | null
+    notes: string
+    level: string
+    createdBy: string
+  }[]
 }
 
 interface Document {
@@ -658,6 +676,7 @@ export default function EmployeeProfilePage() {
           {tabBusy && !payInfo ? (
             <p className="text-sm text-gray-500">Loading pay information...</p>
           ) : payInfo ? (
+            <>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <Card>
                 <CardHeader>
@@ -671,6 +690,19 @@ export default function EmployeeProfilePage() {
                     <p className="text-sm font-medium text-gray-600">Basic Salary</p>
                     <p className="text-2xl font-bold text-gray-900">₹{payInfo?.basicSalary?.toLocaleString?.() || 0}</p>
                   </div>
+
+                  {(payInfo.annualCtc || payInfo.monthlyCtc) ? (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-sm font-medium text-gray-600">Annual CTC</p>
+                        <p className="text-lg font-semibold text-gray-900">₹{(payInfo.annualCtc || 0).toLocaleString()}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-600">Monthly CTC</p>
+                        <p className="text-lg font-semibold text-gray-900">₹{(payInfo.monthlyCtc || 0).toLocaleString()}</p>
+                      </div>
+                    </div>
+                  ) : null}
                   
                   <Separator />
 
@@ -757,6 +789,96 @@ export default function EmployeeProfilePage() {
                 </CardContent>
               </Card>
             </div>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5" />
+                  Salary Appraisal History
+                </CardTitle>
+                <CardDescription>
+                  Compensation revisions for this employee, newest first
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {payInfo.salaryHistory && payInfo.salaryHistory.length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Effective</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Annual CTC</TableHead>
+                        <TableHead>Change</TableHead>
+                        <TableHead>Basic</TableHead>
+                        <TableHead>Notes</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {payInfo.salaryHistory.map((row) => {
+                        const change = row.changeAmount
+                        const changePositive = change !== null && change > 0
+                        const changeNegative = change !== null && change < 0
+                        return (
+                          <TableRow key={row.id}>
+                            <TableCell>
+                              <div className="text-sm font-medium">
+                                {row.effectiveFrom
+                                  ? new Date(row.effectiveFrom).toLocaleDateString()
+                                  : "—"}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {row.effectiveUpto
+                                  ? `to ${new Date(row.effectiveUpto).toLocaleDateString()}`
+                                  : "Ongoing"}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="secondary">{row.revisionTypeLabel}</Badge>
+                            </TableCell>
+                            <TableCell className="font-medium">
+                              ₹{row.annualCtc.toLocaleString()}
+                            </TableCell>
+                            <TableCell>
+                              {change === null ? (
+                                <span className="text-muted-foreground text-sm">—</span>
+                              ) : (
+                                <div
+                                  className={
+                                    changePositive
+                                      ? "text-green-600 text-sm font-medium"
+                                      : changeNegative
+                                        ? "text-red-600 text-sm font-medium"
+                                        : "text-sm text-muted-foreground"
+                                  }
+                                >
+                                  {changePositive ? "+" : ""}
+                                  ₹{change.toLocaleString()}
+                                  {row.changePercent !== null ? (
+                                    <span className="block text-xs">
+                                      ({changePositive ? "+" : ""}
+                                      {row.changePercent}%)
+                                    </span>
+                                  ) : null}
+                                </div>
+                              )}
+                            </TableCell>
+                            <TableCell>₹{row.basic.toLocaleString()}</TableCell>
+                            <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">
+                              {row.notes || "—"}
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No salary appraisal history yet. Add a salary structure from Payroll to start the timeline.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+            </>
           ) : (
             <p className="text-sm text-gray-500">No pay information available.</p>
           )}

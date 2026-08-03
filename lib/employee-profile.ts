@@ -99,10 +99,45 @@ export function mapPayInfo(data: Record<string, unknown> | null) {
   const insurance = Number(structure.esi ?? 0)
   const pension = Number(structure.pf ?? 0)
   const otherDeduction = Number(structure.professional_tax ?? structure.deductions ?? 0)
-  const net = Number(structure.monthly_ctc ?? data.current_salary ?? basic + hra + allowances + bonus - tax - insurance - pension - otherDeduction)
+  const net = Number(
+    data.monthly_ctc ??
+      structure.monthly_ctc ??
+      data.current_salary ??
+      basic + hra + allowances + bonus - tax - insurance - pension - otherDeduction
+  )
+
+  const salaryHistory = (Array.isArray(data.salary_history) ? data.salary_history : []).map(
+    (row: Record<string, unknown>) => ({
+      id: String(row.id ?? ""),
+      revisionType: String(row.revision_type ?? "appraisal"),
+      revisionTypeLabel: String(row.revision_type_label ?? row.revision_type ?? "Appraisal"),
+      effectiveFrom: String(row.effective_from ?? ""),
+      effectiveUpto: row.effective_upto ? String(row.effective_upto) : null,
+      basic: Number(row.basic ?? 0),
+      annualCtc: Number(row.annual_ctc ?? 0),
+      monthlyCtc: Number(row.monthly_ctc ?? 0),
+      previousAnnualCtc:
+        row.previous_annual_ctc === null || row.previous_annual_ctc === undefined
+          ? null
+          : Number(row.previous_annual_ctc),
+      changeAmount:
+        row.change_amount === null || row.change_amount === undefined
+          ? null
+          : Number(row.change_amount),
+      changePercent:
+        row.change_percent === null || row.change_percent === undefined
+          ? null
+          : Number(row.change_percent),
+      notes: row.notes ? String(row.notes) : "",
+      level: row.level ? String(row.level) : "",
+      createdBy: row.created_by ? String(row.created_by) : "",
+    })
+  )
 
   return {
     basicSalary: basic,
+    annualCtc: Number(data.annual_ctc ?? structure.annual_ctc ?? 0),
+    monthlyCtc: Number(data.monthly_ctc ?? structure.monthly_ctc ?? net),
     allowances: { housing: hra, transport: 0, meal: allowances, other: bonus },
     deductions: { tax, insurance, pension, other: otherDeduction },
     netSalary: net,
@@ -110,6 +145,7 @@ export function mapPayInfo(data: Record<string, unknown> | null) {
     paySchedule: "Monthly",
     lastPayDate: "",
     nextPayDate: "",
+    salaryHistory,
     payrollHistory: Array.isArray(data.payroll_history) ? data.payroll_history : [],
   }
 }
